@@ -1,0 +1,5 @@
+<meta>
+  <info name="Freeroam" author="GTA Network" version="1.0" type="gamemode" description="Freeroam demo gamemode: vehicles, weapons, teleports, skins, time and weather." />
+  <script src="freeroam.cs" type="server" lang="csharp" />
+  <script src="client.js" type="client" lang="javascript" />
+</meta>

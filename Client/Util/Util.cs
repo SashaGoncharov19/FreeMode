@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -456,31 +456,43 @@ namespace GTANetwork.Util
 
 
 
+        /// <summary>
+        /// Scans GTA5.exe for a byte pattern. <paramref name="bytes"/> holds the bytes (as "\x48\x8B" style chars,
+        /// NUL bytes allowed), <paramref name="mask"/> has an 'x' for every byte that must match and '?' for wildcards.
+        /// Returns IntPtr.Zero when the pattern does not exist in this game build; callers must check for that.
+        /// </summary>
         public static unsafe IntPtr FindPattern(string bytes, string mask)
         {
-            var patternPtr = Marshal.StringToHGlobalAnsi(bytes);
-            var maskPtr = Marshal.StringToHGlobalAnsi(bytes);
+            if (string.IsNullOrEmpty(bytes) || string.IsNullOrEmpty(mask) || mask.Length > bytes.Length)
+            {
+                LogManager.DebugLog("FINDPATTERN: invalid pattern/mask");
+                return IntPtr.Zero;
+            }
 
-            IntPtr output;
+            // Marshal the pattern byte by byte: StringToHGlobalAnsi would stop at the first \0.
+            var patternPtr = Marshal.AllocHGlobal(mask.Length + 1);
+            var maskPtr = Marshal.StringToHGlobalAnsi(mask);
 
             try
             {
-                output =
-                    new IntPtr(
-                        unchecked(
-                            (long)
-                                MemoryAccess.FindPattern(
-                                    (sbyte*)patternPtr.ToPointer(),
-                                    (sbyte*)patternPtr.ToPointer()
-                                    )));
+                var patternBytes = (byte*)patternPtr.ToPointer();
+                for (int i = 0; i < mask.Length; i++) patternBytes[i] = unchecked((byte)bytes[i]);
+                patternBytes[mask.Length] = 0;
+
+                var result = new IntPtr(unchecked((long)MemoryAccess.FindPattern((sbyte*)patternPtr.ToPointer(), (sbyte*)maskPtr.ToPointer())));
+
+                if (result == IntPtr.Zero)
+                {
+                    LogManager.DebugLog("FINDPATTERN: pattern not found in this game build (mask " + mask + ")");
+                }
+
+                return result;
             }
             finally
             {
                 Marshal.FreeHGlobal(patternPtr);
                 Marshal.FreeHGlobal(maskPtr);
             }
-
-            return output;
         }
 
         private static int _idX;

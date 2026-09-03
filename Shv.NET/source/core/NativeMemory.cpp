@@ -95,6 +95,7 @@ namespace GTA
 				{
 					if (_posCheck)
 					{
+						if (MemoryAccess::_entityPositionFunc == nullptr) return false;
 						float position[3];
 						MemoryAccess::_entityPositionFunc(address, position);
 
@@ -106,6 +107,7 @@ namespace GTA
 
 					if (_modelCheck)
 					{
+						if (MemoryAccess::_entityModel1Func == nullptr || MemoryAccess::_entityModel2Func == nullptr) return false;
 						UINT32 v0 = *reinterpret_cast<UINT32 *>(MemoryAccess::_entityModel1Func(*reinterpret_cast<UINT64 *>(address + 32)));
 						UINT32 v1 = v0 & 0xFFFF;
 						UINT32 v2 = ((v1 ^ v0) & 0x0FFF0000 ^ v1) & 0xDFFFFFFF;
@@ -132,7 +134,7 @@ namespace GTA
 
 				virtual void Run()
 				{
-					if(*MemoryAccess::_entityPoolAddress == 0)
+					if(MemoryAccess::_entityPoolAddress == nullptr || MemoryAccess::_addEntityToPoolFunc == nullptr || *MemoryAccess::_entityPoolAddress == 0)
 					{
 						return;
 					}
@@ -140,7 +142,7 @@ namespace GTA
 	
 					if(_type.HasFlag(Type::Vehicle))
 					{
-						if(*MemoryAccess::_vehiclePoolAddress)
+						if(MemoryAccess::_vehiclePoolAddress != nullptr && *MemoryAccess::_vehiclePoolAddress)
 						{
 							VehiclePool* vehiclePool = *reinterpret_cast<VehiclePool**>(*MemoryAccess::_vehiclePoolAddress);
 
@@ -163,7 +165,7 @@ namespace GTA
 					}
 					if(_type.HasFlag(Type::Ped))
 					{
-						if(*MemoryAccess::_pedPoolAddress)
+						if(MemoryAccess::_pedPoolAddress != nullptr && *MemoryAccess::_pedPoolAddress)
 						{
 							GenericPool* pedPool = reinterpret_cast<GenericPool*>(*MemoryAccess::_pedPoolAddress);
 
@@ -186,7 +188,7 @@ namespace GTA
 					}
 					if(_type.HasFlag(Type::Object))
 					{
-						if(*MemoryAccess::_objectPoolAddress)
+						if(MemoryAccess::_objectPoolAddress != nullptr && *MemoryAccess::_objectPoolAddress)
 						{
 							GenericPool* propPool = reinterpret_cast<GenericPool*>(*MemoryAccess::_objectPoolAddress);
 							
@@ -209,7 +211,7 @@ namespace GTA
 					}
 					if(_type.HasFlag(Type::PickupObject))
 					{
-						if(*MemoryAccess::_pickupObjectPoolAddress)
+						if(MemoryAccess::_pickupObjectPoolAddress != nullptr && *MemoryAccess::_pickupObjectPoolAddress)
 						{
 							GenericPool* pickupPool = reinterpret_cast<GenericPool*>(*MemoryAccess::_pickupObjectPoolAddress);
 
@@ -382,85 +384,144 @@ namespace GTA
 			};
 		}
 
+		// Every scan goes through here so that a pattern that no longer matches the installed game build is
+		// reported in the log (and counted in MissingPatternCount) instead of crashing the game at startup.
+		static uintptr_t FindPatternChecked(const char *name, const char *pattern, const char *mask)
+		{
+			uintptr_t address = MemoryAccess::FindPattern(pattern, mask);
+
+			if (address == 0)
+			{
+				MemoryAccess::_missingPatterns->Add(gcnew String(name));
+				Log("[ERROR]", "Memory pattern not found in this game build: ", gcnew String(name));
+			}
+
+			return address;
+		}
+
 		static MemoryAccess::MemoryAccess()
 		{
+			_missingPatterns = gcnew List<String ^>();
+
+			MODULEINFO module = { };
+			GetModuleInformation(GetCurrentProcess(), GetModuleHandle(nullptr), &module, sizeof(MODULEINFO));
+			int gameVersion = static_cast<int>(getGameVersion());
+			UInt32 imageSize = module.SizeOfImage;
+			Log("[INFO]", "Scanning GTA5.exe for memory patterns (ScriptHookV game version id ", gameVersion.ToString(), ", image size 0x", imageSize.ToString("X"), ") ...");
+
 			uintptr_t address;
 
 			// Get relative address and add it to the instruction address.
 			// 3 bytes equal the size of the opcode and its first argument. 7 bytes are the length of opcode and all its parameters.
-			address = FindPattern("\xE8\x00\x00\x00\x00\x48\x8B\xD8\x48\x85\xC0\x74\x2E\x48\x83\x3D", "x????xxxxxxxxxxx");
-			_entityAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int*>(address + 1) + address + 5);
-			address = FindPattern("\xB2\x01\xE8\x00\x00\x00\x00\x48\x85\xC0\x74\x1C\x8A\x88", "xxx????xxxxxxx");
-			_playerAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("entity address function", "\xE8\x00\x00\x00\x00\x48\x8B\xD8\x48\x85\xC0\x74\x2E\x48\x83\x3D", "x????xxxxxxxxxxx")) != 0)
+				_entityAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int*>(address + 1) + address + 5);
+			if ((address = FindPatternChecked("player address function", "\xB2\x01\xE8\x00\x00\x00\x00\x48\x85\xC0\x74\x1C\x8A\x88", "xxx????xxxxxxx")) != 0)
+				_playerAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int *>(address + 3) + address + 7);
 
-			address = FindPattern("\x74\x21\x48\x8B\x48\x20\x48\x85\xC9\x74\x18\x48\x8B\xD6\xE8", "xxxxxxxxxxxxxxx") - 10;
-			_ptfxAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int*>(address) + address + 4);
+			if ((address = FindPatternChecked("particle effect address function", "\x74\x21\x48\x8B\x48\x20\x48\x85\xC9\x74\x18\x48\x8B\xD6\xE8", "xxxxxxxxxxxxxxx")) != 0)
+			{
+				address -= 10;
+				_ptfxAddressFunc = reinterpret_cast<uintptr_t(*)(int)>(*reinterpret_cast<int*>(address) + address + 4);
+			}
 
-			address = FindPattern("\x48\xF7\xF9\x49\x8B\x48\x08\x48\x63\xD0\xC1\xE0\x08\x0F\xB6\x1C\x11\x03\xD8", "xxxxxxxxxxxxxxxxxxx");
-			_addEntityToPoolFunc = reinterpret_cast<int(*)(uintptr_t)>(address - 0x68);
+			if ((address = FindPatternChecked("add entity to pool function", "\x48\xF7\xF9\x49\x8B\x48\x08\x48\x63\xD0\xC1\xE0\x08\x0F\xB6\x1C\x11\x03\xD8", "xxxxxxxxxxxxxxxxxxx")) != 0)
+				_addEntityToPoolFunc = reinterpret_cast<int(*)(uintptr_t)>(address - 0x68);
 
-			address = FindPattern("\x48\x8B\xDA\xE8\x00\x00\x00\x00\xF3\x0F\x10\x44\x24", "xxxx????xxxxx");
-			_entityPositionFunc = reinterpret_cast<UINT64(*)(UINT64, float*)>(address - 6);
-			address = FindPattern("\x0F\x85\x00\x00\x00\x00\x48\x8B\x4B\x20\xE8\x00\x00\x00\x00\x48\x8B\xC8", "xx????xxxxx????xxx");
-			_entityModel1Func = reinterpret_cast<UINT64(*)(UINT64)>(*reinterpret_cast<int*>(address + 11) + address + 15);
-			address = FindPattern("\x45\x33\xC9\x3B\x05", "xxxxx");
-			_entityModel2Func = reinterpret_cast<UINT64(*)(UINT64)>(address - 0x46);
+			if ((address = FindPatternChecked("entity position function", "\x48\x8B\xDA\xE8\x00\x00\x00\x00\xF3\x0F\x10\x44\x24", "xxxx????xxxxx")) != 0)
+				_entityPositionFunc = reinterpret_cast<UINT64(*)(UINT64, float*)>(address - 6);
+			if ((address = FindPatternChecked("entity model function 1", "\x0F\x85\x00\x00\x00\x00\x48\x8B\x4B\x20\xE8\x00\x00\x00\x00\x48\x8B\xC8", "xx????xxxxx????xxx")) != 0)
+				_entityModel1Func = reinterpret_cast<UINT64(*)(UINT64)>(*reinterpret_cast<int*>(address + 11) + address + 15);
+			if ((address = FindPatternChecked("entity model function 2", "\x45\x33\xC9\x3B\x05", "xxxxx")) != 0)
+				_entityModel2Func = reinterpret_cast<UINT64(*)(UINT64)>(address - 0x46);
 
-			address = FindPattern("\x4C\x8B\x0D\x00\x00\x00\x00\x44\x8B\xC1\x49\x8B\x41\x08", "xxx????xxxxxxx");
-			_entityPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
-			address = FindPattern("\x48\x8B\x05\x00\x00\x00\x00\xF3\x0F\x59\xF6\x48\x8B\x08", "xxx????xxxxxxx");
-			_vehiclePoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
-			address = FindPattern("\x48\x8B\x05\x00\x00\x00\x00\x41\x0F\xBF\xC8\x0F\xBF\x40\x10", "xxx????xxxxxxxx");
-			_pedPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
-			address = FindPattern("\x48\x8B\x05\x00\x00\x00\x00\x8B\x78\x10\x85\xFF", "xxx????xxxxx");
-			_objectPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
-			address = FindPattern("\x4C\x8B\x05\x00\x00\x00\x00\x40\x8A\xF2\x8B\xE9", "xxx????xxxxx");
-			_pickupObjectPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("entity pool", "\x4C\x8B\x0D\x00\x00\x00\x00\x44\x8B\xC1\x49\x8B\x41\x08", "xxx????xxxxxxx")) != 0)
+				_entityPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("vehicle pool", "\x48\x8B\x05\x00\x00\x00\x00\xF3\x0F\x59\xF6\x48\x8B\x08", "xxx????xxxxxxx")) != 0)
+				_vehiclePoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("ped pool", "\x48\x8B\x05\x00\x00\x00\x00\x41\x0F\xBF\xC8\x0F\xBF\x40\x10", "xxx????xxxxxxxx")) != 0)
+				_pedPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("object pool", "\x48\x8B\x05\x00\x00\x00\x00\x8B\x78\x10\x85\xFF", "xxx????xxxxx")) != 0)
+				_objectPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
+			if ((address = FindPatternChecked("pickup object pool", "\x4C\x8B\x05\x00\x00\x00\x00\x40\x8A\xF2\x8B\xE9", "xxx????xxxxx")) != 0)
+				_pickupObjectPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
 
-			CreateNmMessageFunc = FindPattern("\x33\xDB\x48\x89\x1D\x00\x00\x00\x00\x85\xFF", "xxxxx????xx") - 0x42;
-			GiveNmMessageFunc = FindPattern("\x48\x8b\xc4\x48\x89\x58\x08\x48\x89\x68\x10\x48\x89\x70\x18\x48\x89\x78\x20\x41\x55\x41\x56\x41\x57\x48\x83\xec\x20\xe8\x00\x00\x00\x00\x48\x8b\xd8\x48\x85\xc0\x0f", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx????xxxxxxx");
-			address = FindPattern("\x48\x89\x5C\x24\x00\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x41\x8A\xF8", "xxxx?xxxxxxxxxxxxxxx");
-			SetNmBoolAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, unsigned char)>(address);
-			address = FindPattern("\x40\x53\x48\x83\xEC\x30\x48\x8B\xD9\x48\x63\x49\x0C", "xxxxxxxxxxxxx");
-			SetNmFloatAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, float)>(address);
-			address = FindPattern("\x48\x89\x5C\x24\x00\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x41\x8B\xF8", "xxxx?xxxxxxxxxxxxxxx");
-			SetNmIntAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, int)>(address);
-			address = FindPattern("\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x49\x8B\xE8", "xxxxxxxxxxxxxxx") - 15;
-			SetNmStringAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, __int64)>(address);
-			address = FindPattern("\x40\x53\x48\x83\xEC\x40\x48\x8B\xD9\x48\x63\x49\x0C", "xxxxxxxxxxxxx");
-			SetNmVec3Address = reinterpret_cast<unsigned char(*)(__int64, __int64, float, float, float)>(address);
+			if ((address = FindPatternChecked("euphoria: create message", "\x33\xDB\x48\x89\x1D\x00\x00\x00\x00\x85\xFF", "xxxxx????xx")) != 0)
+				CreateNmMessageFunc = address - 0x42;
+			if ((address = FindPatternChecked("euphoria: give message", "\x48\x8b\xc4\x48\x89\x58\x08\x48\x89\x68\x10\x48\x89\x70\x18\x48\x89\x78\x20\x41\x55\x41\x56\x41\x57\x48\x83\xec\x20\xe8\x00\x00\x00\x00\x48\x8b\xd8\x48\x85\xc0\x0f", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx????xxxxxxx")) != 0)
+				GiveNmMessageFunc = address;
+			if ((address = FindPatternChecked("euphoria: set bool", "\x48\x89\x5C\x24\x00\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x41\x8A\xF8", "xxxx?xxxxxxxxxxxxxxx")) != 0)
+				SetNmBoolAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, unsigned char)>(address);
+			if ((address = FindPatternChecked("euphoria: set float", "\x40\x53\x48\x83\xEC\x30\x48\x8B\xD9\x48\x63\x49\x0C", "xxxxxxxxxxxxx")) != 0)
+				SetNmFloatAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, float)>(address);
+			if ((address = FindPatternChecked("euphoria: set int", "\x48\x89\x5C\x24\x00\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x41\x8B\xF8", "xxxx?xxxxxxxxxxxxxxx")) != 0)
+				SetNmIntAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, int)>(address);
+			if ((address = FindPatternChecked("euphoria: set string", "\x57\x48\x83\xEC\x20\x48\x8B\xD9\x48\x63\x49\x0C\x49\x8B\xE8", "xxxxxxxxxxxxxxx")) != 0)
+			{
+				address -= 15;
+				SetNmStringAddress = reinterpret_cast<unsigned char(*)(__int64, __int64, __int64)>(address);
+			}
+			if ((address = FindPatternChecked("euphoria: set vector", "\x40\x53\x48\x83\xEC\x40\x48\x8B\xD9\x48\x63\x49\x0C", "xxxxxxxxxxxxx")) != 0)
+				SetNmVec3Address = reinterpret_cast<unsigned char(*)(__int64, __int64, float, float, float)>(address);
 
-			address = FindPattern("\x48\x89\x5C\x24\x08\x48\x89\x6C\x24\x18\x89\x54\x24\x10\x56\x57\x41\x56\x48\x83\xEC\x20", "xxxxxxxxxxxxxxxxxxxxxx");
-			GetLabelTextByHashFunc = reinterpret_cast<UINT64(*)(UINT64, int)>(reinterpret_cast<int*>(address));
-			address = FindPattern("\x84\xC0\x74\x34\x48\x8D\x0D\x00\x00\x00\x00\x48\x8B\xD3", "xxxxxxx????xxx");
-			GetLabelTextByHashAddr2 = (*reinterpret_cast<int*>(address + 7) + address + 11);
+			if ((address = FindPatternChecked("GXT label lookup function", "\x48\x89\x5C\x24\x08\x48\x89\x6C\x24\x18\x89\x54\x24\x10\x56\x57\x41\x56\x48\x83\xEC\x20", "xxxxxxxxxxxxxxxxxxxxxx")) != 0)
+				GetLabelTextByHashFunc = reinterpret_cast<UINT64(*)(UINT64, int)>(reinterpret_cast<int*>(address));
+			if ((address = FindPatternChecked("GXT label table", "\x84\xC0\x74\x34\x48\x8D\x0D\x00\x00\x00\x00\x48\x8B\xD3", "xxxxxxx????xxx")) != 0)
+				GetLabelTextByHashAddr2 = (*reinterpret_cast<int*>(address + 7) + address + 11);
 
-			address = FindPattern("\x8A\x4C\x24\x60\x8B\x50\x10\x44\x8A\xCE", "xxxxxxxxxx");
-			CheckpointBaseAddr = reinterpret_cast<UINT64(*)()>(*reinterpret_cast<int*>(address - 19) + address - 15);
-			CheckpointHandleAddr = reinterpret_cast<UINT64(*)(UINT64, int)>(*reinterpret_cast<int*>(address - 9) + address - 5);
-			checkpointPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 17) + address + 21);
+			if ((address = FindPatternChecked("checkpoint pool", "\x8A\x4C\x24\x60\x8B\x50\x10\x44\x8A\xCE", "xxxxxxxxxx")) != 0)
+			{
+				CheckpointBaseAddr = reinterpret_cast<UINT64(*)()>(*reinterpret_cast<int*>(address - 19) + address - 15);
+				CheckpointHandleAddr = reinterpret_cast<UINT64(*)(UINT64, int)>(*reinterpret_cast<int*>(address - 9) + address - 5);
+				checkpointPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 17) + address + 21);
+			}
 
-			address = FindPattern("\x48\x8B\x0B\x33\xD2\xE8\x00\x00\x00\x00\x89\x03", "xxxxxx????xx");
-			_getHashKey = reinterpret_cast<unsigned int(*)(char*, unsigned int)>(*reinterpret_cast<int*>(address + 6) + address + 10);
+			if ((address = FindPatternChecked("get hash key function", "\x48\x8B\x0B\x33\xD2\xE8\x00\x00\x00\x00\x89\x03", "xxxxxx????xx")) != 0)
+				_getHashKey = reinterpret_cast<unsigned int(*)(char*, unsigned int)>(*reinterpret_cast<int*>(address + 6) + address + 10);
 
-			address = FindPattern("\x48\x63\xC1\x48\x8D\x0D\x00\x00\x00\x00\xF3\x0F\x10\x04\x81\xF3\x0F\x11\x05\x00\x00\x00\x00", "xxxxxx????xxxxxxxxx????");
-			_writeWorldGravityAddr = reinterpret_cast<float *>(*reinterpret_cast<int *>(address + 6) + address + 10);
-			_readWorldGravityAddr = reinterpret_cast<float *>(*reinterpret_cast<int *>(address + 19) + address + 23);
+			if ((address = FindPatternChecked("world gravity", "\x48\x63\xC1\x48\x8D\x0D\x00\x00\x00\x00\xF3\x0F\x10\x04\x81\xF3\x0F\x11\x05\x00\x00\x00\x00", "xxxxxx????xxxxxxxxx????")) != 0)
+			{
+				_writeWorldGravityAddr = reinterpret_cast<float *>(*reinterpret_cast<int *>(address + 6) + address + 10);
+				_readWorldGravityAddr = reinterpret_cast<float *>(*reinterpret_cast<int *>(address + 19) + address + 23);
+			}
 
-			address = FindPattern("\x74\x11\x8B\xD1\x48\x8D\x0D\x00\x00\x00\x00\x45\x33\xC0", "xxxxxxx????xxx");
-			_cursorSpriteAddr = reinterpret_cast<int *>(*reinterpret_cast<int*>(address - 4) + address);
+			if ((address = FindPatternChecked("cursor sprite", "\x74\x11\x8B\xD1\x48\x8D\x0D\x00\x00\x00\x00\x45\x33\xC0", "xxxxxxx????xxx")) != 0)
+				_cursorSpriteAddr = reinterpret_cast<int *>(*reinterpret_cast<int*>(address - 4) + address);
 
-			address = FindPattern("\x48\x8B\xC7\xF3\x0F\x10\x0D", "xxxxxxx") - 0x1D;
-			address = address + *reinterpret_cast<int*>(address) + 4;
-			_gamePlayCameraAddr = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address + 3) + address + 7);
-			address = FindPattern("\x48\x8B\xC8\xEB\x02\x33\xC9\x48\x85\xC9\x74\x26", "xxxxxxxxxxxx") - 9;
-			_cameraPoolAddress = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address) + address + 4);
+			if ((address = FindPatternChecked("gameplay camera", "\x48\x8B\xC7\xF3\x0F\x10\x0D", "xxxxxxx")) != 0)
+			{
+				address -= 0x1D;
+				address = address + *reinterpret_cast<int*>(address) + 4;
+				_gamePlayCameraAddr = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address + 3) + address + 7);
+			}
+			if ((address = FindPatternChecked("camera pool", "\x48\x8B\xC8\xEB\x02\x33\xC9\x48\x85\xC9\x74\x26", "xxxxxxxxxxxx")) != 0)
+			{
+				address -= 9;
+				_cameraPoolAddress = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address) + address + 4);
+			}
 
 			GenerateVehicleModelList();
 
 			_cellEmailBconPtr = IntPtr((void*)_cellEmailBcon);
 			_stringPtr = IntPtr((void*)_string);
 			_nullString = IntPtr((void*)_nullStr);
+
+			if (_missingPatterns->Count == 0)
+			{
+				Log("[INFO]", "All memory patterns found.");
+			}
+			else
+			{
+				Log("[WARNING]", _missingPatterns->Count.ToString(), " memory pattern(s) were not found. The features that depend on them are disabled; "
+					"update the patterns in Shv.NET/source/core/NativeMemory.cpp for this game build.");
+			}
+		}
+		int MemoryAccess::MissingPatternCount::get()
+		{
+			return _missingPatterns == nullptr ? 0 : _missingPatterns->Count;
+		}
+		array<String ^> ^MemoryAccess::MissingPatterns::get()
+		{
+			return _missingPatterns == nullptr ? gcnew array<String ^>(0) : _missingPatterns->ToArray();
 		}
 		IntPtr MemoryAccess::CellEmailBcon::get()
 		{
@@ -489,7 +550,20 @@ namespace GTA
 
 		void MemoryAccess::GenerateVehicleModelList()
 		{
-			uintptr_t address = FindPattern("\x66\x81\xF9\x00\x00\x74\x10\x4D\x85\xC0", "xxx??xxxxx") - 0x21;
+			uintptr_t address = FindPatternChecked("vehicle model list", "\x66\x81\xF9\x00\x00\x74\x10\x4D\x85\xC0", "xxx??xxxxx");
+
+			if (address == 0)
+			{
+				array<ReadOnlyCollection<int> ^> ^empty = gcnew array<ReadOnlyCollection<int> ^>(0x20);
+				for (int i = 0; i < 0x20; i++)
+				{
+					empty[i] = Array::AsReadOnly(gcnew array<int>(0));
+				}
+				vehicleModels = Array::AsReadOnly(empty);
+				return;
+			}
+
+			address -= 0x21;
 			UINT64 baseFuncAddr = address + *reinterpret_cast<int*>(address)+4;
 			modelHashEntries = *reinterpret_cast<PUINT16>(baseFuncAddr + *reinterpret_cast<int*>(baseFuncAddr + 3) + 7);
 			modelNum1 = *reinterpret_cast<int*>(*reinterpret_cast<int*>(baseFuncAddr + 0x52) + baseFuncAddr + 0x56);
@@ -538,6 +612,11 @@ namespace GTA
 
 		bool MemoryAccess::IsModelAPed(int modelHash)
 		{
+			if (modelHashTable == 0 || modelHashEntries == 0)
+			{
+				return false;
+			}
+
 			HashNode** HashMap = reinterpret_cast<HashNode**>(modelHashTable);
 			for (HashNode* cur = HashMap[static_cast<unsigned int>(modelHash) % modelHashEntries]; cur; cur = cur->next)
 			{
@@ -751,11 +830,35 @@ namespace GTA
 		}
 		unsigned int MemoryAccess::GetHashKey(String^ toHash)
 		{
+			if (_getHashKey == nullptr)
+			{
+				array<Byte> ^bytes = Text::Encoding::UTF8->GetBytes(toHash->ToLowerInvariant());
+				unsigned int hash = 0;
+
+				for (int i = 0; i < bytes->Length; i++)
+				{
+					hash += bytes[i];
+					hash += (hash << 10);
+					hash ^= (hash >> 6);
+				}
+
+				hash += (hash << 3);
+				hash ^= (hash >> 11);
+				hash += (hash << 15);
+
+				return hash;
+			}
+
 			IntPtr handle = ScriptDomain::CurrentDomain->PinString(toHash);
 			return _getHashKey((char*)handle.ToPointer(), 0);
 		}
 		String ^MemoryAccess::GetGXTEntryByHash(int entryLabelHash)
 		{
+			if (GetLabelTextByHashFunc == nullptr || GetLabelTextByHashAddr2 == 0)
+			{
+				return String::Empty;
+			}
+
 			const char* entryText = reinterpret_cast<const char*>(GetLabelTextByHashFunc(GetLabelTextByHashAddr2, entryLabelHash));
 			if (entryText != nullptr)
 			{
@@ -769,15 +872,18 @@ namespace GTA
 
 		IntPtr MemoryAccess::GetEntityAddress(int handle)
 		{
+			if (_entityAddressFunc == nullptr) return IntPtr::Zero;
 			return IntPtr((long long)_entityAddressFunc(handle));
 		}
 		IntPtr MemoryAccess::GetPlayerAddress(int handle)
 		{
+			if (_playerAddressFunc == nullptr) return IntPtr::Zero;
 			return IntPtr((long long)_playerAddressFunc(handle));
 		}
 		UInt64 _getCheckpointAddress(UInt64 Data)
 		{
 			int handle = *(int*)(&Data);
+			if (MemoryAccess::CheckpointHandleAddr == nullptr || MemoryAccess::CheckpointBaseAddr == nullptr) return 0;
 			UInt64 addr = MemoryAccess::CheckpointHandleAddr(MemoryAccess::CheckpointBaseAddr(), handle);
 			if (addr != 0)
 			{
@@ -794,6 +900,7 @@ namespace GTA
 
 		IntPtr MemoryAccess::GetPtfxAddress(int handle)
 		{
+			if (_ptfxAddressFunc == nullptr) return IntPtr::Zero;
 			return IntPtr((long long)_ptfxAddressFunc(handle));
 		}
 
@@ -876,25 +983,30 @@ namespace GTA
 
 		float MemoryAccess::ReadWorldGravity()
 		{
+			if (_readWorldGravityAddr == nullptr) return 9.8f;
 			return *_readWorldGravityAddr;
 		}
 		void MemoryAccess::WriteWorldGravity(float value)
 		{
+			if (_writeWorldGravityAddr == nullptr) return;
 			*_writeWorldGravityAddr = value;
 		}
 
 		int MemoryAccess::ReadCursorSprite()
 		{
+			if (_cursorSpriteAddr == nullptr) return 0;
 			return *_cursorSpriteAddr;
 		}
 
 		IntPtr MemoryAccess::GetGameplayCameraAddress()
 		{
+			if (_gamePlayCameraAddr == nullptr) return IntPtr::Zero;
 			return IntPtr((long long)*_gamePlayCameraAddr);
 		}
 		
 		IntPtr MemoryAccess::GetCameraAddress(int handle)
 		{
+			if (_cameraPoolAddress == nullptr) return IntPtr::Zero;
 			unsigned int index = (unsigned int)(handle >> 8);
 			UInt64 poolAddr = *_cameraPoolAddress;
 			if(*(Byte *)(index + *(Int64*)(poolAddr + 8)) == (Byte)(handle & 0xFF))
@@ -1004,6 +1116,7 @@ namespace GTA
 		{
 			int* handles = (int*)ArrayPtr;
 			UInt64 count = 0;
+			if (MemoryAccess::CheckpointBaseAddr == nullptr) return 0;
 			for (checkpoint* item = *reinterpret_cast<checkpoint**>(MemoryAccess::CheckpointBaseAddr() + 48); item  && count < 64; item = item->next)
 			{
 				handles[count++] = item->handle;
@@ -1043,7 +1156,7 @@ namespace GTA
 
 		int MemoryAccess::GetNumberOfVehicles()
 		{
-			if (*_vehiclePoolAddress)
+			if (_vehiclePoolAddress != nullptr && *_vehiclePoolAddress)
 			{
 				VehiclePool* pool = *reinterpret_cast<VehiclePool**>(*_vehiclePoolAddress);
 				return pool->itemCount;
@@ -1053,6 +1166,12 @@ namespace GTA
 
 		void MemoryAccess::SendEuphoriaMessage(int targetHandle, String ^message, Dictionary<String ^, Object ^> ^arguments)
 		{
+			if (CreateNmMessageFunc == 0 || GiveNmMessageFunc == 0 || SetNmBoolAddress == nullptr || SetNmIntAddress == nullptr ||
+				SetNmFloatAddress == nullptr || SetNmVec3Address == nullptr || SetNmStringAddress == nullptr || _entityAddressFunc == nullptr)
+			{
+				return; // euphoria patterns missing in this game build
+			}
+
 			auto task = gcnew EuphoriaMessageTask(targetHandle, message, arguments);
 
 			ScriptDomain::CurrentDomain->ExecuteTask(task);

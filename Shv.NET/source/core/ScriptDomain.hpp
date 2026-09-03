@@ -21,6 +21,9 @@
 
 namespace GTA
 {
+	// Writes a line to <root>\logs\ScriptHookVDotNet-<date>.log (implemented in ScriptDomain.cpp).
+	void Log(System::String ^logLevel, ... array<System::String ^> ^message);
+
 	private interface class IScriptTask
 	{
 		void Run();

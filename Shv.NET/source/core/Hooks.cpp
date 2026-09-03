@@ -1,16 +1,29 @@
 #include "NativeMemory.hpp"
+#include "ScriptDomain.hpp"
+
+// Reports a game-build specific patch pattern that no longer matches (see NativeMemory.cpp).
+static unsigned long long ReportPattern(const char *name, unsigned long long address)
+{
+	if (address == 0)
+	{
+		GTA::Native::MemoryAccess::_missingPatterns->Add(gcnew System::String(name));
+		GTA::Log("[ERROR]", "Memory pattern not found in this game build: ", gcnew System::String(name));
+	}
+
+	return address;
+}
 
 // workaround for an unmanaged code
 unsigned long long GetOfflinePatchAddr()
 {
-	return GTA::Native::MemoryAccess::FindPattern("\x48\x83\x3D\x00\x00\x00\x00\x00\x88\x05\x00\x00\x00\x00\x75\x0B",
-		"xxx????xxx????xx");
+	return ReportPattern("force offline patch", GTA::Native::MemoryAccess::FindPattern("\x48\x83\x3D\x00\x00\x00\x00\x00\x88\x05\x00\x00\x00\x00\x75\x0B",
+		"xxx????xxx????xx"));
 }
 
 unsigned long long GetGameTextHookAddr()
 {
-	return GTA::Native::MemoryAccess::FindPattern("\xE8\x00\x00\x00\x00\x8B\x0D\x8C\x68\xF4\x01\x65\x48\x8B\x04\x25\x58\x00\x00\x00\xBA\xB4\x00\x00\x00\x48\x8B\x04\xC8\x8B\x0C\x02\xD1\xE9\x80\xE1\x01\x0F\xB6\xC1\x48\x8D",
-		"x????xx????xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	return ReportPattern("game text hook", GTA::Native::MemoryAccess::FindPattern("\xE8\x00\x00\x00\x00\x8B\x0D\x8C\x68\xF4\x01\x65\x48\x8B\x04\x25\x58\x00\x00\x00\xBA\xB4\x00\x00\x00\x48\x8B\x04\xC8\x8B\x0C\x02\xD1\xE9\x80\xE1\x01\x0F\xB6\xC1\x48\x8D",
+		"x????xx????xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
 }
 
 #pragma unmanaged

@@ -20,5 +20,6 @@
   <conntimeout>true</conntimeout>
   <allowcefdevtool>false</allowcefdevtool>
   <!-- Resources to start, in order. Each one lives in resources/<name>/meta.xml -->
+  <resource src="freeroam" />
   <resource src="example" />
 </config>

@@ -88,6 +88,12 @@ namespace GTA.Native
 
         public static bool IsModelAPed(int modelHash) { throw Stub.NotAvailable(); }
 
+        /// <summary>Number of memory patterns that were not found in this game build (0 = everything is fine).</summary>
+        public static int MissingPatternCount { get { return _missingPatterns.Count; } }
+        /// <summary>Names of the memory patterns that were not found in this game build.</summary>
+        public static string[] MissingPatterns { get { return _missingPatterns.ToArray(); } }
+        public static List<string> _missingPatterns = new List<string>();
+
         public static IntPtr CellEmailBcon { get { return _cellEmailBconPtr; } }
         public static IntPtr StringPtr { get { return _stringPtr; } }
         public static IntPtr NullString { get { return _nullString; } }

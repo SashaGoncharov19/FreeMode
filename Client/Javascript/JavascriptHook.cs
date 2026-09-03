@@ -1,4 +1,4 @@
-﻿//#define RELATIVE_CEF_POS
+//#define RELATIVE_CEF_POS
 
 using System;
 using System.Collections.Generic;
@@ -4519,11 +4519,8 @@ namespace GTANetwork.Javascript
         {
             var addr = Util.Util.FindPattern("\x74\x25\xB9\x40\x00\x00\x00\xE8\x00\x00\xC4\xFF", "xxxx???x??xx");
 
-
-            //4c 6f 61 64 69 6e 67 20 47 54 41 4e 65 74 77 6f 72 6b
-
-
-            var original = Util.Util.ReadMemory(addr, 20);
+            // The snow patch depends on a game-build specific pattern; fall back to the weather change only.
+            var original = addr != IntPtr.Zero ? Util.Util.ReadMemory(addr, 20) : new byte[0];
 
             if (!SnowState)
             {
