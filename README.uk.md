@@ -38,7 +38,7 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, лаунчерний `GTANetwork.dll` | net48 | Класичний триступеневий Windows-лаунчер (реєстр, оновлення, інжекція DLL). Збирається і працює на Windows як і раніше. |
 | `Map2Resource/` | `Map2Resource` | net8.0 | Конвертує XML з Map Editor у серверні map-ресурси. |
 | `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless-клієнт, що говорить справжнім протоколом: підключається до сервера, завантажує карту і скрипти, чатиться, виконує команди. Використовується інтеграційним тестом у CI. |
-| `libs/` | — | — | Бінарні залежності без NuGet-аналога: кастомний форк Lidgren, CEF 85 + CefGlue, набір SharpDX, NAudio, нативні V8/EasyHook. |
+| `libs/` | — | — | Бінарні залежності без NuGet-аналога: кастомний форк Lidgren, CEF 3.2987 (Chromium 57, 2017) + CefGlue, набір SharpDX, NAudio, нативні V8/EasyHook. |
 | `eng/`, `.github/workflows/` | — | — | Скрипти версіонування, smoke-тест сервера, пакування клієнта; CI. |
 
 ## Як це працює
@@ -248,7 +248,7 @@ RAGE Multiplayer 0.3.7 — у [`docs/ROADMAP.md`](docs/ROADMAP.md).
 * **ScriptHookV не можна розповсюджувати** — кожен користувач завантажує його сам.
 * **Мастер-сервера немає**: без публічного списку серверів і оновлень через мастер (Linux-інсталятор
   оновлюється сам з GitHub Releases), `announce` вимкнено.
-* **CEF 85 / CefGlue** і мікс SharpDX 2.6/4.0 залишені як бінарники, під які налаштований DirectX-хук.
+* **CEF 3.2987 (Chromium 57, 2017) / CefGlue** і мікс SharpDX 2.6/4.0 залишені як бінарники, під які налаштований DirectX-хук.
 
 ## Ліцензія
 

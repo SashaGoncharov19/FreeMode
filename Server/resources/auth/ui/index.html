@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GTA Network account</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>GTA Network</h1>
+    <div class="tabs">
+      <button id="tab-login" class="tab active" type="button">Log in</button>
+      <button id="tab-register" class="tab" type="button">Register</button>
+    </div>
+    <form id="form" autocomplete="off">
+      <label for="name">Account name</label>
+      <input id="name" type="text" maxlength="20" placeholder="3-20 letters, digits, _">
+      <label for="password">Password</label>
+      <input id="password" type="password" maxlength="64" placeholder="at least 6 characters">
+      <div id="confirm-row" class="hidden">
+        <label for="confirm">Repeat password</label>
+        <input id="confirm" type="password" maxlength="64">
+      </div>
+      <div id="error" class="error"></div>
+      <button id="submit" class="primary" type="submit">Log in</button>
+    </form>
+    <p class="hint">Or type <code>/login name password</code> in the chat.</p>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

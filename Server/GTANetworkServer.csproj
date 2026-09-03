@@ -42,6 +42,8 @@
   <ItemGroup>
     <Content Include="settings.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="resources\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Resource scripts are compiled by the server at runtime (Roslyn), never into this assembly. -->
+    <Compile Remove="resources\**" />
   </ItemGroup>
 
 </Project>

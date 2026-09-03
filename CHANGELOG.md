@@ -14,7 +14,17 @@ Two version numbers exist side by side:
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+* `auth` resource (`Server/resources/auth`, disabled by default in `settings.xml`): accounts with registration
+  and login through a CEF form (`client.js` + `ui/`) or `/register` and `/login`; chat and every other command
+  are cancelled and the player stays frozen until logged in. Passwords are stored as salted PBKDF2-SHA256
+  hashes in `accounts.json`; other resources read `API.getEntityData(player, "auth:account")`.
+  `eng/integration-test-auth.sh` drives it with the bot in CI.
+
+### Fixed
+* Resource scripts under `Server/resources` were also compiled into the server assembly by the SDK's default
+  source glob; they are now excluded and only compiled by the server at runtime.
+* Docs: the bundled browser is CEF 3.2987 (Chromium 57, 2017), not CEF 85.
 
 ## [0.1.0-alpha.22] - 2026-09-03
 

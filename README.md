@@ -40,7 +40,7 @@ Ukrainian version: [README.uk.md](README.uk.md).
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, launcher `GTANetwork.dll` | net48 | The classic three-stage Windows launcher (registry, updates, DLL injection). Still builds, still works on Windows. |
 | `Map2Resource/` | `Map2Resource` | net8.0 | Converts Map Editor XML files into server map resources. |
 | `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless client that speaks the real protocol: joins a server, downloads map and scripts, chats, runs commands. Used by the CI integration test. |
-| `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, CEF 85 + CefGlue, SharpDX mix, NAudio, native V8/EasyHook DLLs. |
+| `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, CEF 3.2987 (Chromium 57, 2017) + CefGlue, SharpDX mix, NAudio, native V8/EasyHook DLLs. |
 | `images/` | - | - | HUD, map and CEF assets shipped with the client. |
 | `Setup/` | - | NSIS | Windows installer script. |
 | `eng/` | - | scripts | Version computation, server smoke test, client packaging. |
@@ -284,7 +284,7 @@ The plan towards a RAGE Multiplayer 0.3.7-class platform is in [`docs/ROADMAP.md
 * **ScriptHookV is not redistributable** and has to be downloaded by every user.
 * **The master server is gone**: no public server list, no updates through the master (the Linux installer
   updates itself from GitHub releases), `announce` is disabled by default.
-* **CEF 85 / CefGlue** and the SharpDX 2.6/4.0 mix are kept as the binaries the DirectX hook was tuned for.
+* **CEF 3.2987 (Chromium 57, 2017) / CefGlue** and the SharpDX 2.6/4.0 mix are kept as the binaries the DirectX hook was tuned for.
 * The classic Windows launcher still contacts `master.gtanet.work` for updates and silently continues when
   it is unreachable.
 

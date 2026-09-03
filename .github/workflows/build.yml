@@ -60,6 +60,7 @@ jobs:
           dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/bot-linux-x64
           dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/bot-win-x64
           eng/integration-test.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
+          eng/integration-test-auth.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
 
       - uses: actions/upload-artifact@v4
         with:

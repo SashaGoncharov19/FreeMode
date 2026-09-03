@@ -17,7 +17,7 @@ sync, chat, commands, vehicles, client-side JavaScript. The rest of the state:
 | Sync | 2016-2018 code: 100 ms pure sync, 1.5 s light sync, ped/vehicle interpolation, ~64 players tested by the original team | Stable with 100+ players per server, no visible warping for vehicles and peds, weapons/aim/animations/ragdoll |
 | Streaming | Client-side streamer thread, fixed ranges, server keeps 250 "near" players | Configurable per entity type, server-side interest management, dimensions used for load |
 | Scripting (server) | C#/VB compiled with Roslyn at startup, `API` with ~700 members, events, commands, entities, colshapes, dimensions | Same plus a first-class JavaScript/TypeScript server runtime, typings, documented and versioned API |
-| Scripting (client) | JavaScript on V8 (ClearScript 5.4.9), CEF 85 browsers, `API` with ~600 members | Modern V8 and CEF, typings, hot reload, client packages with assets |
+| Scripting (client) | JavaScript on V8 (ClearScript 5.4.9), CEF 3.2987 (Chromium 57) browsers, `API` with ~600 members | Modern V8 and CEF, typings, hot reload, client packages with assets |
 | Master server / browser | Gone (`master.gtanet.work`), address configurable, empty by default | Own master server ([issue #1](https://github.com/SashaGoncharov19/FreeMode/issues/1)), browser in the launcher and in game |
 | Updates | Linux installer updates from GitHub releases; Windows: NSIS installer, no updater | One updater for all platforms, delta downloads, channels (stable/beta) |
 | Custom content | None | Client packages (scripts, CEF assets, sounds), custom DLC packs (vehicles, clothes, interiors) |
@@ -93,7 +93,7 @@ This is what separates a demo from a platform. Work items, each with a measureme
 * **Resource system**: dependencies, shared scripts, config per resource, hot reload on the server (already
   compiled with Roslyn; add file watching), `client_packages`-style asset folders streamed to the client.
 * **Modern runtimes**: ClearScript 7.x (needs a CLR-hosted V8 build compatible with the in-game .NET
-  Framework, or moving the client to an out-of-process V8), CEF upgrade from 85 with the CefGlue binding.
+  Framework, or moving the client to an out-of-process V8), CEF upgrade from 3.2987 (Chromium 57) with the CefGlue binding.
 * **Gamemode templates**: `dotnet new`-style templates for C# and TS gamemodes, the freeroam resource as the
   reference implementation with tests.
 
