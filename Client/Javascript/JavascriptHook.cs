@@ -403,6 +403,17 @@ namespace GTANetwork.Javascript
             scriptEngine.AddHostType("BadgeStyle", typeof(UIMenuItem.BadgeStyle));
             scriptEngine.AllowReflection = false;
 
+            // One line in Runtime.log that says whether the API events and methods are visible from JavaScript.
+            try
+            {
+                var probe = scriptEngine.Evaluate("typeof API + ' ' + typeof API.onResourceStart + ' ' + typeof API.onChatCommand + ' ' + typeof API.sendNotification");
+                LogManager.RuntimeLog("Client script API probe for " + script.ResourceParent + "/" + script.Filename + " (API, onResourceStart, onChatCommand, sendNotification): " + probe);
+            }
+            catch (Exception probeException)
+            {
+                LogManager.RuntimeLog("Client script API probe failed: " + probeException.Message);
+            }
+
             try
             {
                 scriptEngine.Execute(script.Script);
@@ -410,7 +421,7 @@ namespace GTANetwork.Javascript
             }
             catch (ScriptEngineException ex)
             {
-                LogException(ex);
+                LogException(ex, script.ResourceParent + "/" + script.Filename);
             }
             finally
             {
@@ -491,8 +502,9 @@ namespace GTANetwork.Javascript
         }
 
 
-        private static void LogException(Exception ex)
+        private static void LogException(Exception ex, string scriptName = null)
         {
+            var where = scriptName != null ? " in " + scriptName : "";
             Func<string, int, string[]> splitter = (string input, int everyN) =>
             {
                 var list = new List<string>();
@@ -503,7 +515,7 @@ namespace GTANetwork.Javascript
                 return list.ToArray();
             };
 
-            Util.Util.SafeNotify("~r~~h~Clientside Javascript Error~h~~w~");
+            Util.Util.SafeNotify("~r~~h~Clientside Javascript Error~h~~w~" + where);
 
             var count = splitter(ex.Message, 99).Length;
             for (var index = 0; index < count; index++)
@@ -511,7 +523,14 @@ namespace GTANetwork.Javascript
                 Util.Util.SafeNotify(splitter(ex.Message, 99)[index]);
             }
 
-            LogManager.LogException(ex, "CLIENTSIDE SCRIPT ERROR");
+            LogManager.LogException(ex, "CLIENTSIDE SCRIPT ERROR" + where);
+
+            // V8 knows the script line and stack; ex.ToString() only carries the message.
+            var engineException = ex as ScriptEngineException;
+            if (!string.IsNullOrEmpty(engineException?.ErrorDetails) && engineException.ErrorDetails != ex.Message)
+            {
+                LogManager.SimpleLog("Error", "Script error details" + where + ":\r\n" + engineException.ErrorDetails);
+            }
         }
     }
 

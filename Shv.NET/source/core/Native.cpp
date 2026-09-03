@@ -24,6 +24,10 @@
 
 using namespace System;
 
+// Number of native invocations since start; ScriptDomain::DoTick reads it around every script tick to
+// attribute native calls to scripts in the [PROFILE] summary (game thread only, no locking needed).
+long long g_nativeCallCount = 0;
+
 namespace GTA
 {
 	namespace Native
@@ -33,6 +37,7 @@ namespace GTA
 		{
 			virtual void Run()
 			{
+				g_nativeCallCount++;
 				nativeInit(_hash);
 
 				for each (auto argument in _arguments)

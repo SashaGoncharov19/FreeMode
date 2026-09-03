@@ -17,6 +17,12 @@ Two version numbers exist side by side:
 ### Added
 * `CHANGELOG.md` (this file) and `docs/ROADMAP.md` (the plan towards a RAGE Multiplayer 0.3.7-class platform).
 * The GitHub release body is taken from the changelog section that matches the release tag.
+* ScriptHookVDotNet profile summary: every 10 s one `[PROFILE]` line with frames, fps, script time per frame and
+  the ten most expensive scripts (average and worst tick, native calls per tick), so a performance report can
+  quote numbers instead of impressions.
+* Client-side script errors now log the V8 error details (script line and stack) and the resource/file name; an
+  "API probe" line in `Runtime.log` says whether `API` and its events are visible to JavaScript before a script
+  starts.
 
 ## [0.1.0-alpha.19] - 2026-09-03
 

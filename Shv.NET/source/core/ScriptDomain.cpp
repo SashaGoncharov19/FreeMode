@@ -21,6 +21,8 @@ using namespace System;
 using namespace System::Threading;
 using namespace System::Reflection;
 using namespace System::Collections::Generic;
+
+extern long long g_nativeCallCount; // Native.cpp
 namespace WinForms = System::Windows::Forms;
 
 namespace
@@ -657,6 +659,7 @@ namespace GTA
 
 			_executingScript = script;
 
+			long long nativesBefore = g_nativeCallCount;
 			System::Diagnostics::Stopwatch ^stopwatch = System::Diagnostics::Stopwatch::StartNew();
 
 			while ((script->_running = SignalAndWait(script->_continueEvent, script->_waitEvent, 5000)) && _taskQueue->Count > 0)
@@ -666,6 +669,20 @@ namespace GTA
 			}
 
 			_executingScript = nullptr;
+
+			// Profile window totals (flushed every 10 s as one [PROFILE] line)
+			array<long long> ^profile;
+			if (!_profile->TryGetValue(script->Name, profile))
+			{
+				profile = gcnew array<long long>(4);
+				_profile[script->Name] = profile;
+			}
+			long long elapsedTicks = stopwatch->ElapsedTicks;
+			profile[0] += elapsedTicks;
+			if (elapsedTicks > profile[1]) profile[1] = elapsedTicks;
+			profile[2]++;
+			profile[3] += g_nativeCallCount - nativesBefore;
+			_profileTotalTicks += elapsedTicks;
 
 			// A script that keeps the game thread for long is a visible stutter: name it, at most once every 5 s per script.
 			long long elapsed = stopwatch->ElapsedMilliseconds;
@@ -691,6 +708,54 @@ namespace GTA
 
 		// Clean up pinned strings
 		CleanupStrings();
+
+		_profileFrames++;
+		long long nowMs = System::DateTime::UtcNow.Ticks / 10000;
+		if (_profileWindowStart == 0)
+		{
+			_profileWindowStart = nowMs;
+		}
+		else if (nowMs - _profileWindowStart >= 10000)
+		{
+			FlushProfile(nowMs - _profileWindowStart);
+			_profileWindowStart = nowMs;
+		}
+	}
+
+	int ScriptDomain::CompareProfileEntries(KeyValuePair<String ^, array<long long> ^> a, KeyValuePair<String ^, array<long long> ^> b)
+	{
+		double avgA = a.Value[2] > 0 ? static_cast<double>(a.Value[0]) / a.Value[2] : 0.0;
+		double avgB = b.Value[2] > 0 ? static_cast<double>(b.Value[0]) / b.Value[2] : 0.0;
+		return avgA > avgB ? -1 : (avgA < avgB ? 1 : 0);
+	}
+
+	// One line per 10 s window: frame count, script time per frame and the ten most expensive scripts
+	// (average and worst tick, native calls per tick). This is what a performance report should quote.
+	void ScriptDomain::FlushProfile(long long windowMs)
+	{
+		double msPerTick = 1000.0 / static_cast<double>(System::Diagnostics::Stopwatch::Frequency);
+		auto entries = gcnew List<KeyValuePair<String ^, array<long long> ^>>(_profile);
+		entries->Sort(gcnew Comparison<KeyValuePair<String ^, array<long long> ^>>(&ScriptDomain::CompareProfileEntries));
+
+		auto text = gcnew System::Text::StringBuilder();
+		text->AppendFormat("{0} frames in {1} ms ({2:F1} fps), scripts used {3:F2} ms per frame",
+			_profileFrames, windowMs, windowMs > 0 ? _profileFrames * 1000.0 / windowMs : 0.0,
+			_profileFrames > 0 ? _profileTotalTicks * msPerTick / _profileFrames : 0.0);
+
+		int shown = 0;
+		for each (KeyValuePair<String ^, array<long long> ^> entry in entries)
+		{
+			array<long long> ^p = entry.Value;
+			if (p[2] == 0 || shown++ >= 10) continue;
+			text->Append(" | ")->Append(entry.Key)->AppendFormat(" avg {0:F2} ms, max {1:F1} ms, {2} natives/tick",
+				p[0] * msPerTick / p[2], p[1] * msPerTick, p[3] / p[2]);
+		}
+
+		Log("[PROFILE]", text->ToString());
+
+		_profile->Clear();
+		_profileFrames = 0;
+		_profileTotalTicks = 0;
 	}
 
 	void ScriptDomain::DoKeyboardMessage(WinForms::Keys key, bool status, bool statusCtrl, bool statusShift, bool statusAlt)
