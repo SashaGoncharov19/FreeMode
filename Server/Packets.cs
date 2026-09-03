@@ -467,13 +467,20 @@ namespace GTANetworkServer
             msg.Write(bin.Length);
             msg.Write(bin);
 
-            // todo: check if there's ligdren's function to do that
+            // A NetOutgoingMessage may only be handed to Lidgren once; sending it per client in a loop threw
+            // "This message has already been sent!" as soon as two players were online. Send to the list instead.
+            List<NetConnection> recipients;
             lock (Clients)
             {
-                foreach (var c in Clients)
-                {
-                    Server.SendMessage(msg, c.NetConnection, NetDeliveryMethod.ReliableOrdered, (int) ConnectionChannel.NativeCall);
-                }
+                recipients = Clients
+                    .Where(c => !c.Fake && c.NetConnection != null && c.NetConnection.Status != NetConnectionStatus.Disconnected)
+                    .Select(c => c.NetConnection)
+                    .ToList();
+            }
+
+            if (recipients.Count > 0)
+            {
+                Server.SendMessage(msg, recipients, NetDeliveryMethod.ReliableOrdered, (int) ConnectionChannel.NativeCall);
             }
         }
 

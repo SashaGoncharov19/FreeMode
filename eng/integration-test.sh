@@ -70,6 +70,7 @@ echo "---- server log ----"; cat "$server_dir/it-server.log"; echo "------------
 
 grep -q "Connection established: CIBot" "$server_dir/it-server.log" || { echo "server never confirmed the bot"; exit 1; }
 if grep -q "Exception in the Netcode" "$server_dir/it-server.log"; then echo "server logged netcode exceptions"; exit 1; fi
+if grep -q "EXCEPTION IN RESOURCE" "$server_dir/it-server.log"; then echo "a resource script threw (see server log above)"; exit 1; fi
 grep -q "CIBot: hello from the bot" "$server_dir/it-server.log" || { echo "server did not relay the chat message"; exit 1; }
 [ "$rc" -eq 0 ] || { echo "bot exited with $rc"; exit "$rc"; }
 echo "integration test passed"
