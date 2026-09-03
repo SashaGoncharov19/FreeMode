@@ -603,7 +603,13 @@ pt_run() { # protontricks, through the fallback Proton when one is in use
 pt_log="$DIR/logs/protontricks.log"
 dotnet_attempt() { # dotnet_attempt [protontricks options]; honours PROTON_VERSION; output also goes to logs/protontricks.log
   say "Running: ${PROTON_VERSION:+PROTON_VERSION=\"$PROTON_VERSION\" }$pt $pt_extra $* 271590 -q dotnet48"
-  $pt $pt_extra "$@" 271590 -q dotnet48 2>&1 | tee -a "$pt_log"
+  # warn+msi makes wine name the file it could not write ("failed to create ... (error N)"), which is otherwise silent
+  if WINEDEBUG="${WINEDEBUG:-warn+msi}" $pt $pt_extra "$@" 271590 -q dotnet48 2>&1 | tee -a "$pt_log"; then return 0; fi
+  if grep -q 'failed to create' "$pt_log"; then
+    warn "the installer could not write these files:"
+    grep -o 'failed to create L"[^"]*" (error [0-9]*)' "$pt_log" | sort -u | sed 's/^/       /'
+  fi
+  return 1
 }
 
 dotnet_attempt_rt() { # like dotnet_attempt, but falls back to --no-runtime when protontricks lacks the Steam Runtime for that Proton
@@ -630,16 +636,17 @@ materialize_link() { # materialize_link <path>: turn a symlink into a regular fi
   rm -f "$tmp"; rm -f "$f"       # dangling link: the installer creates the file anew
 }
 
-fix_proton_symlinks() {
-  local n=0 f d name
-  while IFS= read -r f; do materialize_link "$f" && n=$((n+1)); done < <(find "$prefix/drive_c/windows/Microsoft.NET" -type l 2>/dev/null)
-  for d in system32 syswow64; do
-    for name in uiautomationcore.dll mscoree.dll mscories.dll dfshim.dll netfxperf.dll msvcr100_clr0400.dll; do
-      f="$prefix/drive_c/windows/$d/$name"
-      [ -L "$f" ] && materialize_link "$f" && n=$((n+1))
-    done
+fix_proton_symlinks() { # every symlink in system32, syswow64 and Microsoft.NET becomes a real file (some hundred MB, once)
+  local n=0 f d before after
+  before="$(du -sm "$prefix/drive_c/windows" 2>/dev/null | cut -f1)"
+  for d in Microsoft.NET system32 syswow64; do
+    while IFS= read -r f; do
+      [ -d "$f" ] && continue          # links to directories (gecko, mono) stay as they are
+      materialize_link "$f" && n=$((n+1))
+    done < <(find "$prefix/drive_c/windows/$d" -type l 2>/dev/null)
   done
-  [ "$n" -gt 0 ] && info "Replaced $n Proton symlinks with real files so that the .NET installer can overwrite them"
+  after="$(du -sm "$prefix/drive_c/windows" 2>/dev/null | cut -f1)"
+  [ "$n" -gt 0 ] && info "Replaced $n Proton symlinks in the prefix with real files (+$(( ${after:-0} - ${before:-0} )) MB) so that the .NET installers can overwrite them"
   return 0
 }
 
