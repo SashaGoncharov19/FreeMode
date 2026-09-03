@@ -345,6 +345,7 @@ PY
 ok "settings.xml: name \"$NAME\", launch method $METHOD, favourite server $SERVER_ADDR"
 
 prefix="$(echo "$doctor_out" | sed -n 's/^Wine prefix:[[:space:]]*//p' | head -1)"
+mapfile -t steam_libs < <(echo "$doctor_out" | sed -n 's/^Steam libraries:[[:space:]]*//p' | head -1 | sed 's/, /\n/g')
 game_dir="$(echo "$doctor_out" | sed -n 's/^GTA V folder:[[:space:]]*//p' | head -1)"
 case "$prefix" in "not found"*|"NOT FOUND"*) prefix="" ;; esac
 case "$game_dir" in "not found"*|"NOT FOUND"*) game_dir="" ;; esac
@@ -547,8 +548,24 @@ prefix_processes() { # "pid command" of wine processes that run inside the GTA V
   done
 }
 
+find_fallback_proton() { # a stable Proton in any Steam library; the .NET 4.0 installer breaks on very new wine builds
+  local v lib
+  for v in "Proton 8.0" "Proton 9.0" "Proton 10.0"; do
+    for lib in ${steam_libs[@]+"${steam_libs[@]}"}; do
+      [ -d "$lib/steamapps/common/$v" ] && { echo "$v"; return 0; }
+    done
+  done
+  return 1
+}
+
+pt_log="$DIR/logs/protontricks.log"
+dotnet_attempt() { # dotnet_attempt [protontricks options]; honours PROTON_VERSION; output also goes to logs/protontricks.log
+  say "Running: ${PROTON_VERSION:+PROTON_VERSION=\"$PROTON_VERSION\" }$pt $* 271590 -q dotnet48"
+  $pt "$@" 271590 -q dotnet48 2>&1 | tee -a "$pt_log"
+}
+
 run_protontricks() {
-  local busy
+  local busy avail fallback="" used_fallback=""
   busy="$(prefix_processes)"
   if [ -n "$busy" ]; then
     warn "Wine processes are still running inside the GTA V prefix (the game, the Rockstar Launcher or leftovers):"
@@ -559,20 +576,52 @@ run_protontricks() {
       echo "$busy" | awk '{print $1}' | xargs -r kill -9 2>/dev/null || true
     fi
   fi
-  say "Installing .NET Framework 4.8 into the GTA V prefix:  $pt 271590 -q dotnet48"
+  avail="$(df -Pk "$prefix" 2>/dev/null | awk 'NR==2{print int($4/1024)}')"
+  if [ -n "$avail" ] && [ "$avail" -lt 3000 ]; then
+    warn "Only $avail MB free on the drive that holds the prefix; the .NET installers need about 3 GB"
+  fi
+  say "Installing .NET Framework 4.8 into the GTA V prefix (log: $pt_log)"
   say "This takes 5-15 minutes and prints a lot: 'may not fully work on a 64-bit installation', Fontconfig errors"
   say "and 'This will hang until all wine processes ... terminate' are normal winetricks noise. The .NET 4.0 and"
   say "4.8 installers then run silently (look for dotNetFx40 / ndp48 processes in top). Do not close popup windows."
-  if ! $pt 271590 -q dotnet48; then
-    warn "dotnet48 failed inside the Steam Runtime container; retrying outside of it (--no-bwrap)"
-    if ! $pt --no-bwrap 271590 -q dotnet48; then
-      warn "dotnet48 failed, see the output above. Retry later:  $pt 271590 -q dotnet48   (or with --no-bwrap)"
+  : > "$pt_log"
+  if ! dotnet_attempt; then
+    if grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log"; then
+      warn "The .NET 4.0 installer could not extract its cabinets. That happens on very new wine builds"
+      warn "(Proton Experimental); a stable Proton installs it fine, and the game can keep its own Proton."
+      fallback="$(find_fallback_proton || true)"
+      if [ -z "$fallback" ]; then
+        warn "No stable Proton found. Install 'Proton 8.0' in Steam (Library > Tools, or: xdg-open steam://install/2348590)"
+        warn "and run $DIR/update.sh again; the .NET step then retries with Proton 8.0 by itself."
+        return 1
+      fi
+      warn "Retrying with $fallback"
+      : > "$pt_log"
+      if ! PROTON_VERSION="$fallback" dotnet_attempt; then
+        warn "dotnet48 failed with $fallback too, see $pt_log. Retry by hand:  PROTON_VERSION=\"$fallback\" $pt 271590 -q dotnet48"
+        return 1
+      fi
+      used_fallback="$fallback"
+    elif ! grep -q 'Executing w_do_call' "$pt_log"; then
+      warn "protontricks did not reach winetricks (Steam Runtime container problem?); retrying outside the container"
+      : > "$pt_log"
+      if ! dotnet_attempt --no-bwrap; then
+        warn "dotnet48 failed, see $pt_log. Retry later:  $pt --no-bwrap 271590 -q dotnet48"
+        return 1
+      fi
+    else
+      warn "dotnet48 failed, see $pt_log. Retry later:  $pt 271590 -q dotnet48"
       return 1
     fi
   fi
   say "Installing the VC++ 2022 runtime:  $pt 271590 -q vcrun2022"
-  $pt 271590 -q vcrun2022 || $pt --no-bwrap 271590 -q vcrun2022 \
-    || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  $pt 271590 -q vcrun2022"
+  if [ -n "$used_fallback" ]; then
+    PROTON_VERSION="$used_fallback" $pt 271590 -q vcrun2022 2>&1 | tee -a "$pt_log" \
+      || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  PROTON_VERSION=\"$used_fallback\" $pt 271590 -q vcrun2022"
+  else
+    $pt 271590 -q vcrun2022 2>&1 | tee -a "$pt_log" \
+      || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  $pt 271590 -q vcrun2022"
+  fi
   if dotnet_present; then ok ".NET Framework 4.x is now present in the prefix"; else warn ".NET Framework still not detected in $prefix"; fi
 }
 

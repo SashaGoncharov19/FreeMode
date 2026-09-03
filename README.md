@@ -219,6 +219,9 @@ only reports, `update.sh --auto-update off` switches the automatic check off (`G
 1. Install and run the game once through Steam so that Proton creates its prefix.
 2. Install the .NET Framework into that prefix (ScriptHookVDotNet needs it):
    `protontricks 271590 dotnet48` (or `WINEPREFIX=~/.steam/steam/steamapps/compatdata/271590/pfx winetricks dotnet48`).
+   The .NET 4.0 installer fails with `Failed to extract cabinet: netfx_core.mzz` on very new wine builds (Proton
+   Experimental): install Proton 8.0 in Steam and run `PROTON_VERSION="Proton 8.0" protontricks 271590 dotnet48`;
+   the game itself can keep using any Proton. `setup-linux.sh` does this by itself.
    The original client also required the Visual C++ 2013/2015 runtimes (`vcrun2013`, `vcrun2015`).
 3. Unpack the client package (`gtanetwork-client-win64-*.zip` from the Actions artifacts / a release)
    somewhere, e.g. `~/GTANetwork`, and copy the Linux launcher (`gtanetwork-launcher-linux-x64-*`) into it.
