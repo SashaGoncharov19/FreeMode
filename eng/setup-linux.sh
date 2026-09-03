@@ -614,8 +614,71 @@ dotnet_attempt_rt() { # like dotnet_attempt, but falls back to --no-runtime when
     : > "$pt_log"
     pt_extra="--no-runtime"
     dotnet_attempt "$@" && return 0
-    pt_extra=""
+    grep -q 'Executing w_do_call' "$pt_log" || pt_extra=""   # keep --no-runtime when winetricks itself did run
   fi
+  return 1
+}
+
+# Proton fills the prefix with symlinks to its own builtin DLLs (system32, syswow64 and the .NET support files
+# in Microsoft.NET/Framework*/v4.0.30319). The .NET installers must overwrite some of them, which fails with
+# "error 5" through such a link, so the affected links are replaced by real copies (or removed) beforehand.
+materialize_link() { # materialize_link <path>: turn a symlink into a regular file with the same content
+  local f="$1" tmp
+  [ -L "$f" ] || return 0
+  tmp="$f.gtan.$$"
+  if cp -L "$f" "$tmp" 2>/dev/null && mv -f "$tmp" "$f"; then return 0; fi
+  rm -f "$tmp"; rm -f "$f"       # dangling link: the installer creates the file anew
+}
+
+fix_proton_symlinks() {
+  local n=0 f d name
+  while IFS= read -r f; do materialize_link "$f" && n=$((n+1)); done < <(find "$prefix/drive_c/windows/Microsoft.NET" -type l 2>/dev/null)
+  for d in system32 syswow64; do
+    for name in uiautomationcore.dll mscoree.dll mscories.dll dfshim.dll netfxperf.dll msvcr100_clr0400.dll; do
+      f="$prefix/drive_c/windows/$d/$name"
+      [ -L "$f" ] && materialize_link "$f" && n=$((n+1))
+    done
+  done
+  [ "$n" -gt 0 ] && info "Replaced $n Proton symlinks with real files so that the .NET installer can overwrite them"
+  return 0
+}
+
+win_to_unix() { # win_to_unix 'C:\windows\...' -> unix path inside the prefix, resolved case-insensitively
+  python3 - "$prefix" "$1" <<'PY'
+import os, sys
+prefix, win = sys.argv[1], sys.argv[2]
+if not win[:2].lower() == "c:":
+    sys.exit(1)
+cur = os.path.join(prefix, "drive_c")
+for part in [p for p in win[2:].replace("\\", "/").split("/") if p]:
+    if os.path.lexists(os.path.join(cur, part)):
+        cur = os.path.join(cur, part); continue
+    try:
+        match = next(e for e in os.listdir(cur) if e.lower() == part.lower())
+    except (StopIteration, OSError):
+        sys.exit(1)
+    cur = os.path.join(cur, match)
+print(cur)
+PY
+}
+
+fix_symlinks_from_log() { # replace every symlink the last attempt could not overwrite ("failed to create ... (error 5)"); 0 = something fixed
+  local w p n=0
+  while IFS= read -r w; do
+    p="$(win_to_unix "$w" 2>/dev/null)" || continue
+    if [ -L "$p" ]; then materialize_link "$p" && n=$((n+1)) && info "  replaced symlink $p"; fi
+  done < <(grep -o 'failed to create L"[^"]*" (error 5)' "$pt_log" 2>/dev/null | sed -E 's/^failed to create L"//; s/" \(error 5\)$//; s/\\\\/\\/g' | sort -u)
+  [ "$n" -gt 0 ]
+}
+
+dotnet_attempt_fix() { # dotnet_attempt_rt, retried after replacing symlinks the installer stumbled over (at most 3 rounds)
+  local round
+  for round in 1 2 3; do
+    dotnet_attempt_rt "$@" && return 0
+    fix_symlinks_from_log || return 1
+    warn "retrying the .NET install after replacing Proton symlinks (round $round)"
+    : > "$pt_log"
+  done
   return 1
 }
 
@@ -646,6 +709,7 @@ run_protontricks_inner() {
   if [ -n "$avail" ] && [ "$avail" -lt 3000 ]; then
     warn "Only $avail MB free on the drive that holds the prefix; the .NET installers need about 3 GB"
   fi
+  fix_proton_symlinks
   say "Installing .NET Framework 4.8 into the GTA V prefix (log: $pt_log)"
   say "This takes 5-15 minutes and prints a lot: 'may not fully work on a 64-bit installation', Fontconfig errors"
   say "and 'This will hang until all wine processes ... terminate' are normal winetricks noise. The .NET 4.0 and"
@@ -662,9 +726,9 @@ run_protontricks_inner() {
   fi
   if [ -n "$fallback" ]; then
     : > "$pt_log"
-    PROTON_VERSION="$fallback" dotnet_attempt_rt || { warn "dotnet48 failed with $fallback, see $pt_log"; return 1; }
+    PROTON_VERSION="$fallback" dotnet_attempt_fix || { warn "dotnet48 failed with $fallback, see $pt_log"; return 1; }
     used_fallback="$fallback"; DOTNET_PROTON="$fallback"
-  elif ! { : > "$pt_log"; dotnet_attempt_rt; }; then
+  elif ! { : > "$pt_log"; dotnet_attempt_fix; }; then
     if grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log"; then
       warn "The .NET 4.0 installer could not extract its cabinets. That happens on very new wine builds"
       warn "(Proton Experimental); a stable Proton installs it fine, and the game can keep its own Proton."
@@ -682,7 +746,7 @@ run_protontricks_inner() {
       fi
       warn "Retrying with $fallback"
       : > "$pt_log"
-      if ! PROTON_VERSION="$fallback" dotnet_attempt_rt; then
+      if ! PROTON_VERSION="$fallback" dotnet_attempt_fix; then
         warn "dotnet48 failed with $fallback too, see $pt_log. Retry by hand:  PROTON_VERSION=\"$fallback\" $pt 271590 -q dotnet48"
         return 1
       fi
