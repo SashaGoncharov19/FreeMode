@@ -14,6 +14,10 @@ Two version numbers exist side by side:
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0-alpha.23] - 2026-09-03
+
 ### Added
 * `auth` resource (`Server/resources/auth`, disabled by default in `settings.xml`): accounts with registration
   and login through a CEF form (`client.js` + `ui/`) or `/register` and `/login`; chat and every other command
@@ -236,7 +240,8 @@ The first build of the revival. Everything below compares with the 2019-2020 cod
   recipient, so any `setEntityPosition`/`setTime`-style API call failed with two players online.
 * Server: the sync relay threw with an empty recipient list when a single player was online.
 
-[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.22...HEAD
+[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.23...HEAD
+[0.1.0-alpha.23]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.23
 [0.1.0-alpha.22]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.22
 [0.1.0-alpha.21]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.21
 [0.1.0-alpha.20]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.20
