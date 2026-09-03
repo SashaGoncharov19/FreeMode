@@ -266,13 +266,17 @@ Both need `ScriptHookV.dll` + `dinput8.dll` in `bin\` and the .NET Framework 4.8
 
 ## Known limitations
 
-* **Game version drift.** ScriptHookV must match the installed GTA V build, and the memory patterns / native
-  hashes in `Shv.NET/source/core` and `Client/` date from 2019-2020. Newer Legacy builds may need updated
-  offsets; GTA V Enhanced is not supported.
-* **Nothing was tested in game during the revival** - there is no GTA V in CI. Build, server and launcher
-  behaviour are covered by tests; the hook itself is compiled but unverified.
+* **Game version drift.** ScriptHookV must match the installed GTA V build. The memory patterns in
+  `Shv.NET/source/core` carry the classic (2019-2020) signatures plus fallbacks for builds since 1.0.3788
+  (entity pool, camera pool, game text hook). `ScriptHookVDotNet-*.log` names every pattern that did not
+  match and which fallback variant was used; on 1.0.3889 the euphoria functions (unused by GTA Network) and
+  the "force offline" patch are still missing. GTA V Enhanced is not supported.
+* **In-game testing is manual** - there is no GTA V in CI. Build, server, launcher and bot behaviour are
+  covered by tests; the in-game client was verified by hand on GTA V Legacy 1.0.3889 under Proton
+  (connect, sync, chat, vehicles, client-side scripts).
 * **ScriptHookV is not redistributable** and has to be downloaded by every user.
-* **The master server is gone**: no public server list, no auto updates, `announce` is disabled by default.
+* **The master server is gone**: no public server list, no updates through the master (the Linux installer
+  updates itself from GitHub releases), `announce` is disabled by default.
 * **CEF 85 / CefGlue** and the SharpDX 2.6/4.0 mix are kept as the binaries the DirectX hook was tuned for.
 * The classic Windows launcher still contacts `master.gtanet.work` for updates and silently continues when
   it is unreachable.
