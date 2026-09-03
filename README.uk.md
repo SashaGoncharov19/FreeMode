@@ -169,6 +169,10 @@ curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/en
 (клієнтський пакет усе одно з релізу, бо ScriptHookVDotNet потребує MSVC), `--release <tag>` фіксує версію,
 `--game-path` допомагає, якщо Steam не знайдено автоматично, `--method steam`, якщо хочете через параметри запуску Steam.
 
+Налаштування клієнта лежать у `~/GTANetwork/settings.xml`: `MasterServerAddress` за замовчуванням порожній (оригінального
+master-сервера немає; фаворити, недавні сервери і LAN працюють без нього), `EnableMpVehiclesGlobal` вимкнений, бо індекс
+скриптового глобала там із білдів 2016 року.
+
 Далі: `~/GTANetwork/server/start.sh` в одному терміналі, `~/GTANetwork/play.sh` в іншому, і в меню гри у Favorites
 вибрати `127.0.0.1:4499`. `~/GTANetwork/bot.sh` заходить на сервер без гри.
 

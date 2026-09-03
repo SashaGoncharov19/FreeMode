@@ -204,6 +204,10 @@ puts .NET Framework 4.8 + the VC++ runtime into the game's prefix, creates `play
 still comes from a release because ScriptHookVDotNet needs MSVC), `--release <tag>` pins a version,
 `--game-path` helps when Steam auto-detection fails, `--method steam` if you prefer Steam launch options.
 
+Client settings live in `~/GTANetwork/settings.xml`: `MasterServerAddress` is empty by default (the original
+master server is gone; favourites, recent servers and LAN discovery work without one), `EnableMpVehiclesGlobal`
+stays off because its script-global index is from 2016 builds.
+
 Then: `~/GTANetwork/server/start.sh` in one terminal, `~/GTANetwork/play.sh` in another, and in the game
 menu pick `127.0.0.1:4499` from Favorites. `~/GTANetwork/bot.sh` joins the server without the game.
 

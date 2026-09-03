@@ -342,6 +342,9 @@ if name_set == "1" or not (dn.text or "").strip():
 fav = elem("FavoriteServers")
 if server not in [s.text for s in fav.findall("string")]:
     ET.SubElement(fav, "string").text = server
+ms = elem("MasterServerAddress")
+if "master.gtanet.work" in (ms.text or ""):
+    ms.text = ""              # the original master server is gone; empty = do not contact any
 tree.write(path, encoding="utf-8", xml_declaration=True)
 print(dn.text)
 PY

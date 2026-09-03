@@ -51,7 +51,9 @@ namespace GTANetworkShared
 
         public PlayerSettings()
         {
-            MasterServerAddress = "https://master.gtanet.work/";
+            // The original master server (master.gtanet.work) is gone; empty = do not contact any. Favourites,
+            // recent servers and LAN discovery work without one. Point this at your own master server if you run one.
+            MasterServerAddress = "";
             FavoriteServers = new List<string>();
             RecentServers = new List<string>();
             ScaleChatWithSafezone = true;
