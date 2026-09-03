@@ -151,9 +151,8 @@ dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name
 ### Швидкий старт (один скрипт)
 
 ```bash
-# 0. інструменти: curl, unzip, python3 і protontricks (у Debian protontricks лежить у "contrib": спершу увімкніть
-#    його в /etc/apt/sources.list.d/debian.sources, або: flatpak install flathub com.github.Matoking.protontricks)
-sudo apt install curl unzip python3 protontricks
+# 0. інструменти (protontricks скрипт ставить сам, коли треба)
+sudo apt install curl unzip python3
 # 1. запустіть GTA V один раз через Steam (створює Proton-префікс)
 # 2. скачайте zip ScriptHookV з http://www.dev-c.com/gtav/scripthookv/ браузером (сайт блокує скрипти)
 # 3. поставте все в ~/GTANetwork з останнього GitHub-релізу:
@@ -162,14 +161,23 @@ curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/en
 
 `eng/setup-linux.sh` скачує клієнтський пакет, self-contained Linux-лаунчер, сервер і бота (ставити .NET не
 треба), витягує `ScriptHookV.dll` + `dinput8.dll` з найновішого `~/Downloads/ScriptHookV*.zip` (або `--shv <zip>`),
-пише `settings.xml` (метод запуску `proton`, ваш нік, `127.0.0.1:4499` у фаворитах), пропонує поставити .NET
-Framework 4.8 + VC++ у префікс гри через `protontricks`, створює `play.sh`, `server/start.sh`, `bot.sh` і ярлик у
-меню, і завершує `doctor`'ом лаунчера. `--build` збирає лаунчер/сервер/бота з git-чекауту замість скачування
+пише `settings.xml` (метод запуску `proton`, ваш нік, `127.0.0.1:4499` у фаворитах), ставить `protontricks`,
+якщо його немає (у Debian він у `contrib`: скрипт вмикає цей компонент для офіційних репозиторіїв, бекапи
+лишаються; інакше python venv + winetricks з GitHub або Flatpak), ставить .NET Framework 4.8 + VC++ у префікс
+гри, створює `play.sh`, `server/start.sh`, `bot.sh`, `update.sh` і ярлик у меню, і зберігає копію себе та ваші
+опції в `~/GTANetwork`. `--build` збирає лаунчер/сервер/бота з git-чекауту замість скачування
 (клієнтський пакет усе одно з релізу, бо ScriptHookVDotNet потребує MSVC), `--release <tag>` фіксує версію,
 `--game-path` допомагає, якщо Steam не знайдено автоматично, `--method steam`, якщо хочете через параметри запуску Steam.
 
 Далі: `~/GTANetwork/server/start.sh` в одному терміналі, `~/GTANetwork/play.sh` в іншому, і в меню гри у Favorites
 вибрати `127.0.0.1:4499`. `~/GTANetwork/bot.sh` заходить на сервер без гри.
+
+**Оновлення.** `play.sh`, `server/start.sh` і `bot.sh` спершу запускають `update.sh --quiet`: він питає GitHub про
+найновіший реліз і ставить його, якщо той відрізняється від встановленого (`~/GTANetwork/release.txt`); сам скрипт
+теж оновлюється з релізу. Ваш `settings.xml`, ScriptHookV і `server/settings.xml` зберігаються, а поки з цієї папки
+працює сервер, бот чи лаунчер, нічого не чіпається. `update.sh --check` лише повідомляє, `update.sh --auto-update off`
+вимикає автоматичну перевірку (`GTAN_NO_UPDATE=1` пропускає її один раз), `update.sh --release <tag>` фіксує
+версію, `update.sh --shv <zip>` ставить новий ScriptHookV.
 
 ### Вручну
 

@@ -185,9 +185,8 @@ Only **GTA V Legacy** (Steam app 271590) is supported; the Enhanced edition has 
 ### Quick start (one script)
 
 ```bash
-# 0. tools: curl, unzip, python3 and protontricks (Debian keeps protontricks in "contrib": enable it in
-#    /etc/apt/sources.list.d/debian.sources first, or use: flatpak install flathub com.github.Matoking.protontricks)
-sudo apt install curl unzip python3 protontricks
+# 0. tools (protontricks is installed by the script itself when needed)
+sudo apt install curl unzip python3
 # 1. run GTA V once through Steam (creates the Proton prefix)
 # 2. download the ScriptHookV zip from http://www.dev-c.com/gtav/scripthookv/ with a browser (it blocks scripts)
 # 3. install everything into ~/GTANetwork from the latest GitHub release:
@@ -197,14 +196,23 @@ curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/en
 `eng/setup-linux.sh` downloads the client package, the self-contained Linux launcher, server and bot (no .NET
 to install), copies `ScriptHookV.dll` + `dinput8.dll` out of the newest `~/Downloads/ScriptHookV*.zip` (or
 `--shv <zip>`), writes `settings.xml` (launch method `proton`, your name, `127.0.0.1:4499` in the favourites),
-offers to install .NET Framework 4.8 + the VC++ runtime into the game's prefix with `protontricks`, creates
-`play.sh`, `server/start.sh`, `bot.sh` and a desktop entry, and finishes with the launcher's `doctor`.
+installs `protontricks` when it is missing (Debian keeps it in `contrib`: the script enables that component for
+the official repositories, backups are kept; otherwise a python venv + winetricks from GitHub, or Flatpak),
+puts .NET Framework 4.8 + the VC++ runtime into the game's prefix, creates `play.sh`, `server/start.sh`,
+`bot.sh`, `update.sh` and a desktop entry, and keeps a copy of itself plus your options in `~/GTANetwork`.
 `--build` compiles launcher/server/bot from a git checkout instead of downloading them (the client package
 still comes from a release because ScriptHookVDotNet needs MSVC), `--release <tag>` pins a version,
 `--game-path` helps when Steam auto-detection fails, `--method steam` if you prefer Steam launch options.
 
 Then: `~/GTANetwork/server/start.sh` in one terminal, `~/GTANetwork/play.sh` in another, and in the game
 menu pick `127.0.0.1:4499` from Favorites. `~/GTANetwork/bot.sh` joins the server without the game.
+
+**Updates.** `play.sh`, `server/start.sh` and `bot.sh` first run `update.sh --quiet`, which asks GitHub for the
+newest release and installs it when it differs from the installed one (`~/GTANetwork/release.txt`); the setup
+script updates itself from the release as well. Your `settings.xml`, ScriptHookV and `server/settings.xml` are
+kept, and nothing is touched while a server, bot or launcher from that folder is running. `update.sh --check`
+only reports, `update.sh --auto-update off` switches the automatic check off (`GTAN_NO_UPDATE=1` skips it once),
+`update.sh --release <tag>` pins a version, `update.sh --shv <zip>` installs a new ScriptHookV.
 
 ### Manual steps
 
