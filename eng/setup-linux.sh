@@ -357,8 +357,8 @@ dotnet_present() { [ -f "$prefix/drive_c/windows/Microsoft.NET/Framework64/v4.0.
 pt=""
 find_protontricks() {
   pt=""
-  if command -v protontricks >/dev/null 2>&1; then pt="protontricks"
-  elif [ -x "$DIR/tools/bin/protontricks" ]; then pt="$DIR/tools/bin/protontricks"
+  if [ -x "$DIR/tools/bin/protontricks" ]; then pt="$DIR/tools/bin/protontricks"
+  elif command -v protontricks >/dev/null 2>&1; then pt="protontricks"
   elif command -v flatpak >/dev/null 2>&1 && flatpak info com.github.Matoking.protontricks >/dev/null 2>&1; then
     pt="flatpak run com.github.Matoking.protontricks"
   fi
@@ -374,17 +374,25 @@ import glob, os, re, sys
 lists_dir, sources_list, sources_dir, out_dir = sys.argv[1:5]
 
 def has_contrib(uri, suite):
-    """True if the cached Release file of <uri> <suite> lists a "contrib" component. Without a cached
-    file only the official debian.org repositories are trusted."""
+    """(True/False, reason): does the repository <uri> <suite> offer a "contrib" component? Official
+    debian.org hosts always do; any other repository is checked against its cached Release file."""
+    if re.match(r'^https?://([^/]*\.)?debian\.org/', uri):
+        return True, 'official Debian repository'
     hp = re.sub(r'^[a-z][a-z0-9+.-]*://', '', uri).rstrip('/').replace('/', '_')
     for name in (hp + '_dists_' + suite + '_InRelease', hp + '_dists_' + suite + '_Release'):
         path = os.path.join(lists_dir, name)
         if os.path.isfile(path):
             for line in open(path, errors='replace'):
                 if line.startswith('Components:'):
-                    return 'contrib' in line.split()[1:]
-            return False
-    return re.match(r'^https?://([^/]*\.)?debian\.org/', uri) is not None
+                    comps = [c.rsplit('/', 1)[-1] for c in line.split()[1:]]
+                    if 'contrib' in comps:
+                        return True, 'its Release file lists contrib'
+                    return False, 'its Release file has no contrib (' + ' '.join(comps) + ')'
+            return False, 'its Release file has no Components line'
+    return False, 'no cached Release file for it (apt update?) and not a debian.org host'
+
+def diag(path, what, comps, reason):
+    print('[apt] %s: %s [%s] -> %s' % (path, what, ' '.join(comps), reason), file=sys.stderr)
 
 def emit(path, lines):
     tmp = os.path.join(out_dir, 'apt-' + os.path.basename(path) + '.new')
@@ -403,7 +411,15 @@ for path in [sources_list] + sorted(glob.glob(os.path.join(sources_dir, '*.list'
         if not m:
             continue
         uri, suite, comps = m.group(2), m.group(3), m.group(4).split()
-        if not comps or suite.endswith('/') or 'contrib' in comps or not has_contrib(uri, suite):
+        if not comps or suite.endswith('/'):
+            diag(path, uri + ' ' + suite, comps, 'flat repository, no components')
+            continue
+        if 'contrib' in comps:
+            diag(path, uri + ' ' + suite, comps, 'already has contrib')
+            continue
+        okay, reason = has_contrib(uri, suite)
+        diag(path, uri + ' ' + suite, comps, ('adding contrib: ' if okay else 'skipped: ') + reason)
+        if not okay:
             continue
         lines[i] = m.group(1) + ' '.join(comps + ['contrib']) + m.group(5)
         changed = True
@@ -427,11 +443,19 @@ for path in sorted(glob.glob(os.path.join(sources_dir, '*.sources'))):
             return
         comps = fields['components'][1].split()
         uris, suites = fields['uris'][1].split(), fields['suites'][1].split()
-        if 'contrib' in comps or not uris or not suites:
+        what = ' '.join(uris) + ' ' + ' '.join(suites)
+        if 'contrib' in comps:
+            diag(path, what, comps, 'already has contrib')
             return
-        if all(has_contrib(u, s) for u in uris for s in suites):
+        if not uris or not suites:
+            return
+        verdicts = [has_contrib(u, s) for u in uris for s in suites]
+        if all(v[0] for v in verdicts):
+            diag(path, what, comps, 'adding contrib: ' + verdicts[0][1])
             lines[fields['components'][0]] = 'Components: ' + ' '.join(comps + ['contrib'])
             changed = True
+        else:
+            diag(path, what, comps, 'skipped: ' + next(v[1] for v in verdicts if not v[0]))
     for idx, l in enumerate(lines):
         if l.strip() == '':
             if stanza:
@@ -457,13 +481,43 @@ PY
 
 install_protontricks() {
   local cand
-  # a) distribution package (Debian keeps it in "contrib", Ubuntu in "universe")
+  # a) newest protontricks from PyPI + newest winetricks from GitHub in a private venv. Needs only
+  #    python3-venv and cabextract from the distribution (Debian: section "main", no contrib required).
+  mkdir -p "$DIR/tools/bin"
+  if ! python3 -m venv "$DIR/tools/venv" >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+    rm -rf "$DIR/tools/venv"
+    say "Installing python3-venv and cabextract with apt (needs sudo)"
+    $SUDO apt-get install -y -qq python3-venv cabextract || warn "apt-get install python3-venv cabextract failed"
+  fi
+  if [ -x "$DIR/tools/venv/bin/pip" ] || python3 -m venv "$DIR/tools/venv"; then
+    say "Installing protontricks into $DIR/tools (python venv) and winetricks from GitHub"
+    if "$DIR/tools/venv/bin/pip" install -q --disable-pip-version-check protontricks \
+       && curl -fsSL --max-time 120 -o "$DIR/tools/bin/winetricks" https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks; then
+      chmod +x "$DIR/tools/bin/winetricks"
+      write_script "$DIR/tools/bin/protontricks" <<SH
+#!/usr/bin/env bash
+export PATH="$DIR/tools/bin:\$PATH"
+exec "$DIR/tools/venv/bin/protontricks" "\$@"
+SH
+      if ! command -v cabextract >/dev/null 2>&1; then
+        if command -v apt-get >/dev/null 2>&1; then
+          say "Installing cabextract with apt (needs sudo)"
+          $SUDO apt-get install -y -qq cabextract || warn "apt-get install cabextract failed; winetricks needs it for some installers"
+        else
+          warn "winetricks also wants 'cabextract'; install it with your package manager"
+        fi
+      fi
+      return 0
+    fi
+    warn "python venv installation failed"
+  fi
+  # b) distribution package (Debian keeps it in "contrib", Ubuntu in "universe")
   if command -v apt-get >/dev/null 2>&1; then
     cand="$(apt_candidate protontricks)"
     if { [ -z "$cand" ] || [ "$cand" = "(none)" ]; } && is_debian; then
       say "protontricks lives in Debian's 'contrib' section, which is not enabled in your APT sources"
       if ask "Enable 'contrib' for the Debian repositories in /etc/apt now (backups are kept, needs sudo)?"; then
-        if enable_debian_contrib; then $SUDO apt-get update -qq || warn "apt-get update reported errors"; else warn "no Debian repository found to enable contrib in"; fi
+        if enable_debian_contrib; then $SUDO apt-get update -qq || warn "apt-get update reported errors"; else warn "no APT source found where contrib could be enabled (see the [apt] lines above)"; fi
         cand="$(apt_candidate protontricks)"
       fi
     fi
@@ -472,23 +526,6 @@ install_protontricks() {
       $SUDO apt-get install -y -qq protontricks && return 0
       warn "apt-get install protontricks failed"
     fi
-  fi
-  # b) python venv + winetricks script from GitHub (no distribution package needed)
-  if python3 -c 'import venv, ensurepip' >/dev/null 2>&1; then
-    say "Installing protontricks into $DIR/tools (python venv) and winetricks from GitHub"
-    mkdir -p "$DIR/tools/bin"
-    if python3 -m venv "$DIR/tools/venv" && "$DIR/tools/venv/bin/pip" install -q protontricks \
-       && curl -fsSL --max-time 120 -o "$DIR/tools/bin/winetricks" https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks; then
-      chmod +x "$DIR/tools/bin/winetricks"
-      write_script "$DIR/tools/bin/protontricks" <<SH
-#!/usr/bin/env bash
-export PATH="$DIR/tools/bin:\$PATH"
-exec "$DIR/tools/venv/bin/protontricks" "\$@"
-SH
-      command -v cabextract >/dev/null 2>&1 || warn "winetricks also wants 'cabextract' (sudo apt install cabextract)"
-      return 0
-    fi
-    warn "python venv installation failed"
   fi
   # c) Flatpak (user scope, no sudo)
   if command -v flatpak >/dev/null 2>&1; then
