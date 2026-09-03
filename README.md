@@ -117,7 +117,9 @@ Prerequisites:
   the .NET Framework client (through `Microsoft.NETFramework.ReferenceAssemblies`).
 * Windows + Visual Studio 2022 with *C++/CLI support* and the *Windows 10/11 SDK* - only for the real
   `ScriptHookVDotNet.dll`. Put the [ScriptHookV SDK](http://www.dev-c.com/gtav/scripthookv/) (`inc/`, `lib/`)
-  into `Shv.NET/sdk/`.
+  into `Shv.NET/sdk/`, or run `Shv.NET/sdk-compat/install-compat-sdk.ps1` from a Developer PowerShell: it
+  installs equivalent declarations and generates the import library (dev-c.com blocks automated downloads,
+  so this is what CI uses unless the repository variable `SHV_SDK_URL` points to a copy of the SDK).
 
 ```bash
 # everything (on Linux/macOS the client is compiled against the reference stub)
@@ -195,7 +197,7 @@ Both need `ScriptHookV.dll` + `dinput8.dll` in `bin\` and the .NET Framework 4.8
 | Job | Runner | Does |
 | --- | --- | --- |
 | **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (client compile check against the stub), publishes the server (linux-x64, win-x64), the launcher (linux-x64, win-x64, single file) and Map2Resource, runs the server smoke test, uploads artifacts. |
-| **windows** | windows-2022 | Downloads the ScriptHookV SDK (with the `Referer` header dev-c.com requires; override the URL with the repository variable `SHV_SDK_URL`), builds `ScriptHookVDotNet.dll` with MSVC (v143, .NET Framework 4.8), builds the solution against it, assembles the client package (`eng/package-client.ps1`), builds the NSIS installer, uploads artifacts. |
+| **windows** | windows-2022 | Installs the ScriptHookV SDK (official one from the repository variable `SHV_SDK_URL` if set, otherwise the compatible declarations from `Shv.NET/sdk-compat`), builds `ScriptHookVDotNet.dll` with MSVC (v143, .NET Framework 4.8), builds the solution against it, assembles the client package (`eng/package-client.ps1`), builds the NSIS installer, uploads artifacts. |
 | **release** | on `v*` tags | Attaches every artifact to a GitHub release. |
 
 ## Known limitations

@@ -83,7 +83,9 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
   .NET Framework-клієнтом (через `Microsoft.NETFramework.ReferenceAssemblies`).
 * Windows + Visual Studio 2022 з *C++/CLI support* і *Windows SDK* — тільки для справжнього
   `ScriptHookVDotNet.dll`. [ScriptHookV SDK](http://www.dev-c.com/gtav/scripthookv/) (`inc/`, `lib/`) кладеться в
-  `Shv.NET/sdk/`.
+  `Shv.NET/sdk/`, або запустіть `Shv.NET/sdk-compat/install-compat-sdk.ps1` з Developer PowerShell: він
+  ставить еквівалентні декларації і генерує import-бібліотеку (dev-c.com блокує автоматичні завантаження,
+  тож саме це використовує CI, якщо змінна репозиторію `SHV_SDK_URL` не вказує на копію SDK).
 
 ```bash
 # все (на Linux/macOS клієнт компілюється проти заглушки)
@@ -160,7 +162,7 @@ cd ~/gtan-server && ./GTANetworkServer
 | Джоб | Раннер | Робить |
 | --- | --- | --- |
 | **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (перевірка компіляції клієнта проти заглушки), publish сервера (linux-x64, win-x64), лаунчера (linux-x64, win-x64, один файл) і Map2Resource, smoke-тест сервера, артефакти. |
-| **windows** | windows-2022 | Завантажує ScriptHookV SDK (із заголовком `Referer`, який вимагає dev-c.com; URL можна перевизначити змінною репозиторію `SHV_SDK_URL`), збирає `ScriptHookVDotNet.dll` через MSVC (v143, .NET Framework 4.8), збирає solution проти нього, пакує клієнт (`eng/package-client.ps1`), збирає NSIS-інсталятор, артефакти. |
+| **windows** | windows-2022 | Встановлює ScriptHookV SDK (офіційний зі змінної репозиторію `SHV_SDK_URL`, якщо задана, інакше сумісні декларації з `Shv.NET/sdk-compat`), збирає `ScriptHookVDotNet.dll` через MSVC (v143, .NET Framework 4.8), збирає solution проти нього, пакує клієнт (`eng/package-client.ps1`), збирає NSIS-інсталятор, артефакти. |
 | **release** | теги `v*` | Прикріплює всі артефакти до GitHub-релізу. |
 
 ## Відомі обмеження

@@ -98,40 +98,32 @@ jobs:
         shell: bash
         run: eng/version.sh >> "$GITHUB_ENV"
 
-      - name: Cache ScriptHookV SDK
-        id: sdk-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            Shv.NET/sdk/inc
-            Shv.NET/sdk/lib
-          key: scripthookv-sdk-1.0.617.1a
-
-      - name: Download ScriptHookV SDK
-        if: steps.sdk-cache.outputs.cache-hit != 'true'
+      - name: ScriptHookV SDK
+        # dev-c.com blocks automated downloads (HTTP 406 from Mod_Security), so by default the build uses
+        # the compatible declarations in Shv.NET/sdk-compat. Set the repository variable SHV_SDK_URL to a
+        # reachable copy of ScriptHookV_SDK_1.0.617.1a.zip to use the official SDK instead.
         shell: pwsh
         env:
           SHV_SDK_URL: ${{ vars.SHV_SDK_URL }}
         run: |
-          $url = if ($env:SHV_SDK_URL) { $env:SHV_SDK_URL } else { "http://www.dev-c.com/files/ScriptHookV_SDK_1.0.617.1a.zip" }
-          $ok = $false
-          for ($i = 1; $i -le 5 -and -not $ok; $i++) {
+          if ($env:SHV_SDK_URL) {
             try {
-              Invoke-WebRequest -Uri $url -OutFile sdk.zip -UseBasicParsing -Headers @{ Referer = "http://www.dev-c.com/gtav/scripthookv/"; "User-Agent" = "Mozilla/5.0" }
-              $ok = $true
+              Invoke-WebRequest -Uri $env:SHV_SDK_URL -OutFile sdk.zip -UseBasicParsing -Headers @{ Referer = "http://www.dev-c.com/gtav/scripthookv/"; "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36" }
+              Expand-Archive sdk.zip -DestinationPath sdk-tmp -Force
+              $inc = Get-ChildItem sdk-tmp -Recurse -Directory -Filter inc | Select-Object -First 1
+              $lib = Get-ChildItem sdk-tmp -Recurse -Directory -Filter lib | Select-Object -First 1
+              if (-not $inc -or -not $lib) { throw "Unexpected SDK layout" }
+              New-Item -ItemType Directory -Force Shv.NET/sdk/inc, Shv.NET/sdk/lib | Out-Null
+              Copy-Item "$($inc.FullName)/*" Shv.NET/sdk/inc -Recurse -Force
+              Copy-Item "$($lib.FullName)/*" Shv.NET/sdk/lib -Recurse -Force
+              Write-Host "Using the official ScriptHookV SDK from SHV_SDK_URL"
             } catch {
-              Write-Host "Attempt $i failed: $_"
-              Start-Sleep -Seconds (15 * $i)
+              Write-Warning "Official SDK download failed ($_); falling back to Shv.NET/sdk-compat"
             }
           }
-          if (-not $ok) { throw "Could not download the ScriptHookV SDK from $url" }
-          Expand-Archive sdk.zip -DestinationPath sdk-tmp -Force
-          $inc = Get-ChildItem sdk-tmp -Recurse -Directory -Filter inc | Select-Object -First 1
-          $lib = Get-ChildItem sdk-tmp -Recurse -Directory -Filter lib | Select-Object -First 1
-          if (-not $inc -or -not $lib) { throw "Unexpected SDK layout" }
-          New-Item -ItemType Directory -Force Shv.NET/sdk/inc, Shv.NET/sdk/lib | Out-Null
-          Copy-Item "$($inc.FullName)/*" Shv.NET/sdk/inc -Recurse -Force
-          Copy-Item "$($lib.FullName)/*" Shv.NET/sdk/lib -Recurse -Force
+          if (-not (Test-Path Shv.NET/sdk/lib/ScriptHookV.lib)) {
+            & Shv.NET/sdk-compat/install-compat-sdk.ps1
+          }
           Get-ChildItem Shv.NET/sdk -Recurse -File | Select-Object -ExpandProperty FullName
 
       - name: Build ScriptHookVDotNet (C++/CLI)
