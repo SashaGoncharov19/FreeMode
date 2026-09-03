@@ -16,6 +16,14 @@ Two version numbers exist side by side:
 
 Nothing yet.
 
+## [0.1.0-alpha.22] - 2026-09-03
+
+### Added
+* `[PROFILE] Present hook overlay` line in `Runtime.log` every 10 s: time spent in the DirectX overlay inside
+  `Present` (render thread), the part of the frame the script profiler cannot see.
+* The API probe enumerates the members JavaScript can see on `API` and compares with a one-method probe host
+  object, to tell "ClearScript exposes nothing" from "ScriptContext is special".
+
 ## [0.1.0-alpha.21] - 2026-09-03
 
 ### Changed
@@ -202,7 +210,8 @@ The first build of the revival. Everything below compares with the 2019-2020 cod
   recipient, so any `setEntityPosition`/`setTime`-style API call failed with two players online.
 * Server: the sync relay threw with an empty recipient list when a single player was online.
 
-[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.21...HEAD
+[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.22...HEAD
+[0.1.0-alpha.22]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.22
 [0.1.0-alpha.21]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.21
 [0.1.0-alpha.20]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.20
 [0.1.0-alpha.19]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.19

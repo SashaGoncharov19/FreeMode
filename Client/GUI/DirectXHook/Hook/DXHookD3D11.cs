@@ -379,9 +379,13 @@ namespace GTANetwork.GUI.DirectXHook.Hook
 
                     if (OverlayEngine != null)
                     {
+                        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
                         foreach (var overlay in OverlayEngine.Overlays)
                             overlay.Frame();
                         OverlayEngine.Draw();
+
+                        RecordPresentCost(System.Diagnostics.Stopwatch.GetTimestamp() - started);
                     }
 
                     #endregion
@@ -398,6 +402,33 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             // As always we need to call the original method, note that EasyHook will automatically skip the hook and call the original method
             // i.e. calling it here will not cause a stack overflow into this function
             return DXGISwapChain_PresentHook.Original(swapChainPtr, syncInterval, flags);
+        }
+
+        // Cost of the overlay work inside Present (render thread), summarised every 10 s in Runtime.log:
+        // this is the part of the frame the script profiler cannot see.
+        private long _presentCostTicks, _presentCostMax, _presentCostFrames, _presentCostWindowStart;
+
+        private void RecordPresentCost(long ticks)
+        {
+            _presentCostTicks += ticks;
+            _presentCostFrames++;
+            if (ticks > _presentCostMax) _presentCostMax = ticks;
+
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_presentCostWindowStart == 0)
+            {
+                _presentCostWindowStart = now;
+            }
+            else if (now - _presentCostWindowStart >= System.Diagnostics.Stopwatch.Frequency * 10)
+            {
+                var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame",
+                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick));
+                _presentCostTicks = 0;
+                _presentCostMax = 0;
+                _presentCostFrames = 0;
+                _presentCostWindowStart = now;
+            }
         }
 
         public void ManualPresentHook(IntPtr swapChainPtr)

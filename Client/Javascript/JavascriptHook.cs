@@ -403,15 +403,24 @@ namespace GTANetwork.Javascript
             scriptEngine.AddHostType("BadgeStyle", typeof(UIMenuItem.BadgeStyle));
             scriptEngine.AllowReflection = false;
 
-            // One line in Runtime.log that says whether the API events and methods are visible from JavaScript.
+            // One line in Runtime.log that says whether the API events and methods are visible from JavaScript,
+            // next to a trivial host object, so that "ClearScript exposes nothing" and "ScriptContext is special"
+            // can be told apart from the log alone.
             try
             {
-                var probe = scriptEngine.Evaluate("typeof API + ' ' + typeof API.onResourceStart + ' ' + typeof API.onChatCommand + ' ' + typeof API.sendNotification");
-                LogManager.RuntimeLog("Client script API probe for " + script.ResourceParent + "/" + script.Filename + " (API, onResourceStart, onChatCommand, sendNotification): " + probe);
+                scriptEngine.AddHostObject("probeHost", new ProbeHost());
+                var probe = scriptEngine.Evaluate(
+                    "(function () {" +
+                    "  var names = []; try { for (var k in API) { names.push(k); if (names.length >= 6) break; } } catch (e) { names.push('enum error: ' + e); }" +
+                    "  return 'API=' + typeof API + ' onResourceStart=' + typeof API.onResourceStart + ' sendNotification=' + typeof API.sendNotification +" +
+                    "    ' ToString=' + typeof API.ToString + ' members=[' + names.join(',') + ']' +" +
+                    "    ' | probeHost: ping=' + typeof probeHost.ping + ' value=' + typeof probeHost.value + ' onPing=' + typeof probeHost.onPing + ' Name=' + typeof probeHost.Name;" +
+                    "})()");
+                LogManager.RuntimeLog("Client script API probe for " + script.ResourceParent + "/" + script.Filename + ": " + probe);
             }
             catch (Exception probeException)
             {
-                LogManager.RuntimeLog("Client script API probe failed: " + probeException.Message);
+                LogManager.RuntimeLog("Client script API probe failed: " + probeException);
             }
 
             try
@@ -532,6 +541,16 @@ namespace GTANetwork.Javascript
                 LogManager.SimpleLog("Error", "Script error details" + where + ":\r\n" + engineException.ErrorDetails);
             }
         }
+    }
+
+    /// <summary>Minimal host object for the API probe: one method, one field, one property, one event.</summary>
+    public class ProbeHost
+    {
+        public delegate void PingEvent();
+        public int value = 1;
+        public string Name { get; set; } = "probe";
+        public event PingEvent onPing;
+        public void ping() { onPing?.Invoke(); }
     }
 
     public class ScriptContext
