@@ -185,6 +185,9 @@ Only **GTA V Legacy** (Steam app 271590) is supported; the Enhanced edition has 
 ### Quick start (one script)
 
 ```bash
+# 0. tools: curl, unzip, python3 and protontricks (Debian keeps protontricks in "contrib": enable it in
+#    /etc/apt/sources.list.d/debian.sources first, or use: flatpak install flathub com.github.Matoking.protontricks)
+sudo apt install curl unzip python3 protontricks
 # 1. run GTA V once through Steam (creates the Proton prefix)
 # 2. download the ScriptHookV zip from http://www.dev-c.com/gtav/scripthookv/ with a browser (it blocks scripts)
 # 3. install everything into ~/GTANetwork from the latest GitHub release:

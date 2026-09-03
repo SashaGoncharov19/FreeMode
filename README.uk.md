@@ -151,6 +151,9 @@ dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name
 ### Швидкий старт (один скрипт)
 
 ```bash
+# 0. інструменти: curl, unzip, python3 і protontricks (у Debian protontricks лежить у "contrib": спершу увімкніть
+#    його в /etc/apt/sources.list.d/debian.sources, або: flatpak install flathub com.github.Matoking.protontricks)
+sudo apt install curl unzip python3 protontricks
 # 1. запустіть GTA V один раз через Steam (створює Proton-префікс)
 # 2. скачайте zip ScriptHookV з http://www.dev-c.com/gtav/scripthookv/ браузером (сайт блокує скрипти)
 # 3. поставте все в ~/GTANetwork з останнього GitHub-релізу:

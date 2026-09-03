@@ -238,7 +238,9 @@ if [ "$RUN_PROTONTRICKS" -eq 1 ]; then
     elif command -v flatpak >/dev/null 2>&1 && flatpak info com.github.Matoking.protontricks >/dev/null 2>&1; then pt="flatpak run com.github.Matoking.protontricks"; fi
     if [ -z "$pt" ]; then
       warn "protontricks is not installed. Install it and run:  protontricks 271590 -q dotnet48 vcrun2022"
-      warn "  Debian/Ubuntu: sudo apt install protontricks    Arch: pacman -S protontricks    any: pipx install protontricks"
+      warn "  Debian:  the package is in 'contrib': add contrib to /etc/apt/sources.list.d/debian.sources (or /etc/apt/sources.list),"
+      warn "           then: sudo apt update && sudo apt install protontricks"
+      warn "  Ubuntu:  sudo apt install protontricks    Arch: pacman -S protontricks    any: pipx install protontricks"
       warn "  Flatpak:       flatpak install flathub com.github.Matoking.protontricks"
     elif ask "Install .NET Framework 4.8 + VC++ 2022 runtime into the GTA V prefix now with protontricks (takes several minutes)?"; then
       info "Running: $pt 271590 -q dotnet48 vcrun2022"
