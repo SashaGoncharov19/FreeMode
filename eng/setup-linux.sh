@@ -171,13 +171,14 @@ resolve_release() {
     return 1
   fi
   mv -f "$release_file.tmp" "$release_file"
+  # The API lists releases sorted by tag name, so "alpha.9" comes before "alpha.13": pick the newest by date.
   RELEASE_TAG="$(python3 -c '
 import json, sys
 data = json.load(open(sys.argv[1]))
 if isinstance(data, list):
     data = [r for r in data if not r.get("draft")]
     if not data: sys.exit("no release found; tag one (vX.Y.Z) or use --build")
-    data = data[0]
+    data = max(data, key=lambda r: r.get("published_at") or r.get("created_at") or "")
 print(data["tag_name"])' "$release_file")" || die "no usable release"
 }
 
@@ -186,7 +187,7 @@ asset_url() { # asset_url <name prefix>
 import json, sys
 data = json.load(open(sys.argv[1])); prefix = sys.argv[2]
 if isinstance(data, list):
-    data = [r for r in data if not r.get("draft")][0]
+    data = max([r for r in data if not r.get("draft")], key=lambda r: r.get("published_at") or r.get("created_at") or "")
 for a in data.get("assets", []):
     if a["name"].startswith(prefix):
         print(a["browser_download_url"]); break' "$release_file" "$1"
