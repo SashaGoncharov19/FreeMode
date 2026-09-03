@@ -1,4 +1,4 @@
-﻿#define ATTACHSERVER
+#define ATTACHSERVER
 //#define INTEGRITYCHECK
 
 using GTA;
@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -169,7 +170,60 @@ namespace GTANetwork
 
         public static Camera MainMenuCamera;
 
-        public static readonly string GTANInstallDir = ((string)Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "GTANetworkInstallDir", null));
+        public static readonly string GTANInstallDir = ResolveInstallDir();
+
+        /// <summary>
+        /// Locates the GTA Network installation folder (the one containing bin\, cef\, images\ and settings.xml).
+        /// 1. Registry value written by the classic Windows launcher (GTANLauncher.exe).
+        /// 2. GTAN_INSTALL_DIR environment variable.
+        /// 3. Derived from this assembly's location: &lt;install&gt;\bin\scripts\GTANetwork.dll.
+        /// The last two make the client work when the game runs through Proton/Wine, where nothing
+        /// touches the (prefix) registry. The result always ends with a directory separator, because
+        /// the rest of the code base concatenates relative paths to it.
+        /// </summary>
+        private static string ResolveInstallDir()
+        {
+            string dir = null;
+
+            try
+            {
+                dir = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "GTANetworkInstallDir", null) as string;
+            }
+            catch
+            {
+                // ignored (no registry access)
+            }
+
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                dir = Environment.GetEnvironmentVariable("GTAN_INSTALL_DIR");
+            }
+
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                try
+                {
+                    var location = new Uri(Assembly.GetExecutingAssembly().CodeBase).LocalPath;
+                    var scriptsDir = Path.GetDirectoryName(location);          // <install>\bin\scripts
+                    var binDir = scriptsDir == null ? null : Path.GetDirectoryName(scriptsDir); // <install>\bin
+                    var root = binDir == null ? null : Path.GetDirectoryName(binDir);           // <install>
+                    if (root != null && Directory.Exists(root)) dir = root;
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(dir)) return string.Empty;
+
+            if (!dir.EndsWith(Path.DirectorySeparatorChar.ToString()) && !dir.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+            {
+                dir += Path.DirectorySeparatorChar;
+            }
+
+            return dir;
+        }
 
         private static int _debugStep;
         private bool _lastSpectating;

@@ -15,6 +15,7 @@
  */
 
 #include "ScriptDomain.hpp"
+#include "Settings.hpp"
 
 using namespace System;
 using namespace System::Threading;
@@ -51,11 +52,58 @@ namespace GTA
 		return nullptr;
 	}
 
+	// GTA Network root folder (the one with bin\, cef\, images\, logs\).
+	// Classic layout: <root>\bin\ScriptHookVDotNet.dll (injected by the Windows launcher).
+	// ASI-loader / Proton layout: ScriptHookVDotNet.asi sits in the game folder and the .ini next to it
+	// points ScriptsLocation at <root>\bin\scripts, so the root is derived from that setting.
+	String ^GetRootDirectory()
+	{
+		String ^location = Assembly::GetExecutingAssembly()->Location;
+		String ^directory = IO::Path::GetDirectoryName(location);
+
+		try
+		{
+			auto settings = ScriptSettings::Load(IO::Path::ChangeExtension(location, ".ini"));
+			String ^scripts = settings->GetValue(String::Empty, "ScriptsLocation", String::Empty);
+
+			if (!String::IsNullOrEmpty(scripts) && IO::Path::IsPathRooted(scripts))
+			{
+				String ^binDirectory = IO::Path::GetDirectoryName(IO::Path::GetFullPath(scripts));
+				String ^root = ReferenceEquals(binDirectory, nullptr) ? nullptr : IO::Path::GetDirectoryName(binDirectory);
+
+				if (!ReferenceEquals(root, nullptr) && IO::Directory::Exists(root))
+				{
+					return root;
+				}
+			}
+		}
+		catch (Exception ^)
+		{
+		}
+
+		String ^parent = IO::Path::GetDirectoryName(directory);
+		return ReferenceEquals(parent, nullptr) ? directory : parent;
+	}
+
 	void Log(String ^logLevel, ... array<String ^> ^message)
 	{
 		DateTime now = DateTime::Now;
 
-		String ^logpath = IO::Path::Combine(IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location), "..\\logs\\ScriptHookVDotNet.log");
+		String ^logDirectory = IO::Path::Combine(GetRootDirectory(), "logs");
+
+		try
+		{
+			if (!IO::Directory::Exists(logDirectory))
+			{
+				IO::Directory::CreateDirectory(logDirectory);
+			}
+		}
+		catch (Exception ^)
+		{
+			return;
+		}
+
+		String ^logpath = IO::Path::Combine(logDirectory, "ScriptHookVDotNet.log");
 		logpath = logpath->Insert(logpath->IndexOf(".log"), "-" + now.ToString("yyyy-MM-dd"));
 
 		try
@@ -484,19 +532,34 @@ namespace GTA
 			return;
 		}
 
-		String ^assemblyPath = IO::Path::Combine(IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location), "..\\bin\\scripts");
-		String ^assemblyFilename = IO::Path::GetFileNameWithoutExtension(assemblyPath);
+		String ^logDirectory = IO::Path::Combine(GetRootDirectory(), "logs");
+		String ^assemblyFilename = "ScriptHookVDotNet";
 
-		for each (String ^path in IO::Directory::GetFiles(IO::Path::GetDirectoryName(assemblyPath), "*.log"))
+		array<String ^> ^oldLogs = gcnew array<String ^>(0);
+
+		try
 		{
-			if (!path->StartsWith(assemblyFilename))
+			if (IO::Directory::Exists(logDirectory))
+			{
+				oldLogs = IO::Directory::GetFiles(logDirectory, "*.log");
+			}
+		}
+		catch (Exception ^)
+		{
+		}
+
+		for each (String ^path in oldLogs)
+		{
+			String ^fileName = IO::Path::GetFileNameWithoutExtension(path);
+
+			if (!fileName->StartsWith(assemblyFilename) || fileName->IndexOf('-') < 0)
 			{
 				continue;
 			}
 
 			try
 			{
-				TimeSpan logAge = DateTime::Now - DateTime::Parse(IO::Path::GetFileNameWithoutExtension(path)->Substring(path->IndexOf('-') + 1));
+				TimeSpan logAge = DateTime::Now - DateTime::Parse(fileName->Substring(fileName->IndexOf('-') + 1));
 
 				// Delete logs older than 5 days
 				if (logAge.Days >= 5)

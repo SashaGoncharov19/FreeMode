@@ -1,10 +1,20 @@
 ;NSIS Modern User Interface
 ;GTA NETWORK INSTALLER
+;
+;  makensis /DSOURCE_DIR=<folder with the packaged client> Setup.nsi
+;  (the GitHub Actions windows job passes the output of eng/package-client.ps1)
 
   !include "MUI2.nsh"
 
+  !ifndef SOURCE_DIR
+    !define SOURCE_DIR "C:\GTANetworkProd"
+  !endif
+  !ifndef OUT_FILE
+    !define OUT_FILE "GTANSetup.exe"
+  !endif
+
   Name "GTA Network"
-  OutFile "GTANSetup.exe"
+  OutFile "${OUT_FILE}"
 
   InstallDir "C:\GTANetwork"
 
@@ -28,7 +38,7 @@ ${If} ${FileExists} "$INSTDIR\*"
      RMDir /r "$INSTDIR"
 ${EndIf}
 
-  File /r "C:\GTANetworkProd\*"
+  File /r "${SOURCE_DIR}\*"
 
   CreateShortCut "$DESKTOP\GTA Network.lnk" "$INSTDIR\GTANLauncher.exe" ""
   WriteUninstaller "$INSTDIR\Uninstall.exe"

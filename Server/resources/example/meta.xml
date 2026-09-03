@@ -1,0 +1,4 @@
+<meta>
+  <info name="Example gamemode" author="GTA Network" version="1.0" type="gamemode" description="Minimal C# gamemode that proves the scripting pipeline works." />
+  <script src="example.cs" type="server" lang="csharp" />
+</meta>

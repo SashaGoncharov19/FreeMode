@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -6,17 +7,13 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using System.Xml.Serialization;
 using GTANetworkShared;
-using Mono.Unix;
-using Mono.Unix.Native;
 using GTANetworkServer.Constant;
 
 namespace GTANetworkServer
 {
     internal static class Program
     {
-
         [DllImport("Kernel32.dll")]
         private static extern bool SetConsoleCtrlHandler(EventHandler handler, bool add);
         private delegate bool EventHandler(CtrlType sig);
@@ -92,9 +89,11 @@ namespace GTANetworkServer
         public static string GetHashSHA256(string text)
         {
             var bytes = Encoding.UTF8.GetBytes(text);
-            var hashstring = new SHA256Managed();
-            var hash = hashstring.ComputeHash(bytes);
-            return hash.Aggregate(string.Empty, (current, x) => current + $"{x:x2}");
+            using (var sha256 = SHA256.Create())
+            {
+                var hash = sha256.ComputeHash(bytes);
+                return hash.Aggregate(string.Empty, (current, x) => current + $"{x:x2}");
+            }
         }
 
 
@@ -103,22 +102,32 @@ namespace GTANetworkServer
         internal static GameServer ServerInstance { get; set; }
         internal static bool CloseProgram;
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [DllImport("kernel32.dll", EntryPoint = "DeleteFileW", CharSet = CharSet.Unicode, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool DeleteFile(string name);
+        private static extern bool DeleteFileNative(string name);
+
+        /// <summary>
+        /// Deletes a file through the Win32 API. Used to strip the "Zone.Identifier" alternate data stream
+        /// (the "downloaded from the internet" mark) from resource assemblies. No-op outside Windows.
+        /// </summary>
+        public static bool DeleteFile(string name)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return false;
+            return DeleteFileNative(name);
+        }
 
 
         private static void Main()
         {
             _handler += Handler;
-            var p = (int)Environment.OSVersion.Platform;
-            if (p == 4 || p == 6 || p == 128)
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                setupHandlers();
+                SetConsoleCtrlHandler(_handler, true);
             }
             else
             {
-                SetConsoleCtrlHandler(_handler, true);
+                setupHandlers();
             }
 
             var settings = ServerSettings.ReadSettings(Location + "settings.xml");
@@ -138,13 +147,12 @@ namespace GTANetworkServer
             Console.WriteLine("=");
             Console.WriteLine("= Player Limit: " + settings.MaxPlayers);
             Console.WriteLine("= Log Level: " + settings.LogLevel + " (1: ERROR, 2: DEBUG, 3: VERBOSE)");
+            Console.WriteLine("= Runtime: " + RuntimeInformation.FrameworkDescription + " on " + RuntimeInformation.OSDescription + " (" + RuntimeInformation.OSArchitecture + ")");
             Console.WriteLine("=======================================================================");
 
             if (settings.Port != 4499) Output("WARN: Port is not the default one, players on your local network won't be able to automatically detect you!");
 
             Output("Starting...");
-
-            //AppDomain.CurrentDomain.SetShadowCopyFiles();
 
             if (!Directory.Exists("resources"))
             {
@@ -168,11 +176,18 @@ namespace GTANetworkServer
 
         }
 
+        private static int _terminating;
+
         private static bool Handler(CtrlType sig)
         {
+            if (Interlocked.Exchange(ref _terminating, 1) != 0) return true;
+
             Output("Terminating...");
-            ServerInstance.IsClosing = true;
-            while (!ServerInstance.ReadyToClose) { Thread.Sleep(10); }
+            if (ServerInstance != null)
+            {
+                ServerInstance.IsClosing = true;
+                while (!ServerInstance.ReadyToClose) { Thread.Sleep(10); }
+            }
             CloseProgram = true;
             Console.WriteLine("Terminated.");
             return true;
@@ -187,73 +202,25 @@ namespace GTANetworkServer
             CTRL_SHUTDOWN_EVENT = 6
         }
 
-        private static bool _masterExit;
+        // Unix: SIGINT (Ctrl+C), SIGTERM (systemd/docker stop), SIGQUIT and SIGHUP all shut the server down cleanly.
+        private static readonly List<PosixSignalRegistration> _signalRegistrations = new List<PosixSignalRegistration>();
+
         private static void setupHandlers()
         {
-            var newthread = new Thread(SigHan);
-            newthread.Start();
-        }
-
-        private static void SigHan()
-        {
-            UnixSignal[] signals = {
-                new UnixSignal (Signum.SIGINT),
-                new UnixSignal (Signum.SIGTERM),
-                new UnixSignal (Signum.SIGQUIT),
-                };
-
-            while (!_masterExit)
+            foreach (var signal in new[] { PosixSignal.SIGINT, PosixSignal.SIGTERM, PosixSignal.SIGQUIT, PosixSignal.SIGHUP })
             {
-                var index = UnixSignal.WaitAny(signals, -1);
-                var signal = signals[index].Signum;
-                sigHandler(signal);
-            };
-        }
-
-        private static void sigHandler(Signum signal)
-        {
-            switch (signal)
-            {
-                case Signum.SIGINT:    // Control-C
-                case Signum.SIGTERM:
-                case Signum.SIGQUIT:
-                case Signum.SIGHUP:
-                case Signum.SIGILL:
-                case Signum.SIGTRAP:
-                case Signum.SIGABRT:
-                case Signum.SIGBUS:
-                case Signum.SIGFPE:
-                case Signum.SIGKILL:
-                case Signum.SIGUSR1:
-                case Signum.SIGSEGV:
-                case Signum.SIGUSR2:
-                case Signum.SIGPIPE:
-                case Signum.SIGALRM:
-                case Signum.SIGSTKFLT:
-                case Signum.SIGCLD:
-                case Signum.SIGCONT:
-                case Signum.SIGSTOP:
-                case Signum.SIGTSTP:
-                case Signum.SIGTTIN:
-                case Signum.SIGTTOU:
-                case Signum.SIGURG:
-                case Signum.SIGXCPU:
-                case Signum.SIGXFSZ:
-                case Signum.SIGVTALRM:
-                case Signum.SIGPROF:
-                case Signum.SIGWINCH:
-                case Signum.SIGPOLL:
-                case Signum.SIGPWR:
-                case Signum.SIGSYS:
-                    _masterExit = true;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(signal), signal, null);
-            }
-
-            if (_masterExit)
-            {
-                Handler(CtrlType.CTRL_C_EVENT);
+                try
+                {
+                    _signalRegistrations.Add(PosixSignalRegistration.Create(signal, context =>
+                    {
+                        context.Cancel = true; // we exit through the main loop instead of being killed mid-tick
+                        new Thread(() => Handler(CtrlType.CTRL_C_EVENT)) { IsBackground = true, Name = "GTAN shutdown" }.Start();
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    Output("Could not register handler for " + signal + ": " + ex.Message, LogCat.Warn);
+                }
             }
         }
     }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.CodeDom.Compiler;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +16,6 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.CSharp;
-using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using ProtoBuf;
 

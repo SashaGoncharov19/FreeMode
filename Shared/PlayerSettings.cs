@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+#if NETFRAMEWORK
 using System.Windows.Forms;
+#endif
 
 namespace GTANetworkShared
 {
@@ -29,6 +31,21 @@ namespace GTANetworkShared
 
         public string GamePath { get; set; }
 
+        // --- Cross-platform launcher (GTANetwork.Launcher) settings. Ignored by the classic Windows launcher. ---
+
+        /// <summary>How the launcher starts the game: "steam" (default), "proton" (run Proton directly) or "direct" (Windows).</summary>
+        public string LaunchMethod { get; set; }
+        /// <summary>Steam installation root. Auto-detected when empty.</summary>
+        public string SteamPath { get; set; }
+        /// <summary>Directory of the Proton build to use (contains the "proton" script). Auto-detected when empty.</summary>
+        public string ProtonPath { get; set; }
+        /// <summary>Wine prefix of the game (Steam: steamapps/compatdata/271590/pfx). Auto-detected when empty.</summary>
+        public string ProtonPrefixPath { get; set; }
+        /// <summary>Add -scOfflineOnly to commandline.txt while GTA Network runs (the classic launcher always did this).</summary>
+        public bool ScOfflineOnly { get; set; }
+        /// <summary>Temporarily move other *.asi plugins out of the game folder while GTA Network runs.</summary>
+        public bool DisableOtherAsiPlugins { get; set; }
+
         public PlayerSettings()
         {
             MasterServerAddress = "https://master.gtanet.work/";
@@ -49,6 +66,12 @@ namespace GTANetworkShared
             CEFDevtool = false;
             DebugMode = false;
             GamePath = "";
+            LaunchMethod = "steam";
+            SteamPath = "";
+            ProtonPath = "";
+            ProtonPrefixPath = "";
+            ScOfflineOnly = true;
+            DisableOtherAsiPlugins = true;
         }
     }
 }

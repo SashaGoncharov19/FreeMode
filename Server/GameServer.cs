@@ -1,5 +1,4 @@
-﻿using System;
-using System.CodeDom.Compiler;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +16,6 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.CSharp;
-using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using ProtoBuf;
 
@@ -485,28 +482,13 @@ namespace GTANetworkServer
 
         private IEnumerable<Script> CompileScript(string[] script, string[] references, bool vbBasic = false)
         {
-            var provide = new CSharpCodeProvider();
-            var vBasicProvider = new VBCodeProvider();
+            var referencePaths = new List<string>();
 
-            var compParams = new CompilerParameters();
-
-            compParams.ReferencedAssemblies.Add("System.Drawing.dll");
-            compParams.ReferencedAssemblies.Add("System.Windows.Forms.dll");
-            compParams.ReferencedAssemblies.Add("System.IO.dll");
-            compParams.ReferencedAssemblies.Add("System.Linq.dll");
-            compParams.ReferencedAssemblies.Add("System.Core.dll");
-            compParams.ReferencedAssemblies.Add("System.dll");
-            compParams.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
-            compParams.ReferencedAssemblies.Add("GTANetworkServer.exe");
-            compParams.ReferencedAssemblies.Add("GTANetworkShared.dll");
-
-            foreach (var s in references)
+            foreach (var s in references ?? new string[0])
             {
-                compParams.ReferencedAssemblies.Add(File.Exists(AssemblyReferences[s]) ? AssemblyReferences[s] : s);
+                if (string.IsNullOrWhiteSpace(s)) continue;
+                referencePaths.Add(AssemblyReferences.ContainsKey(s) && File.Exists(AssemblyReferences[s]) ? AssemblyReferences[s] : s);
             }
-
-            compParams.GenerateInMemory = true;
-            compParams.GenerateExecutable = false;
 
             for (int s = 0; s < script.Length; s++)
                 if (!vbBasic && script[s].TrimStart().StartsWith("public Constructor"))
@@ -532,38 +514,10 @@ namespace GTANResource
 
             try
             {
-                var results = !vbBasic
-                    ? provide.CompileAssemblyFromSource(compParams, script)
-                    : vBasicProvider.CompileAssemblyFromSource(compParams, script);
+                var asm = ScriptCompiler.Compile(script, referencePaths, vbBasic, Program.Output);
 
-                if (results.Errors.HasErrors)
-                {
-                    var basePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                    bool allWarns = true;
-                    Program.Output("Error/warning while compiling script!", LogCat.Warn);
-                    foreach (CompilerError error in results.Errors)
-                    {
-                        if (basePath != null)
-                        {
-                            Program.Output(
-                                string.Format("{3} ({0}) at {4}:{2}: {1}",
-                                    error.ErrorNumber,
-                                    error.ErrorText,
-                                    error.Line,
-                                    error.IsWarning ? "Warning" : "Error",
-                                    error.FileName), error.IsWarning ? LogCat.Warn : LogCat.Error);
-                        }
-                        Program.Output(String.Format("{3} ({0}) at {2}: {1}", error.ErrorNumber, error.ErrorText, error.Line, error.IsWarning ? "Warning" : "Error"));
+                if (asm == null) return null;
 
-                        allWarns = allWarns && error.IsWarning;
-                    }
-
-
-                    if (!allWarns)
-                        return null;
-                }
-
-                var asm = results.CompiledAssembly;
                 return InstantiateScripts(asm);
             }
             catch (Exception ex)

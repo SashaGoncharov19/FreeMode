@@ -212,5 +212,15 @@ ModelManifest.xml
 
 .db
 
-# GTA Network generated files
-AssemblyInfo.cs
+# GTA Network
+artifacts/
+Shv.NET/sdk/*
+!Shv.NET/sdk/.gitignore
+Shv.NET/bin/
+Shv.NET/obj/
+.idea/
+.vscode/
+*.swp
+# server runtime files
+Server/server.log
+Server/bans.xml

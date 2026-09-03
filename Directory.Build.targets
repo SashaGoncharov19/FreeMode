@@ -1,0 +1,6 @@
+<Project>
+  <!-- Handy target: print the computed version (dotnet msbuild -t:ShowVersion). -->
+  <Target Name="ShowVersion">
+    <Message Importance="high" Text="$(MSBuildProjectName): $(GtanVersion)" />
+  </Target>
+</Project>

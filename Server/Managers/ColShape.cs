@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -285,8 +285,7 @@ namespace GTANetworkServer
 
         public void Shutdown()
         {
-            HasToStop = true;
-            MainThread.Abort();
+            HasToStop = true; // MainLoop checks the flag; Thread.Abort is unavailable on .NET 5+.
         }
 
         private int _shapeHandles = 0;
