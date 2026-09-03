@@ -727,9 +727,6 @@ run_protontricks_inner() {
       install_ge_proton || { warn "could not install $fallback"; return 1; }
     fi
     say "Using $fallback for the .NET install (--dotnet-proton)"
-  elif grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log" 2>/dev/null; then
-    fallback="$(find_fallback_proton || true)"
-    [ -n "$fallback" ] && say "The previous run failed on the .NET 4.0 cabinets with the game's Proton; going straight to $fallback"
   fi
   if [ -n "$fallback" ]; then
     : > "$pt_log"
