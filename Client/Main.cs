@@ -265,6 +265,14 @@ namespace GTANetwork
 
         public Main()
         {
+            // Last line of defence: an unhandled exception on any thread ends GTA5.exe. We cannot stop that here,
+            // but at least logs/Error.log then says which thread and why.
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            {
+                var ex = args.ExceptionObject as Exception ?? new Exception(args.ExceptionObject?.ToString() ?? "unknown");
+                LogManager.LogException(ex, "UNHANDLED EXCEPTION (terminating=" + args.IsTerminating + ")");
+            };
+
             res = UIMenu.GetScreenResolutionMantainRatio();
             screen = GTA.UI.Screen.Resolution;
 
@@ -361,15 +369,26 @@ namespace GTANetwork
             // disable fire dep dispatch service
             Function.Call((Hash)0xDC0F817884CDD856, 4, false); // ENABLE_DISPATCH_SERVICE
 
-            GlobalVariable.Get(2576573).Write(1); //Enable MP cars?
+            // Script global 2576573 enabled MP-only vehicles in 2016 builds. Global indices change with every game
+            // update, so a blind write there corrupts memory on current builds; opt in through settings.xml.
+            if (PlayerSettings.EnableMpVehiclesGlobal)
+            {
+                try { GlobalVariable.Get(2576573).Write(1); }
+                catch (Exception ex) { LogManager.LogException(ex, "MP VEHICLES GLOBAL"); }
+            }
 
             LogManager.RuntimeLog("Reading whitelists.");
             ThreadPool.QueueUserWorkItem(delegate
             {
-                NativeWhitelist.Init();
-                SoundWhitelist.Init();
-
-
+                try
+                {
+                    NativeWhitelist.Init();
+                    SoundWhitelist.Init();
+                }
+                catch (Exception ex)
+                {
+                    LogManager.LogException(ex, "WHITELIST INIT");
+                }
             });
 
             //var fetchThread = new Thread((ThreadStart) delegate

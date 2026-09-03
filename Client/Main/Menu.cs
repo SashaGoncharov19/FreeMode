@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -106,8 +106,10 @@ namespace GTANetwork
                         LogManager.RuntimeLog("Set text to " + jsonObj.Message + " and title to " + jsonObj.Title);
                     }
                 }
-                catch (WebException)
+                catch (Exception ex)
                 {
+                    // An unhandled exception on a thread-pool thread terminates the whole game process.
+                    LogManager.LogException(ex, "WELCOME MESSAGE");
                 }
             });
         }

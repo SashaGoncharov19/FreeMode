@@ -45,6 +45,9 @@ namespace GTANetworkShared
         public bool ScOfflineOnly { get; set; }
         /// <summary>Temporarily move other *.asi plugins out of the game folder while GTA Network runs.</summary>
         public bool DisableOtherAsiPlugins { get; set; }
+        /// <summary>Write script global 2576573 at startup to allow MP-only vehicles. The index is from 2016 builds
+        /// and corrupts memory on newer ones, so this is off unless you know the current index works.</summary>
+        public bool EnableMpVehiclesGlobal { get; set; }
 
         public PlayerSettings()
         {
@@ -72,6 +75,7 @@ namespace GTANetworkShared
             ProtonPrefixPath = "";
             ScOfflineOnly = true;
             DisableOtherAsiPlugins = true;
+            EnableMpVehiclesGlobal = false;
         }
     }
 }
