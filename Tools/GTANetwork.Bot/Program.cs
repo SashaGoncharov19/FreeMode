@@ -32,6 +32,7 @@ internal sealed class Options
     public bool Sync = true;
     public bool Discover;
     public bool Verbose;
+    public bool Interactive;
 
     public static Options Parse(string[] args)
     {
@@ -51,6 +52,7 @@ internal sealed class Options
                 case "--timeout": o.Timeout = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--no-sync": o.Sync = false; break;
                 case "--discover": o.Discover = true; break;
+                case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
                     Console.WriteLine(Usage);
@@ -74,6 +76,7 @@ internal sealed class Options
   --timeout <sec>      give up after this long (default 60)
   --no-sync            do not send position sync packets
   --discover           send a LAN discovery request first and print the answers
+  -i, --interactive    after joining, read chat lines / commands from stdin until /quit or EOF
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -91,6 +94,8 @@ internal static class Program
     private static Vector3 _position = new(0f, 0f, 72f);
     private static float _heading;
     private static readonly Stopwatch _clock = Stopwatch.StartNew();
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<string> _stdin = new();
+    private static volatile bool _stdinClosed;
 
     private sealed class Download
     {
@@ -151,10 +156,21 @@ internal static class Program
         Log("connect", $"{_o.Host}:{_o.Port} as \"{_o.Name}\" (client version {version})");
         _client.Connect(_o.Host, _o.Port, hail);
 
-        var deadline = _clock.Elapsed + TimeSpan.FromSeconds(_o.Timeout);
+        var deadline = _o.Interactive ? TimeSpan.MaxValue : _clock.Elapsed + TimeSpan.FromSeconds(_o.Timeout);
         var sayIndex = 0;
         TimeSpan nextSay = TimeSpan.Zero, nextSync = TimeSpan.Zero, stayUntil = TimeSpan.MaxValue;
         var disconnected = false;
+
+        if (_o.Interactive)
+        {
+            new Thread(() =>
+            {
+                string line;
+                while ((line = Console.ReadLine()) != null) _stdin.Enqueue(line);
+                _stdinClosed = true;
+            }) { IsBackground = true, Name = "stdin" }.Start();
+            Log("interactive", "type chat lines or /commands, /quit to leave");
+        }
 
         while (_clock.Elapsed < deadline && !disconnected)
         {
@@ -166,11 +182,23 @@ internal static class Program
             {
                 SendChat(_o.Say[sayIndex++]);
                 nextSay = _clock.Elapsed + TimeSpan.FromSeconds(1);
-                if (sayIndex == _o.Say.Count) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
+                if (sayIndex == _o.Say.Count && !_o.Interactive) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
             }
-            else if (_o.Say.Count == 0 && stayUntil == TimeSpan.MaxValue)
+            else if (_o.Say.Count == 0 && stayUntil == TimeSpan.MaxValue && !_o.Interactive)
             {
                 stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
+            }
+
+            if (_o.Interactive)
+            {
+                while (_stdin.TryDequeue(out var line))
+                {
+                    line = line.Trim();
+                    if (line.Length == 0) continue;
+                    if (line == "/quit" || line == "/exit") { stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(0.7); break; } // let replies arrive
+                    SendChat(line);
+                }
+                if (_stdinClosed && _stdin.IsEmpty && sayIndex >= _o.Say.Count && stayUntil == TimeSpan.MaxValue) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(0.7);
             }
 
             if (_o.Sync && _clock.Elapsed >= nextSync)

@@ -170,9 +170,13 @@ dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name
   --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5
 ```
 
+With `--interactive` the bot keeps reading chat lines and `/commands` from stdin until `/quit`, so you can
+drive a server from a terminal.
+
 `eng/integration-test.sh <server dir> <bot>` starts a server with the bundled `freeroam` gamemode, joins it
-with the bot, runs a handful of commands and asserts the replies; CI runs it on every push. The bot is also
-a good way to see what a gamemode does over the wire while developing server scripts on Linux.
+with the bot, runs a handful of commands and asserts the replies, then connects two bots at once and checks
+that chat, vehicle creation and position sync are relayed between them; CI runs it on every push. The bot is
+also a good way to see what a gamemode does over the wire while developing server scripts on Linux.
 
 ## Playing on Linux (Proton)
 

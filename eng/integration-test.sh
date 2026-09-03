@@ -46,7 +46,27 @@ set +e
 rc=${PIPESTATUS[0]}
 set -e
 
+# ---- phase 2: two players at once, so that the server relays sync packets and entity events between them
+echo "---- phase 2: two bots ----"
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Alice --verbose --say "/players" --say "hi Bob" --duration 6 --timeout 40 > "$server_dir/it-alice.log" 2>&1 &
+alice_pid=$!
+sleep 2
+set +e
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Bob --say "/veh zentorno" --say "hi Alice" --duration 3 --timeout 40 > "$server_dir/it-bob.log" 2>&1
+rc_bob=$?
+wait "$alice_pid"; rc_alice=$?
+set -e
+grep -E "\[(chat|entity|player|result)\]" "$server_dir/it-alice.log" | grep -v "\[sync\]" || true
+phase2_ok=1
+grep -q "Bob joined the server" "$server_dir/it-alice.log" || { echo "Alice did not see Bob join"; phase2_ok=0; }
+grep -q "Bob: hi Alice" "$server_dir/it-alice.log" || { echo "Alice did not get Bob's chat"; phase2_ok=0; }
+grep -q "create Vehicle .* model Zentorno" "$server_dir/it-alice.log" || { echo "Alice did not see Bob's vehicle"; phase2_ok=0; }
+grep -q "\[sync\] ped #" "$server_dir/it-alice.log" || { echo "Alice did not receive relayed position sync from Bob"; phase2_ok=0; }
+grep -q 'player #[0-9]* "Alice"' "$server_dir/it-bob.log" || { echo "Bob's map did not contain Alice"; phase2_ok=0; }
+[ "$rc_alice" -eq 0 ] && [ "$rc_bob" -eq 0 ] || { echo "a bot failed (alice=$rc_alice bob=$rc_bob)"; phase2_ok=0; }
+
 echo "---- server log ----"; cat "$server_dir/it-server.log"; echo "--------------------"
+[ "$phase2_ok" -eq 1 ] || { echo "phase 2 failed"; exit 1; }
 
 grep -q "Connection established: CIBot" "$server_dir/it-server.log" || { echo "server never confirmed the bot"; exit 1; }
 if grep -q "Exception in the Netcode" "$server_dir/it-server.log"; then echo "server logged netcode exceptions"; exit 1; fi
