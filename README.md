@@ -264,6 +264,13 @@ Both need `ScriptHookV.dll` + `dinput8.dll` in `bin\` and the .NET Framework 4.8
 | **windows** | windows-2022 | Installs the ScriptHookV SDK (official one from the repository variable `SHV_SDK_URL` if set, otherwise the compatible declarations from `Shv.NET/sdk-compat`), builds `ScriptHookVDotNet.dll` with MSVC (v143, .NET Framework 4.8), builds the solution against it, assembles the client package (`eng/package-client.ps1`), builds the NSIS installer, uploads artifacts. |
 | **release** | on `v*` tags | Attaches every artifact to a GitHub release. |
 
+## Releases and roadmap
+
+Every release has a section in [`CHANGELOG.md`](CHANGELOG.md); the CI release job uses it as the release body.
+To publish: merge to `master`, then *Actions → Build → Run workflow* with `release_tag` (`v0.2.0`, or
+`v0.2.0-beta.1` for a pre-release). The assembly version (`0.1.<days>.<minutes/2>`) stays date-based.
+The plan towards a RAGE Multiplayer 0.3.7-class platform is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Known limitations
 
 * **Game version drift.** ScriptHookV must match the installed GTA V build. The memory patterns in

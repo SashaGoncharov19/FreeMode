@@ -237,10 +237,27 @@ jobs:
           done
           ls -la ../release
 
+      - name: Release notes from CHANGELOG.md
+        # The section whose heading matches the tag (v0.1.0 -> "## [0.1.0]") becomes the release body;
+        # the auto-generated commit list is appended by the release action.
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.release_tag || github.ref_name }}"
+          version="${tag#v}"
+          awk -v v="$version" '
+            /^## \[/ { inside = index($0, "## [" v "]") == 1 }
+            inside { print }
+          ' src/CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG.md section for $version; see the commit list below." > release-notes.md
+          fi
+          cat release-notes.md
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: release/*
+          body_path: release-notes.md
           generate_release_notes: true
           prerelease: ${{ contains(inputs.release_tag || github.ref_name, '-') }}
