@@ -434,7 +434,12 @@ namespace GTA
 			if ((address = FindPatternChecked("entity model function 2", "\x45\x33\xC9\x3B\x05", "xxxxx")) != 0)
 				_entityModel2Func = reinterpret_cast<UINT64(*)(UINT64)>(address - 0x46);
 
-			if ((address = FindPatternChecked("entity pool", "\x4C\x8B\x0D\x00\x00\x00\x00\x44\x8B\xC1\x49\x8B\x41\x08", "xxx????xxxxxxx")) != 0)
+			// The fwScriptGuid pool ("entity pool") is loaded by a different instruction since game build 1.0.3788
+			// (same rip-relative operand layout, so both variants resolve the same way). Classic pattern first.
+			if ((address = MemoryAccess::FindPattern("\x4C\x8B\x0D\x00\x00\x00\x00\x44\x8B\xC1\x49\x8B\x41\x08", "xxx????xxxxxxx")) == 0 &&
+				(address = FindPatternChecked("entity pool", "\x4C\x8B\x05\x00\x00\x00\x00\x41\x3B\x50\x00\x7D\x00\x49\x8B\x40", "xxx????xxx?x?xxx")) != 0)
+				Log("[INFO]", "Memory pattern 'entity pool' matched the game build 1.0.3788+ variant.");
+			if (address != 0)
 				_entityPoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
 			if ((address = FindPatternChecked("vehicle pool", "\x48\x8B\x05\x00\x00\x00\x00\xF3\x0F\x59\xF6\x48\x8B\x08", "xxx????xxxxxxx")) != 0)
 				_vehiclePoolAddress = reinterpret_cast<uintptr_t *>(*reinterpret_cast<int *>(address + 3) + address + 7);
@@ -493,10 +498,16 @@ namespace GTA
 				address = address + *reinterpret_cast<int*>(address) + 4;
 				_gamePlayCameraAddr = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address + 3) + address + 7);
 			}
-			if ((address = FindPatternChecked("camera pool", "\x48\x8B\xC8\xEB\x02\x33\xC9\x48\x85\xC9\x74\x26", "xxxxxxxxxxxx")) != 0)
+			if ((address = MemoryAccess::FindPattern("\x48\x8B\xC8\xEB\x02\x33\xC9\x48\x85\xC9\x74\x26", "xxxxxxxxxxxx")) != 0)
 			{
 				address -= 9;
 				_cameraPoolAddress = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address) + address + 4);
+			}
+			// Newer game builds: "mov rcx, [rip+camPool]; mov rdx, rdi; call ...; mov ebx, eax; mov eax, ebx"
+			else if ((address = FindPatternChecked("camera pool", "\x48\x8B\x0D\x00\x00\x00\x00\x48\x8B\xD7\xE8\x00\x00\x00\x00\x8B\xD8\x8B\xC3", "xxx????xxxx????xxxx")) != 0)
+			{
+				Log("[INFO]", "Memory pattern 'camera pool' matched the newer game build variant.");
+				_cameraPoolAddress = reinterpret_cast<UInt64*>(*reinterpret_cast<int*>(address + 3) + address + 7);
 			}
 
 			GenerateVehicleModelList();
