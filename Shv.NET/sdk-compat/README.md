@@ -7,7 +7,8 @@ provides an equivalent, written from the public API:
 
 * `inc/main.h`, `inc/types.h`, `inc/NativeCaller.h` - the function prototypes, typedefs and the
   `eGameVersion` enum exactly as ScriptHookV exports them (the mangled C++ names must match the real
-  `ScriptHookV.dll`, so signatures are not to be "improved").
+  `ScriptHookV.dll`, so signatures are not to be "improved"). As in the SDK, `main.h` does not include
+  `types.h` (its `typedef int Object` would shadow `System::Object` in the C++/CLI code).
 * `ScriptHookV.stub.cpp` + `ScriptHookV.stub.vcxproj` - a dummy DLL with the same exports; building it
   produces the import library `../sdk/lib/ScriptHookV.lib`. The dummy DLL itself is discarded, the
   game loads the real `ScriptHookV.dll`.

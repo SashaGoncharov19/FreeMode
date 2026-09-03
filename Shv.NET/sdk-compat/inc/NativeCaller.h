@@ -2,6 +2,7 @@
 #pragma once
 
 #include "main.h"
+// (the SDK version includes types.h through natives.h only; keep Object = System::Object for C++/CLI)
 
 template <typename T>
 static inline void nativePush(T val)

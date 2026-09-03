@@ -3,7 +3,9 @@
 #pragma once
 
 #include <windows.h>
-#include "types.h"
+
+// NOTE: unlike natives.h, the SDK's main.h does not pull in types.h. Keeping it that way matters:
+// types.h defines "typedef int Object", which would shadow System::Object in the C++/CLI sources.
 
 #ifdef SHV_COMPAT_EXPORT
 #define IMPORT __declspec(dllexport)
