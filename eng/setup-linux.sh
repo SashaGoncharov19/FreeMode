@@ -595,14 +595,28 @@ install_ge_proton() { # downloads a community Proton 8 build into Steam's compat
 }
 
 used_fallback=""
+pt_extra=""       # "--no-runtime" once protontricks had to run a Proton without its Steam Runtime container
 pt_run() { # protontricks, through the fallback Proton when one is in use
-  if [ -n "$used_fallback" ]; then PROTON_VERSION="$used_fallback" $pt "$@"; else $pt "$@"; fi
+  if [ -n "$used_fallback" ]; then PROTON_VERSION="$used_fallback" $pt $pt_extra "$@"; else $pt $pt_extra "$@"; fi
 }
 
 pt_log="$DIR/logs/protontricks.log"
 dotnet_attempt() { # dotnet_attempt [protontricks options]; honours PROTON_VERSION; output also goes to logs/protontricks.log
-  say "Running: ${PROTON_VERSION:+PROTON_VERSION=\"$PROTON_VERSION\" }$pt $* 271590 -q dotnet48"
-  $pt "$@" 271590 -q dotnet48 2>&1 | tee -a "$pt_log"
+  say "Running: ${PROTON_VERSION:+PROTON_VERSION=\"$PROTON_VERSION\" }$pt $pt_extra $* 271590 -q dotnet48"
+  $pt $pt_extra "$@" 271590 -q dotnet48 2>&1 | tee -a "$pt_log"
+}
+
+dotnet_attempt_rt() { # like dotnet_attempt, but falls back to --no-runtime when protontricks lacks the Steam Runtime for that Proton
+  dotnet_attempt "$@" && return 0
+  if [ -z "$pt_extra" ] && grep -q 'missing the required Steam Runtime' "$pt_log"; then
+    warn "protontricks has no Steam Runtime container for ${PROTON_VERSION:-the Proton of the game} (Steam would install it"
+    warn "the first time a game runs with that Proton). Retrying without the container: --no-runtime"
+    : > "$pt_log"
+    pt_extra="--no-runtime"
+    dotnet_attempt "$@" && return 0
+    pt_extra=""
+  fi
+  return 1
 }
 
 run_protontricks() {
@@ -648,9 +662,9 @@ run_protontricks_inner() {
   fi
   if [ -n "$fallback" ]; then
     : > "$pt_log"
-    PROTON_VERSION="$fallback" dotnet_attempt || { warn "dotnet48 failed with $fallback, see $pt_log"; return 1; }
+    PROTON_VERSION="$fallback" dotnet_attempt_rt || { warn "dotnet48 failed with $fallback, see $pt_log"; return 1; }
     used_fallback="$fallback"; DOTNET_PROTON="$fallback"
-  elif ! { : > "$pt_log"; dotnet_attempt; }; then
+  elif ! { : > "$pt_log"; dotnet_attempt_rt; }; then
     if grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log"; then
       warn "The .NET 4.0 installer could not extract its cabinets. That happens on very new wine builds"
       warn "(Proton Experimental); a stable Proton installs it fine, and the game can keep its own Proton."
@@ -668,7 +682,7 @@ run_protontricks_inner() {
       fi
       warn "Retrying with $fallback"
       : > "$pt_log"
-      if ! PROTON_VERSION="$fallback" dotnet_attempt; then
+      if ! PROTON_VERSION="$fallback" dotnet_attempt_rt; then
         warn "dotnet48 failed with $fallback too, see $pt_log. Retry by hand:  PROTON_VERSION=\"$fallback\" $pt 271590 -q dotnet48"
         return 1
       fi
