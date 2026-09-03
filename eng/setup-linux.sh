@@ -97,7 +97,7 @@ info "Installing into $DIR"
 # ---------------------------------------------------------------------------------------------------
 # 1. Release assets
 # ---------------------------------------------------------------------------------------------------
-release_json=""
+release_file=""
 resolve_release() {
   local url
   if [ "$RELEASE" = "latest" ]; then
@@ -105,32 +105,29 @@ resolve_release() {
   else
     url="https://api.github.com/repos/$REPO/releases/tags/$RELEASE"
   fi
-  release_json="$(curl -fsSL -H 'Accept: application/vnd.github+json' -H 'User-Agent: gtan-setup' "$url")" \
+  release_file="$DIR/downloads/release.json"
+  curl -fsSL -H 'Accept: application/vnd.github+json' -H 'User-Agent: gtan-setup' -o "$release_file" "$url" \
     || die "could not query GitHub releases of $REPO ($url)"
-  RELEASE_TAG="$(python3 - "$RELEASE" <<'PY' <<<"$release_json"
+  RELEASE_TAG="$(python3 -c '
 import json, sys
-data = json.load(sys.stdin)
+data = json.load(open(sys.argv[1]))
 if isinstance(data, list):
     data = [r for r in data if not r.get("draft")]
     if not data: sys.exit("no release found; tag one (vX.Y.Z) or use --build")
     data = data[0]
-print(data["tag_name"])
-PY
-)" || die "$RELEASE_TAG"
+print(data["tag_name"])' "$release_file")" || die "no usable release"
   info "Using release $RELEASE_TAG"
 }
 
 asset_url() { # asset_url <name prefix>
-  python3 - "$1" <<'PY' <<<"$release_json"
+  python3 -c '
 import json, sys
-prefix = sys.argv[1]
-data = json.load(sys.stdin)
+data = json.load(open(sys.argv[1])); prefix = sys.argv[2]
 if isinstance(data, list):
     data = [r for r in data if not r.get("draft")][0]
 for a in data.get("assets", []):
     if a["name"].startswith(prefix):
-        print(a["browser_download_url"]); break
-PY
+        print(a["browser_download_url"]); break' "$release_file" "$1"
 }
 
 download() { # download <prefix> <target file>
