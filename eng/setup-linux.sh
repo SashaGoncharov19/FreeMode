@@ -182,8 +182,19 @@ if [ -n "$SHV_ZIP" ] && [ -f "$SHV_ZIP" ]; then
   tmp="$(mktemp -d)"
   unzip -oq "$SHV_ZIP" -d "$tmp"
   for f in ScriptHookV.dll dinput8.dll; do
-    found="$(find "$tmp" -iname "$f" | head -1)"
-    [ -n "$found" ] || die "$f not found inside $SHV_ZIP"
+    # Newer archives (ScriptHookV_<legacy build>_<enhanced build>.zip) may ship the Legacy and the
+    # Enhanced build side by side. GTA Network works with GTA V Legacy only, so prefer that one.
+    candidates="$(find "$tmp" -iname "$f" | sort)"
+    [ -n "$candidates" ] || die "$f not found inside $SHV_ZIP"
+    found="$(printf '%s\n' "$candidates" | grep -i legacy | head -1 || true)"
+    [ -n "$found" ] || found="$(printf '%s\n' "$candidates" | grep -v -i -E 'enhanced|/en[_/-]|_en[_/.-]' | head -1 || true)"
+    [ -n "$found" ] || found="$(printf '%s\n' "$candidates" | head -1)"
+    if [ "$(printf '%s\n' "$candidates" | wc -l)" -gt 1 ]; then
+      warn "$f appears more than once in the archive, using ${found#"$tmp"/} (Legacy). All copies:"
+      printf '%s\n' "$candidates" | sed "s#^$tmp/#       #"
+    else
+      info "  $f <- ${found#"$tmp"/}"
+    fi
     cp "$found" "$DIR/bin/$f"
   done
   rm -rf "$tmp"
