@@ -39,6 +39,7 @@ Ukrainian version: [README.uk.md](README.uk.md).
 | `Shv.NET/ref/` | `ScriptHookVDotNet.Ref` | net48 | Managed *reference stub* with the same API surface, so the client compiles on Linux. Never shipped. |
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, launcher `GTANetwork.dll` | net48 | The classic three-stage Windows launcher (registry, updates, DLL injection). Still builds, still works on Windows. |
 | `Map2Resource/` | `Map2Resource` | net8.0 | Converts Map Editor XML files into server map resources. |
+| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless client that speaks the real protocol: joins a server, downloads map and scripts, chats, runs commands. Used by the CI integration test. |
 | `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, CEF 85 + CefGlue, SharpDX mix, NAudio, native V8/EasyHook DLLs. |
 | `images/` | - | - | HUD, map and CEF assets shipped with the client. |
 | `Setup/` | - | NSIS | Windows installer script. |
@@ -157,6 +158,22 @@ Docker) and `SIGHUP` stop it cleanly. The public master server (`master.gtanet.w
 `eng/smoke-test-server.sh <dir>` starts a published server, checks that the example resource compiles and
 runs, that `/manifest.json` answers and that the process exits on `SIGTERM`; CI runs it on every push.
 
+### Trying a server without the game: the headless bot
+
+`GTANetwork.Bot` is a console client that implements the client side of the protocol (Lidgren UDP,
+protobuf packets from `GTANetworkShared`): discovery, the `ConnectionRequest` handshake, map and
+client-script download, `ConnectionConfirmed`, chat and commands, position sync, and it prints every
+packet the server pushes (entity creation, native calls, events) in readable form.
+
+```bash
+dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name Tester --discover \
+  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5
+```
+
+`eng/integration-test.sh <server dir> <bot>` starts a server with the bundled `freeroam` gamemode, joins it
+with the bot, runs a handful of commands and asserts the replies; CI runs it on every push. The bot is also
+a good way to see what a gamemode does over the wire while developing server scripts on Linux.
+
 ## Playing on Linux (Proton)
 
 Only **GTA V Legacy** (Steam app 271590) is supported; the Enhanced edition has a different executable.
@@ -196,7 +213,7 @@ Both need `ScriptHookV.dll` + `dinput8.dll` in `bin\` and the .NET Framework 4.8
 
 | Job | Runner | Does |
 | --- | --- | --- |
-| **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (client compile check against the stub), publishes the server (linux-x64, win-x64), the launcher (linux-x64, win-x64, single file) and Map2Resource, runs the server smoke test, uploads artifacts. |
+| **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (client compile check against the stub), publishes the server (linux-x64, win-x64), the launcher and the bot (linux-x64, win-x64, single file) and Map2Resource, runs the server smoke test and the bot integration test, uploads artifacts. |
 | **windows** | windows-2022 | Installs the ScriptHookV SDK (official one from the repository variable `SHV_SDK_URL` if set, otherwise the compatible declarations from `Shv.NET/sdk-compat`), builds `ScriptHookVDotNet.dll` with MSVC (v143, .NET Framework 4.8), builds the solution against it, assembles the client package (`eng/package-client.ps1`), builds the NSIS installer, uploads artifacts. |
 | **release** | on `v*` tags | Attaches every artifact to a GitHub release. |
 

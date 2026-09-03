@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -106,11 +106,11 @@ namespace GTANetworkServer
 
             if (pure)
             {
-                Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
+                if (connectionsNear.Count > 0) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
             }
             else
             {
-                Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
+                if (connectionsNear.Count > 0) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
             }
 
 
@@ -141,7 +141,7 @@ namespace GTANetworkServer
                     client.LastPacketReceived.Set(exception.handle.Value, ticks);
                 }
 
-                Server.SendMessage(msgBasic, connectionsFar, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
+                if (connectionsFar.Count > 0) Server.SendMessage(msgBasic, connectionsFar, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
             }
         }
 
@@ -221,11 +221,11 @@ namespace GTANetworkServer
 
             if (pure)
             {
-                Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
+                if (connectionsNear.Count > 0) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
             }
             else
             {
-                Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
+                if (connectionsNear.Count > 0) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
             }
 
             if (pure)
@@ -252,7 +252,7 @@ namespace GTANetworkServer
                     client.LastPacketReceived.Set(exception.handle.Value, ticks);
                 }
 
-                Server.SendMessage(msgBasic, connectionsFar, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
+                if (connectionsFar.Count > 0) Server.SendMessage(msgBasic, connectionsFar, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
             }
         }
 
@@ -316,7 +316,7 @@ namespace GTANetworkServer
                 }
             }
 
-            Server.SendMessage(msgNear, connectionsNear,
+            if (connectionsNear.Count > 0) Server.SendMessage(msgNear, connectionsNear,
                 NetDeliveryMethod.UnreliableSequenced,
                 (int)ConnectionChannel.UnoccupiedVeh);
 
@@ -325,7 +325,7 @@ namespace GTANetworkServer
                 connectionsFar.Add(client.NetConnection);
             }
 
-            Server.SendMessage(msgFar, connectionsFar,
+            if (connectionsFar.Count > 0) Server.SendMessage(msgFar, connectionsFar,
                 NetDeliveryMethod.UnreliableSequenced,
                 (int)ConnectionChannel.UnoccupiedVeh);
         }
@@ -351,7 +351,7 @@ namespace GTANetworkServer
                 connections.Add(client.NetConnection);
             }
 
-            Server.SendMessage(msg, connections,
+            if (connections.Count > 0) Server.SendMessage(msg, connections,
                 NetDeliveryMethod.ReliableSequenced,
                 (int)ConnectionChannel.BulletSync);
         }
@@ -376,7 +376,7 @@ namespace GTANetworkServer
                 connections.Add(client.NetConnection);
             }
 
-            Server.SendMessage(msg, connections, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.BulletSync);
+            if (connections.Count > 0) Server.SendMessage(msg, connections, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.BulletSync);
         }
 
 

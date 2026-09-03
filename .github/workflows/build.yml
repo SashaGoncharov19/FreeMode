@@ -48,6 +48,13 @@ jobs:
       - name: Smoke test the Linux server (Roslyn scripting, HTTP file server, SIGTERM)
         run: eng/smoke-test-server.sh artifacts/server-linux-x64
 
+      - name: Integration test (headless bot joins the server over the real protocol)
+        run: |
+          set -euo pipefail
+          dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/bot-linux-x64
+          dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/bot-win-x64
+          eng/integration-test.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
+
       - uses: actions/upload-artifact@v4
         with:
           name: gtanetwork-server-linux-x64-${{ env.GTAN_VERSION }}
@@ -76,6 +83,18 @@ jobs:
         with:
           name: map2resource-${{ env.GTAN_VERSION }}
           path: artifacts/map2resource
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-bot-linux-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/bot-linux-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-bot-win-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/bot-win-x64
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------------------------

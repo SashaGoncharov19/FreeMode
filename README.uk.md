@@ -37,6 +37,7 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
 | `Shv.NET/ref/` | `ScriptHookVDotNet.Ref` | net48 | Керована *заглушка* з тим самим публічним API, щоб клієнт компілювався на Linux. Ніколи не постачається. |
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, лаунчерний `GTANetwork.dll` | net48 | Класичний триступеневий Windows-лаунчер (реєстр, оновлення, інжекція DLL). Збирається і працює на Windows як і раніше. |
 | `Map2Resource/` | `Map2Resource` | net8.0 | Конвертує XML з Map Editor у серверні map-ресурси. |
+| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless-клієнт, що говорить справжнім протоколом: підключається до сервера, завантажує карту і скрипти, чатиться, виконує команди. Використовується інтеграційним тестом у CI. |
 | `libs/` | — | — | Бінарні залежності без NuGet-аналога: кастомний форк Lidgren, CEF 85 + CefGlue, набір SharpDX, NAudio, нативні V8/EasyHook. |
 | `eng/`, `.github/workflows/` | — | — | Скрипти версіонування, smoke-тест сервера, пакування клієнта; CI. |
 
@@ -123,6 +124,22 @@ cd ~/gtan-server && ./GTANetworkServer
 `eng/smoke-test-server.sh <dir>` запускає опублікований сервер, перевіряє компіляцію прикладу, `/manifest.json`
 і зупинку по `SIGTERM`; CI робить це на кожен push.
 
+### Спробувати сервер без гри: headless-бот
+
+`GTANetwork.Bot` — консольний клієнт, що реалізує клієнтську сторону протоколу (Lidgren UDP, protobuf-пакети з
+`GTANetworkShared`): discovery, handshake з `ConnectionRequest`, завантаження карти і клієнтських скриптів,
+`ConnectionConfirmed`, чат і команди, синхронізація позиції; усе, що сервер надсилає (створення сутностей,
+виклики нативів, події), він друкує у читабельному вигляді.
+
+```bash
+dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name Tester --discover \
+  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5
+```
+
+`eng/integration-test.sh <server dir> <bot>` піднімає сервер із вбудованим геймодом `freeroam`, заходить на нього
+ботом, виконує кілька команд і перевіряє відповіді; CI робить це на кожен push. Бот також зручний, щоб бачити,
+що саме робить геймод «по дротах», коли розробляєш серверні скрипти на Linux.
+
 ## Гра на Linux (Proton)
 
 Підтримується лише **GTA V Legacy** (Steam app 271590); Enhanced має інший виконуваний файл.
@@ -161,7 +178,7 @@ cd ~/gtan-server && ./GTANetworkServer
 
 | Джоб | Раннер | Робить |
 | --- | --- | --- |
-| **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (перевірка компіляції клієнта проти заглушки), publish сервера (linux-x64, win-x64), лаунчера (linux-x64, win-x64, один файл) і Map2Resource, smoke-тест сервера, артефакти. |
+| **linux** | ubuntu-latest | `dotnet build GTANetwork.sln` (перевірка компіляції клієнта проти заглушки), publish сервера (linux-x64, win-x64), лаунчера і бота (linux-x64, win-x64, один файл) і Map2Resource, smoke-тест сервера та інтеграційний тест із ботом, артефакти. |
 | **windows** | windows-2022 | Встановлює ScriptHookV SDK (офіційний зі змінної репозиторію `SHV_SDK_URL`, якщо задана, інакше сумісні декларації з `Shv.NET/sdk-compat`), збирає `ScriptHookVDotNet.dll` через MSVC (v143, .NET Framework 4.8), збирає solution проти нього, пакує клієнт (`eng/package-client.ps1`), збирає NSIS-інсталятор, артефакти. |
 | **release** | теги `v*` | Прикріплює всі артефакти до GitHub-релізу. |
 
