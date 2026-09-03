@@ -23,8 +23,6 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="$(NetFrameworkReferenceAssembliesVersion)" PrivateAssets="all" />
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
-    <!-- Same version that was tested in game; the package ships ClearScript.dll (managed) -->
-    <PackageReference Include="ClearScript.V8" Version="5.4.6" />
     <PackageReference Include="EasyHook" Version="2.7.6035" />
   </ItemGroup>
 
@@ -43,9 +41,13 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
-  <!-- Binary dependencies without a matching NuGet package (custom Lidgren fork, CEF 85 CefGlue build,
-       the exact SharpDX mix that the DirectX hook was tested with, NAudio). -->
+  <!-- Binary dependencies without a matching NuGet package (ClearScript 5.4.9 with its native V8 bridge,
+       custom Lidgren fork, CEF 85 CefGlue build, the exact SharpDX mix that the DirectX hook was tested with, NAudio). -->
   <ItemGroup>
+    <!-- The managed ClearScript.dll must be the exact build that matches libs/ClearScriptV8-64.dll (5.4.9);
+         the ClearScript.V8 NuGet package ships 5.4.6 and its assembly version does not match the native bridge,
+         which makes V8ScriptEngine throw FileLoadException at runtime. -->
+    <Reference Include="ClearScript"><HintPath>$(GtanLibsDir)ClearScript.dll</HintPath></Reference>
     <Reference Include="Lidgren.Network"><HintPath>$(GtanLibsDir)Lidgren.Network.dll</HintPath></Reference>
     <Reference Include="NAudio"><HintPath>$(GtanLibsDir)NAudio.dll</HintPath></Reference>
     <Reference Include="SharpDX"><HintPath>$(GtanLibsDir)SharpDX.dll</HintPath></Reference>
