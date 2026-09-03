@@ -31,13 +31,14 @@ SERVER_ADDR="127.0.0.1:4499"
 ASSUME_YES=0
 CLIENT_ZIP=""
 AUTO_UPDATE=1
+DOTNET_PROTON="auto"
 MODE="install"                 # install | update | check
 QUIET=0
 SUDO="sudo"; [ "$(id -u)" = 0 ] && SUDO=""
 APT_SOURCES_LIST="${APT_SOURCES_LIST:-/etc/apt/sources.list}"      # overridable for tests
 APT_SOURCES_DIR="${APT_SOURCES_DIR:-/etc/apt/sources.list.d}"
 APT_LISTS_DIR="${APT_LISTS_DIR:-/var/lib/apt/lists}"
-CONF_KEYS="REPO RELEASE METHOD SERVER_ADDR NAME GAME_PATH AUTO_UPDATE RUN_PROTONTRICKS"
+CONF_KEYS="REPO RELEASE METHOD SERVER_ADDR NAME GAME_PATH AUTO_UPDATE RUN_PROTONTRICKS DOTNET_PROTON"
 ORIG_ARGS=("$@")
 
 c_info=$'\033[1;34m'; c_ok=$'\033[1;32m'; c_warn=$'\033[1;33m'; c_err=$'\033[1;31m'; c_off=$'\033[0m'
@@ -62,6 +63,8 @@ GTA Network Linux installer / updater
   --method <m>        proton (default, no Steam launch options needed) | steam
   --server <ip:port>  server to put into the favourites (default: $SERVER_ADDR)
   --no-protontricks   do not install protontricks / .NET Framework / VC++ runtime into the Proton prefix
+  --dotnet-proton <p> Proton to install .NET with: auto (default: the game's Proton, then a stable one when the
+                      .NET installer breaks), or a name such as "Proton 8.0" or GE-Proton8-32 (downloaded if missing)
   --auto-update on|off  play.sh, server/start.sh and bot.sh check GitHub for a newer release first (default: on)
   --update            update mode (what update.sh does): install the newest release only if it differs from the
                       installed one; keeps settings.xml, ScriptHookV and server/settings.xml
@@ -98,6 +101,7 @@ while [ $# -gt 0 ]; do
     --method) METHOD="$2"; shift 2 ;;
     --server) SERVER_ADDR="$2"; shift 2 ;;
     --no-protontricks) RUN_PROTONTRICKS=0; shift ;;
+    --dotnet-proton) DOTNET_PROTON="$2"; shift 2 ;;
     --auto-update) case "$2" in on|1|true) AUTO_UPDATE=1 ;; off|0|false) AUTO_UPDATE=0 ;; *) die "--auto-update on|off" ;; esac; shift 2 ;;
     --update) MODE="update"; shift ;;
     --check) MODE="check"; shift ;;
@@ -346,6 +350,8 @@ ok "settings.xml: name \"$NAME\", launch method $METHOD, favourite server $SERVE
 
 prefix="$(echo "$doctor_out" | sed -n 's/^Wine prefix:[[:space:]]*//p' | head -1)"
 mapfile -t steam_libs < <(echo "$doctor_out" | sed -n 's/^Steam libraries:[[:space:]]*//p' | head -1 | sed 's/, /\n/g')
+steam_root="$(echo "$doctor_out" | sed -n 's/^Steam root:[[:space:]]*//p' | head -1)"
+case "$steam_root" in "not found"*) steam_root="" ;; esac
 game_dir="$(echo "$doctor_out" | sed -n 's/^GTA V folder:[[:space:]]*//p' | head -1)"
 case "$prefix" in "not found"*|"NOT FOUND"*) prefix="" ;; esac
 case "$game_dir" in "not found"*|"NOT FOUND"*) game_dir="" ;; esac
@@ -548,14 +554,49 @@ prefix_processes() { # "pid command" of wine processes that run inside the GTA V
   done
 }
 
-find_fallback_proton() { # a stable Proton in any Steam library; the .NET 4.0 installer breaks on very new wine builds
-  local v lib
-  for v in "Proton 8.0" "Proton 9.0" "Proton 10.0"; do
-    for lib in ${steam_libs[@]+"${steam_libs[@]}"}; do
-      [ -d "$lib/steamapps/common/$v" ] && { echo "$v"; return 0; }
+GE_PROTON_TAG="${GTAN_GE_PROTON:-GE-Proton8-32}"
+GE_PROTON_URL="${GTAN_GE_PROTON_URL:-https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$GE_PROTON_TAG/$GE_PROTON_TAG.tar.gz}"
+
+find_fallback_proton() { # a stable Proton (official or GE) in the Steam libraries / compatibilitytools.d, by preference
+  local base name all="" pat
+  for base in ${steam_libs[@]+"${steam_libs[@]/%//steamapps/common}"} "$steam_root/compatibilitytools.d" \
+              "$HOME/.steam/root/compatibilitytools.d" "$HOME/.local/share/Steam/compatibilitytools.d"; do
+    [ -d "$base" ] || continue
+    for name in "$base"/*/; do
+      name="$(basename "$name")"
+      case "$name" in "Proton 8.0"|GE-Proton8-*|"Proton 9.0"|GE-Proton9-*|"Proton 10.0") all="$all$name"$'\n' ;; esac
     done
   done
+  for pat in '^Proton 8\.0$' '^GE-Proton8-' '^Proton 9\.0$' '^GE-Proton9-' '^Proton 10\.0$'; do
+    name="$(printf '%s' "$all" | grep -E "$pat" | sort -V | tail -1 || true)"
+    [ -n "$name" ] && { echo "$name"; return 0; }
+  done
   return 1
+}
+
+install_ge_proton() { # downloads a community Proton 8 build into Steam's compatibilitytools.d (no Steam login needed)
+  local dest tgz
+  if [ -z "$steam_root" ] || [ ! -d "$steam_root" ]; then warn "Steam root not found, cannot install $GE_PROTON_TAG"; return 1; fi
+  dest="$steam_root/compatibilitytools.d"; mkdir -p "$dest"
+  [ -x "$dest/$GE_PROTON_TAG/proton" ] && return 0
+  tgz="$DIR/downloads/$GE_PROTON_TAG.tar.gz"
+  say "Downloading $GE_PROTON_TAG (about 450 MB) into $dest"
+  curl -fL --retry 3 --progress-bar -o "$tgz" "$GE_PROTON_URL" || { warn "download failed: $GE_PROTON_URL"; rm -f "$tgz"; return 1; }
+  if curl -fsSL --max-time 60 -o "$tgz.sha512sum" "${GE_PROTON_URL%.tar.gz}.sha512sum" 2>/dev/null; then
+    if ! (cd "$DIR/downloads" && sha512sum -c --quiet "$GE_PROTON_TAG.tar.gz.sha512sum"); then
+      warn "checksum mismatch for $tgz"; rm -f "$tgz" "$tgz.sha512sum"; return 1
+    fi
+  fi
+  say "Unpacking $GE_PROTON_TAG"
+  tar -xzf "$tgz" -C "$dest" || { warn "could not unpack $tgz"; return 1; }
+  rm -f "$tgz" "$tgz.sha512sum"
+  [ -x "$dest/$GE_PROTON_TAG/proton" ] || { warn "$dest/$GE_PROTON_TAG/proton is missing after unpacking"; return 1; }
+  ok "$GE_PROTON_TAG installed into $dest (Steam also lists it under Compatibility after a restart)"
+}
+
+used_fallback=""
+pt_run() { # protontricks, through the fallback Proton when one is in use
+  if [ -n "$used_fallback" ]; then PROTON_VERSION="$used_fallback" $pt "$@"; else $pt "$@"; fi
 }
 
 pt_log="$DIR/logs/protontricks.log"
@@ -565,7 +606,18 @@ dotnet_attempt() { # dotnet_attempt [protontricks options]; honours PROTON_VERSI
 }
 
 run_protontricks() {
-  local busy avail fallback="" used_fallback=""
+  local rc=0
+  used_fallback=""
+  run_protontricks_inner || rc=$?
+  # winetricks switches the prefix to "Windows XP" while installing .NET 4.0 and leaves it at Windows 7;
+  # GTA V and the Rockstar Launcher want Proton's default, Windows 10
+  say "Setting the Windows version of the prefix back to 10:  $pt 271590 -q win10"
+  pt_run 271590 -q win10 2>&1 | tail -2 || warn "could not set win10; run by hand:  $pt 271590 -q win10"
+  return $rc
+}
+
+run_protontricks_inner() {
+  local busy avail fallback=""
   busy="$(prefix_processes)"
   if [ -n "$busy" ]; then
     warn "Wine processes are still running inside the GTA V prefix (the game, the Rockstar Launcher or leftovers):"
@@ -584,15 +636,34 @@ run_protontricks() {
   say "This takes 5-15 minutes and prints a lot: 'may not fully work on a 64-bit installation', Fontconfig errors"
   say "and 'This will hang until all wine processes ... terminate' are normal winetricks noise. The .NET 4.0 and"
   say "4.8 installers then run silently (look for dotNetFx40 / ndp48 processes in top). Do not close popup windows."
-  : > "$pt_log"
-  if ! dotnet_attempt; then
+  if [ -n "$DOTNET_PROTON" ] && [ "$DOTNET_PROTON" != "auto" ]; then
+    fallback="$DOTNET_PROTON"
+    if [ "$fallback" = "$GE_PROTON_TAG" ] && ! find_fallback_proton | grep -q -x -F "$fallback"; then
+      install_ge_proton || { warn "could not install $fallback"; return 1; }
+    fi
+    say "Using $fallback for the .NET install (--dotnet-proton)"
+  elif grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log" 2>/dev/null; then
+    fallback="$(find_fallback_proton || true)"
+    [ -n "$fallback" ] && say "The previous run failed on the .NET 4.0 cabinets with the game's Proton; going straight to $fallback"
+  fi
+  if [ -n "$fallback" ]; then
+    : > "$pt_log"
+    PROTON_VERSION="$fallback" dotnet_attempt || { warn "dotnet48 failed with $fallback, see $pt_log"; return 1; }
+    used_fallback="$fallback"; DOTNET_PROTON="$fallback"
+  elif ! { : > "$pt_log"; dotnet_attempt; }; then
     if grep -q -E 'Failed to extract cabinet|FDICopy failed' "$pt_log"; then
       warn "The .NET 4.0 installer could not extract its cabinets. That happens on very new wine builds"
       warn "(Proton Experimental); a stable Proton installs it fine, and the game can keep its own Proton."
       fallback="$(find_fallback_proton || true)"
       if [ -z "$fallback" ]; then
-        warn "No stable Proton found. Install 'Proton 8.0' in Steam (Library > Tools, or: xdg-open steam://install/2348590)"
-        warn "and run $DIR/update.sh again; the .NET step then retries with Proton 8.0 by itself."
+        warn "No stable Proton is installed in Steam."
+        if ask "Download $GE_PROTON_TAG (about 450 MB, a community build of Proton 8) into Steam's compatibilitytools.d and install .NET with it?"; then
+          install_ge_proton && fallback="$GE_PROTON_TAG"
+        fi
+      fi
+      if [ -z "$fallback" ]; then
+        warn "Install 'Proton 8.0' in Steam (Library > Tools, or: xdg-open steam://install/2348590) and run $DIR/update.sh again;"
+        warn "the .NET step then retries with it by itself."
         return 1
       fi
       warn "Retrying with $fallback"
@@ -601,7 +672,7 @@ run_protontricks() {
         warn "dotnet48 failed with $fallback too, see $pt_log. Retry by hand:  PROTON_VERSION=\"$fallback\" $pt 271590 -q dotnet48"
         return 1
       fi
-      used_fallback="$fallback"
+      used_fallback="$fallback"; DOTNET_PROTON="$fallback"   # remembered in setup.conf for the next time
     elif ! grep -q 'Executing w_do_call' "$pt_log"; then
       warn "protontricks did not reach winetricks (Steam Runtime container problem?); retrying outside the container"
       : > "$pt_log"
@@ -614,14 +685,9 @@ run_protontricks() {
       return 1
     fi
   fi
-  say "Installing the VC++ 2022 runtime:  $pt 271590 -q vcrun2022"
-  if [ -n "$used_fallback" ]; then
-    PROTON_VERSION="$used_fallback" $pt 271590 -q vcrun2022 2>&1 | tee -a "$pt_log" \
-      || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  PROTON_VERSION=\"$used_fallback\" $pt 271590 -q vcrun2022"
-  else
-    $pt 271590 -q vcrun2022 2>&1 | tee -a "$pt_log" \
-      || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  $pt 271590 -q vcrun2022"
-  fi
+  say "Installing the VC++ 2022 runtime:  ${used_fallback:+PROTON_VERSION=\"$used_fallback\" }$pt 271590 -q vcrun2022"
+  pt_run 271590 -q vcrun2022 2>&1 | tee -a "$pt_log" \
+    || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  ${used_fallback:+PROTON_VERSION=\"$used_fallback\" }$pt 271590 -q vcrun2022"
   if dotnet_present; then ok ".NET Framework 4.x is now present in the prefix"; else warn ".NET Framework still not detected in $prefix"; fi
 }
 

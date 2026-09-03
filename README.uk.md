@@ -186,7 +186,9 @@ curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/en
    `protontricks 271590 dotnet48` (або `WINEPREFIX=~/.steam/steam/steamapps/compatdata/271590/pfx winetricks dotnet48`).
    Інсталятор .NET 4.0 падає з `Failed to extract cabinet: netfx_core.mzz` на дуже нових збірках wine (Proton
    Experimental): поставте у Steam Proton 8.0 і запустіть `PROTON_VERSION="Proton 8.0" protontricks 271590 dotnet48`;
-   сама гра може лишатися на будь-якому Proton. `setup-linux.sh` робить це сам.
+   сама гра може лишатися на будь-якому Proton. `setup-linux.sh` робить це сам, а якщо стабільного Proton нема,
+   скачує GE-Proton8-32 у `compatibilitytools.d` Steam. Після цього `protontricks 271590 win10`: winetricks лишає
+   префікс на Windows 7, а Rockstar Launcher хоче Windows 10 (скрипт це теж робить сам).
    Оригінальний клієнт також вимагав Visual C++ 2013/2015 (`vcrun2013`, `vcrun2015`).
 3. Розпакуйте клієнтський пакет (`gtanetwork-client-win64-*.zip` з артефактів Actions / релізу), наприклад у
    `~/GTANetwork`, і покладіть туди Linux-лаунчер (`gtanetwork-launcher-linux-x64-*`).
