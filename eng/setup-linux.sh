@@ -537,15 +537,42 @@ SH
   return 1
 }
 
+prefix_processes() { # "pid command" of wine processes that run inside the GTA V prefix (game, Rockstar Launcher, leftovers)
+  local p pid
+  for p in /proc/[0-9]*; do
+    pid="${p#/proc/}"; [ "$pid" != "$$" ] || continue
+    if tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -q -x -F -e "WINEPREFIX=${prefix%/}" -e "WINEPREFIX=${prefix%/}/"; then
+      echo "$pid $(tr '\0' ' ' < "$p/cmdline" 2>/dev/null | cut -c1-100)"
+    fi
+  done
+}
+
 run_protontricks() {
+  local busy
+  busy="$(prefix_processes)"
+  if [ -n "$busy" ]; then
+    warn "Wine processes are still running inside the GTA V prefix (the game, the Rockstar Launcher or leftovers):"
+    echo "$busy" | sed 's/^/       /'
+    warn "winetricks would wait for them forever. Stop them in Steam (the green Stop button) first,"
+    if ask "or shall I stop them now?"; then
+      echo "$busy" | awk '{print $1}' | xargs -r kill 2>/dev/null || true; sleep 3
+      echo "$busy" | awk '{print $1}' | xargs -r kill -9 2>/dev/null || true
+    fi
+  fi
   say "Installing .NET Framework 4.8 into the GTA V prefix:  $pt 271590 -q dotnet48"
-  say "This takes several minutes; installer windows may pop up, do not close them."
+  say "This takes 5-15 minutes and prints a lot: 'may not fully work on a 64-bit installation', Fontconfig errors"
+  say "and 'This will hang until all wine processes ... terminate' are normal winetricks noise. The .NET 4.0 and"
+  say "4.8 installers then run silently (look for dotNetFx40 / ndp48 processes in top). Do not close popup windows."
   if ! $pt 271590 -q dotnet48; then
-    warn "dotnet48 failed, see the output above. Retry later:  $pt 271590 -q dotnet48"
-    return 1
+    warn "dotnet48 failed inside the Steam Runtime container; retrying outside of it (--no-bwrap)"
+    if ! $pt --no-bwrap 271590 -q dotnet48; then
+      warn "dotnet48 failed, see the output above. Retry later:  $pt 271590 -q dotnet48   (or with --no-bwrap)"
+      return 1
+    fi
   fi
   say "Installing the VC++ 2022 runtime:  $pt 271590 -q vcrun2022"
-  $pt 271590 -q vcrun2022 || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  $pt 271590 -q vcrun2022"
+  $pt 271590 -q vcrun2022 || $pt --no-bwrap 271590 -q vcrun2022 \
+    || warn "vcrun2022 failed (not fatal, wine's built-in runtime is used). Retry later:  $pt 271590 -q vcrun2022"
   if dotnet_present; then ok ".NET Framework 4.x is now present in the prefix"; else warn ".NET Framework still not detected in $prefix"; fi
 }
 
