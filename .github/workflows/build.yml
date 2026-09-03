@@ -38,9 +38,10 @@ jobs:
         run: |
           set -euo pipefail
           common=(-c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION)
-          dotnet publish Server/GTANetworkServer.csproj "${common[@]}" -r linux-x64 --self-contained false -o artifacts/server-linux-x64
+          # Linux builds are self-contained: nothing to install on the target machine (eng/setup-linux.sh relies on it).
+          dotnet publish Server/GTANetworkServer.csproj "${common[@]}" -r linux-x64 --self-contained true  -o artifacts/server-linux-x64
           dotnet publish Server/GTANetworkServer.csproj "${common[@]}" -r win-x64   --self-contained false -o artifacts/server-win-x64
-          dotnet publish Launcher/GTANetwork.Launcher.csproj "${common[@]}" -r linux-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/launcher-linux-x64
+          dotnet publish Launcher/GTANetwork.Launcher.csproj "${common[@]}" -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/launcher-linux-x64
           dotnet publish Launcher/GTANetwork.Launcher.csproj "${common[@]}" -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/launcher-win-x64
           dotnet publish Map2Resource/Map2Resource.csproj "${common[@]}" -o artifacts/map2resource
           cp vehicleData.json artifacts/server-linux-x64/ && cp vehicleData.json artifacts/server-win-x64/
@@ -51,7 +52,7 @@ jobs:
       - name: Integration test (headless bot joins the server over the real protocol)
         run: |
           set -euo pipefail
-          dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/bot-linux-x64
+          dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/bot-linux-x64
           dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/bot-win-x64
           eng/integration-test.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
 
@@ -210,10 +211,15 @@ jobs:
         with:
           path: artifacts
 
+      - uses: actions/checkout@v4
+        with:
+          path: src
+
       - name: Zip artifacts
         run: |
           set -euo pipefail
           mkdir -p release
+          cp src/eng/setup-linux.sh release/setup-linux.sh
           cd artifacts
           for d in */; do
             d="${d%/}"
@@ -229,3 +235,4 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

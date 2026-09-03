@@ -182,6 +182,29 @@ also a good way to see what a gamemode does over the wire while developing serve
 
 Only **GTA V Legacy** (Steam app 271590) is supported; the Enhanced edition has a different executable.
 
+### Quick start (one script)
+
+```bash
+# 1. run GTA V once through Steam (creates the Proton prefix)
+# 2. download the ScriptHookV zip from http://www.dev-c.com/gtav/scripthookv/ with a browser (it blocks scripts)
+# 3. install everything into ~/GTANetwork from the latest GitHub release:
+curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/eng/setup-linux.sh | bash -s -- --name YourNick
+```
+
+`eng/setup-linux.sh` downloads the client package, the self-contained Linux launcher, server and bot (no .NET
+to install), copies `ScriptHookV.dll` + `dinput8.dll` out of the newest `~/Downloads/ScriptHookV*.zip` (or
+`--shv <zip>`), writes `settings.xml` (launch method `proton`, your name, `127.0.0.1:4499` in the favourites),
+offers to install .NET Framework 4.8 + the VC++ runtime into the game's prefix with `protontricks`, creates
+`play.sh`, `server/start.sh`, `bot.sh` and a desktop entry, and finishes with the launcher's `doctor`.
+`--build` compiles launcher/server/bot from a git checkout instead of downloading them (the client package
+still comes from a release because ScriptHookVDotNet needs MSVC), `--release <tag>` pins a version,
+`--game-path` helps when Steam auto-detection fails, `--method steam` if you prefer Steam launch options.
+
+Then: `~/GTANetwork/server/start.sh` in one terminal, `~/GTANetwork/play.sh` in another, and in the game
+menu pick `127.0.0.1:4499` from Favorites. `~/GTANetwork/bot.sh` joins the server without the game.
+
+### Manual steps
+
 1. Install and run the game once through Steam so that Proton creates its prefix.
 2. Install the .NET Framework into that prefix (ScriptHookVDotNet needs it):
    `protontricks 271590 dotnet48` (or `WINEPREFIX=~/.steam/steam/steamapps/compatdata/271590/pfx winetricks dotnet48`).

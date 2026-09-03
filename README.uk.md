@@ -148,6 +148,28 @@ dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name
 
 Підтримується лише **GTA V Legacy** (Steam app 271590); Enhanced має інший виконуваний файл.
 
+### Швидкий старт (один скрипт)
+
+```bash
+# 1. запустіть GTA V один раз через Steam (створює Proton-префікс)
+# 2. скачайте zip ScriptHookV з http://www.dev-c.com/gtav/scripthookv/ браузером (сайт блокує скрипти)
+# 3. поставте все в ~/GTANetwork з останнього GitHub-релізу:
+curl -fsSL https://raw.githubusercontent.com/SashaGoncharov19/FreeMode/master/eng/setup-linux.sh | bash -s -- --name ВашНік
+```
+
+`eng/setup-linux.sh` скачує клієнтський пакет, self-contained Linux-лаунчер, сервер і бота (ставити .NET не
+треба), витягує `ScriptHookV.dll` + `dinput8.dll` з найновішого `~/Downloads/ScriptHookV*.zip` (або `--shv <zip>`),
+пише `settings.xml` (метод запуску `proton`, ваш нік, `127.0.0.1:4499` у фаворитах), пропонує поставити .NET
+Framework 4.8 + VC++ у префікс гри через `protontricks`, створює `play.sh`, `server/start.sh`, `bot.sh` і ярлик у
+меню, і завершує `doctor`'ом лаунчера. `--build` збирає лаунчер/сервер/бота з git-чекауту замість скачування
+(клієнтський пакет усе одно з релізу, бо ScriptHookVDotNet потребує MSVC), `--release <tag>` фіксує версію,
+`--game-path` допомагає, якщо Steam не знайдено автоматично, `--method steam`, якщо хочете через параметри запуску Steam.
+
+Далі: `~/GTANetwork/server/start.sh` в одному терміналі, `~/GTANetwork/play.sh` в іншому, і в меню гри у Favorites
+вибрати `127.0.0.1:4499`. `~/GTANetwork/bot.sh` заходить на сервер без гри.
+
+### Вручну
+
 1. Встановіть гру і запустіть її один раз через Steam, щоб Proton створив префікс.
 2. Поставте .NET Framework у цей префікс (потрібен ScriptHookVDotNet):
    `protontricks 271590 dotnet48` (або `WINEPREFIX=~/.steam/steam/steamapps/compatdata/271590/pfx winetricks dotnet48`).
