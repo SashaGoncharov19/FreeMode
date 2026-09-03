@@ -24,9 +24,17 @@ namespace GTANetworkServer
         private static object _filelock = new object();
         private static bool _log;
 
+        // Wall-clock milliseconds. Entity movement start times are compared against the client's clock, so
+        // this one stays as it is; use MonotonicMs() for timeouts and rate limits.
         public static long GetTicks()
         {
             return DateTime.Now.Ticks/10000;
+        }
+
+        // Milliseconds from a monotonic clock: immune to NTP steps and time zone changes.
+        public static long MonotonicMs()
+        {
+            return Environment.TickCount64;
         }
 
         public static void ToFile(string path, string str)

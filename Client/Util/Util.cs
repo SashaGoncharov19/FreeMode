@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -195,15 +195,21 @@ namespace GTANetwork.Util
             if (!model.IsValid) return;
             LogManager.DebugLog("REQUESTING MODEL " + model.Hash);
             ModelRequest = true;
-            DateTime start = DateTime.Now;
-            while (!model.IsLoaded)
+            try
             {
-                model.Request();
-                //Function.Call(Hash.REQUEST_COLLISION_FOR_MODEL, model.Hash);
-                Script.Yield();
-                if (DateTime.Now.Subtract(start).TotalMilliseconds > 1000) break;
+                DateTime start = DateTime.Now;
+                while (!model.IsLoaded)
+                {
+                    model.Request();
+                    //Function.Call(Hash.REQUEST_COLLISION_FOR_MODEL, model.Hash);
+                    Script.Yield();
+                    if (DateTime.Now.Subtract(start).TotalMilliseconds > 1000) break;
+                }
             }
-            ModelRequest = false;
+            finally
+            {
+                ModelRequest = false;
+            }
             LogManager.DebugLog("MODEL REQUESTED: " + model.IsLoaded);
         }
 
@@ -810,9 +816,10 @@ namespace GTANetwork.Util
         {
             return new Vector3()
             {
-                X = LinearFloatLerp(start.X, end.X, currentTime, duration),
-                Y = LinearFloatLerp(start.Y, end.Y, currentTime, duration),
-                Z = LinearFloatLerp(start.Z, end.Z, currentTime, duration),
+                // Bounded extrapolation: without packets "elapsed / window" grew without limit and the ped flew off.
+                X = LinearFloatLerp(start.X, end.X, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
+                Y = LinearFloatLerp(start.Y, end.Y, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
+                Z = LinearFloatLerp(start.Z, end.Z, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
             };
         }
 

@@ -21,10 +21,26 @@ Two version numbers exist side by side:
   hashes in `accounts.json`; other resources read `API.getEntityData(player, "auth:account")`.
   `eng/integration-test-auth.sh` drives it with the bot in CI.
 
+* `docs/SYNC.md`: review of the synchronization, relay and streaming code with the fixes below and the open
+  items; `docs/CEF-UPGRADE.md`: plan for replacing the 2017 CEF build.
+
 ### Fixed
 * Resource scripts under `Server/resources` were also compiled into the server assembly by the SDK's default
   source glob; they are now excluded and only compiled by the server at runtime.
 * Docs: the bundled browser is CEF 3.2987 (Chromium 57, 2017), not CEF 85.
+* Server sync relay: near/far recipients are chosen by distance (2500 m) and dimension instead of rank, so
+  a full-map server no longer relays every packet to every player; the basic packet is only built when
+  someone is far; `Fake`/null-connection guards in every relay; the throttle uses a monotonic clock and is
+  pruned on disconnect; AFK players are torn down like real disconnects (entities leaked before);
+  `sendNativeToPlayersInRangeInDimension(Hash)` recursed forever; `Client` got a `GetHashCode`;
+  `getAllPlayers()` copies under the lock; unoccupied-vehicle packets are parsed in O(n).
+* Client sync/streaming: vehicles and peds were never deleted on stream-out (`Prop.Exists()` type check);
+  `Count(Type)` always returned 0; four stream-out filters had a precedence bug; an exception in the
+  streamer ended streaming for the session; stale-data guard in `Vehicle.cs` compared two different clocks;
+  divisions by zero before the second packet; unbounded ragdoll/parachute extrapolation; `AimPlayer` null
+  dereference; leaked aim prop; nametag line-of-sight traces for every player every frame; sender thread
+  spinning a core while connecting; racy counters; duplicate natives in the ped collector; `ModelRequest`
+  stuck after an exception; lazy `ClientMap` enumeration across yields.
 
 ## [0.1.0-alpha.22] - 2026-09-03
 

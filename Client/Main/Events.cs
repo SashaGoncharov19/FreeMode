@@ -93,7 +93,7 @@ namespace GTANetwork
                     var source in
                         Main.NetEntityHandler.ClientMap.Values.Where(
                             item => item is RemoteParticle && ((RemoteParticle)item).EntityAttached == us.RemoteHandle)
-                            .Cast<RemoteParticle>())
+                            .Cast<RemoteParticle>().ToList())
                 {
                     Main.NetEntityHandler.StreamOut(source);
                     Main.NetEntityHandler.StreamIn(source);

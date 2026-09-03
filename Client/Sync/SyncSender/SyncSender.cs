@@ -32,7 +32,11 @@ namespace GTANetwork.Streamer
                     SyncCollector.LastSyncPacket = null;
                 }
 
-                if (lastPacket == null) continue;
+                if (lastPacket == null)
+                {
+                    Thread.Sleep(PURE_SYNC_RATE);   // nothing collected yet (connecting, loading): do not spin
+                    continue;
+                }
                 try
                 {
                     var data = lastPacket as PedData;
@@ -77,8 +81,8 @@ namespace GTANetwork.Streamer
                             //    LogManager.LogException(ex, "SENDPLAYERDATA");
                             //}
 
-                            Main.BytesSent += lightBin.Length;
-                            Main.MessagesSent++;
+                            Interlocked.Add(ref Main.BytesSent, lightBin.Length);
+                            Interlocked.Increment(ref Main.MessagesSent);
                         }
 
                         lastPedData = true;
@@ -90,8 +94,8 @@ namespace GTANetwork.Streamer
                                 Main.AveragePacketSize.RemoveAt(0);
                         }
 
-                        Main.BytesSent += bin.Length;
-                        Main.MessagesSent++;
+                        Interlocked.Add(ref Main.BytesSent, bin.Length);
+                        Interlocked.Increment(ref Main.MessagesSent);
                     }
                     else
                     {
@@ -133,8 +137,8 @@ namespace GTANetwork.Streamer
                             //    LogManager.LogException(ex, "SENDPLAYERDATA");
                             //}
 
-                            Main.BytesSent += lightBin.Length;
-                            Main.MessagesSent++;
+                            Interlocked.Add(ref Main.BytesSent, lightBin.Length);
+                            Interlocked.Increment(ref Main.MessagesSent);
                         }
 
                         lastPedData = false;
@@ -146,8 +150,8 @@ namespace GTANetwork.Streamer
                                 Main.AveragePacketSize.RemoveAt(0);
                         }
 
-                        Main.BytesSent += bin.Length;
-                        Main.MessagesSent++;
+                        Interlocked.Add(ref Main.BytesSent, bin.Length);
+                        Interlocked.Increment(ref Main.MessagesSent);
                     }
                 }
                 catch (Exception ex)
@@ -164,7 +168,7 @@ namespace GTANetwork.Streamer
 
     public partial class SyncCollector : Script
     {
-        internal static bool ForceAimData;
+        internal static volatile bool ForceAimData;   // written by scripts, read by the collector
         internal static object LastSyncPacket;
         internal static object Lock = new object();
 

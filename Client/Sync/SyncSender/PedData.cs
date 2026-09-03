@@ -22,6 +22,15 @@ namespace GTANetwork.Streamer
             bool aiming = player.IsSubtaskActive(ESubtask.AIMED_SHOOTING_ON_FOOT) || player.IsSubtaskActive(ESubtask.AIMING_THROWABLE); // Game.IsControlPressed(GTA.Control.Aim);
             bool shooting = Function.Call<bool>(Hash.IS_PED_SHOOTING, player.Handle);
 
+            // Each of these is a native call (a round trip to the game thread); read them once per frame.
+            var parachuteState = Function.Call<int>(Hash.GET_PED_PARACHUTE_STATE, player.Handle);
+            var usingLadder = player.IsSubtaskActive(ESubtask.USING_LADDER);
+            var isRagdoll = player.IsRagdoll;
+            var isReloading = player.IsReloading;
+            var inMeleeCombat = player.IsInMeleeCombat;
+            var meleeSubtask = player.IsSubtaskActive(ESubtask.MELEE_COMBAT);
+            var aimingPrevented = player.IsSubtaskActive(ESubtask.AIMING_PREVENTED_BY_OBSTACLE);
+
             GTA.Math.Vector3 aimCoord = new Vector3();
             if (aiming || shooting)
             {
@@ -45,20 +54,20 @@ namespace GTANetwork.Streamer
             };
 
 
-            if (player.IsRagdoll)
+            if (isRagdoll)
                 obj.Flag |= (int)PedDataFlags.Ragdoll;
-            if (Function.Call<int>(Hash.GET_PED_PARACHUTE_STATE, player.Handle) == 0 &&
+            if (parachuteState == 0 &&
                 player.IsInAir)
                 obj.Flag |= (int)PedDataFlags.InFreefall;
-            if (player.IsInMeleeCombat)
+            if (inMeleeCombat)
                 obj.Flag |= (int)PedDataFlags.InMeleeCombat;
             if (aiming || shooting)
                 obj.Flag |= (int)PedDataFlags.Aiming;
-            if ((player.IsInMeleeCombat && Game.IsControlJustPressed(Control.Attack)))
+            if ((inMeleeCombat && Game.IsControlJustPressed(Control.Attack)))
                 obj.Flag |= (int)PedDataFlags.Shooting;
             if (Function.Call<bool>(Hash.IS_PED_JUMPING, player.Handle))
                 obj.Flag |= (int)PedDataFlags.Jumping;
-            if (Function.Call<int>(Hash.GET_PED_PARACHUTE_STATE, player.Handle) == 2)
+            if (parachuteState == 2)
                 obj.Flag |= (int)PedDataFlags.ParachuteOpen;
             if (player.IsInCover())
                 obj.Flag |= (int)PedDataFlags.IsInCover;
@@ -66,13 +75,13 @@ namespace GTANetwork.Streamer
                 obj.Flag |= (int)PedDataFlags.IsInLowerCover;
             if (player.IsInCoverFacingLeft)
                 obj.Flag |= (int)PedDataFlags.IsInCoverFacingLeft;
-            if (player.IsReloading)
+            if (isReloading)
                 obj.Flag |= (int)PedDataFlags.IsReloading;
             if (ForceAimData)
                 obj.Flag |= (int)PedDataFlags.HasAimData;
-            if (player.IsSubtaskActive(ESubtask.USING_LADDER))
+            if (usingLadder)
                 obj.Flag |= (int)PedDataFlags.IsOnLadder;
-            if (Function.Call<bool>(Hash.IS_PED_CLIMBING, player) && !player.IsSubtaskActive(ESubtask.USING_LADDER))
+            if (Function.Call<bool>(Hash.IS_PED_CLIMBING, player) && !usingLadder)
                 obj.Flag |= (int)PedDataFlags.IsVaulting;
             if (Function.Call<bool>(Hash.IS_ENTITY_ON_FIRE, player))
                 obj.Flag |= (int)PedDataFlags.OnFire;
@@ -109,25 +118,25 @@ namespace GTANetwork.Streamer
 
             if (obj.WeaponHash != null && !WeaponDataProvider.IsWeaponAutomatic(unchecked((GTANetworkShared.WeaponHash)obj.WeaponHash.Value)))
             {
-                sendShootingPacket = (shooting && !player.IsSubtaskActive(ESubtask.AIMING_PREVENTED_BY_OBSTACLE) && !player.IsSubtaskActive(ESubtask.MELEE_COMBAT));
+                sendShootingPacket = (shooting && !aimingPrevented && !meleeSubtask);
             }
             else
             {
-                if (!_lastShooting && !player.IsSubtaskActive(ESubtask.MELEE_COMBAT))
+                if (!_lastShooting && !meleeSubtask)
                 {
-                    sendShootingPacket = (shooting && !player.IsSubtaskActive(ESubtask.AIMING_PREVENTED_BY_OBSTACLE) &&
-                                          !player.IsSubtaskActive(ESubtask.MELEE_COMBAT)) ||
-                                         ((player.IsInMeleeCombat || player.IsSubtaskActive(ESubtask.MELEE_COMBAT)) &&
+                    sendShootingPacket = (shooting && !aimingPrevented &&
+                                          !meleeSubtask) ||
+                                         ((inMeleeCombat || meleeSubtask) &&
                                           Game.IsEnabledControlPressed(Control.Attack));
                 }
                 else
                 {
-                    sendShootingPacket = (!player.IsSubtaskActive(ESubtask.AIMING_PREVENTED_BY_OBSTACLE) &&
-                                          !player.IsSubtaskActive(ESubtask.MELEE_COMBAT) &&
-                                          !player.IsReloading &&
-                                          player.Weapons.Current.AmmoInClip > 0 &&
+                    sendShootingPacket = (!aimingPrevented &&
+                                          !meleeSubtask &&
+                                          !isReloading &&
+                                          currentWeapon.AmmoInClip > 0 &&
                                           Game.IsEnabledControlPressed(Control.Attack)) ||
-                                         ((player.IsInMeleeCombat || player.IsSubtaskActive(ESubtask.MELEE_COMBAT)) &&
+                                         ((inMeleeCombat || meleeSubtask) &&
                                           Game.IsEnabledControlPressed(Control.Attack));
                 }
 
@@ -141,9 +150,9 @@ namespace GTANetwork.Streamer
 
             _lastBullet = false;
 
-            if (player.IsRagdoll) sendShootingPacket = false;
+            if (isRagdoll) sendShootingPacket = false;
 
-            if (!player.IsSubtaskActive(ESubtask.MELEE_COMBAT) && player.Weapons.Current.Ammo == 0) sendShootingPacket = false;
+            if (!meleeSubtask && currentWeapon.Ammo == 0) sendShootingPacket = false;
 
             if (sendShootingPacket && !_lastShooting && DateTime.Now.Subtract(_lastShot).TotalMilliseconds > 50)
             {

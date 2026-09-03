@@ -269,7 +269,9 @@ Both need `ScriptHookV.dll` + `dinput8.dll` in `bin\` and the .NET Framework 4.8
 Every release has a section in [`CHANGELOG.md`](CHANGELOG.md); the CI release job uses it as the release body.
 To publish: merge to `master`, then *Actions → Build → Run workflow* with `release_tag` (`v0.2.0`, or
 `v0.2.0-beta.1` for a pre-release). The assembly version (`0.1.<days>.<minutes/2>`) stays date-based.
-The plan towards a RAGE Multiplayer 0.3.7-class platform is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+The plan towards a RAGE Multiplayer 0.3.7-class platform is in [`docs/ROADMAP.md`](docs/ROADMAP.md);
+the synchronization review in [`docs/SYNC.md`](docs/SYNC.md); the browser upgrade plan in
+[`docs/CEF-UPGRADE.md`](docs/CEF-UPGRADE.md).
 
 ## Known limitations
 

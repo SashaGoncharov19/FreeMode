@@ -691,14 +691,73 @@ namespace GTANResource
 
                     if (time > 70)
                     {
-                        Clients.Remove(Clients[i]);
+                        // Lidgren never delivered the disconnect: tear the player down like a real disconnect,
+                        // otherwise the entity, the ped on every other client and the connection leak.
+                        var stale = Clients[i];
+                        if (stale.NetConnection != null && stale.NetConnection.Status != NetConnectionStatus.Disconnected)
+                            stale.NetConnection.Disconnect("Timed out.");
+                        HandleDisconnect(stale, "Timed out.");
                     }
                     else if (time > 10)
                     {
-                        Clients[i].NetConnection.Disconnect("Timed out.");
-                        //DisconnectClient(Clients[i], "Timeout");
+                        if (Clients[i].NetConnection != null) Clients[i].NetConnection.Disconnect("Timed out.");
                     }
 
+                }
+            }
+        }
+
+        // Everything that has to happen when a player leaves, whatever the reason (Lidgren status change,
+        // AFK timeout). Safe to call twice: the second call finds the client already removed.
+        internal void HandleDisconnect(Client client, string reason)
+        {
+            lock (Clients)
+            {
+                if (!Clients.Contains(client)) return;
+            }
+
+            lock (RunningResources)
+            {
+                RunningResources.ForEach(fs => fs.Engines.ForEach(en =>
+                {
+                    en.InvokePlayerDisconnected(client, reason);
+                }));
+            }
+
+            UnoccupiedVehicleManager.UnsyncAllFrom(client);
+
+            lock (Clients)
+            {
+                if (!Clients.Contains(client)) return;
+
+                var dcObj = new PlayerDisconnect() { Id = client.handle.Value };
+
+                SendToAll(dcObj, PacketType.PlayerDisconnect, true, ConnectionChannel.SyncEvent);
+
+                var address = client.NetConnection != null && client.NetConnection.RemoteEndPoint != null ? client.NetConnection.RemoteEndPoint.Address.ToString() : "?";
+                Program.Output("Player disconnected: " + client.SocialClubName + " (" + client.Name + ") [" + address + "], reason: " + reason);
+
+                int vehValue = client.CurrentVehicle.Value;
+
+                if (vehValue != 0 &&
+                    VehicleOccupants.ContainsKey(vehValue) &&
+                    VehicleOccupants[vehValue].Contains(client))
+                    VehicleOccupants[vehValue].Remove(client);
+
+                Clients.Remove(client);
+                Server.Configuration.CurrentPlayers = Clients.Count;
+                NetEntityHandler.DeleteEntityQuiet(client.handle.Value);
+                if (ACLEnabled) ACL.LogOutClient(client);
+
+                Downloads.RemoveAll(d => d.Parent == client);
+
+                // the far-sync throttle keyed by this player's handle on every other client
+                foreach (var other in Clients)
+                {
+                    lock (other.LastPacketReceived)
+                    {
+                        other.LastPacketReceived.Remove(client.handle.Value);
+                    }
                 }
             }
         }

@@ -192,6 +192,10 @@ namespace GTANetwork.Sync
 
         internal double AverageLatency => _latencyAverager.Count == 0 ? 0 : _latencyAverager.Average();
 
+        // Interpolation window in ms, never zero: before the second packet AverageLatency is 0 and every
+        // "elapsed / AverageLatency" ratio became infinity.
+        internal float SafeAverageLatency => (float)Math.Max(1.0, AverageLatency);
+
         internal long LastUpdateReceived
         {
             get => _lastUpdateReceived;

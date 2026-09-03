@@ -233,7 +233,8 @@ master-сервера немає; фаворити, недавні сервер�
 Кожен реліз має розділ у [`CHANGELOG.md`](CHANGELOG.md); CI бере його як опис релізу. Щоб опублікувати:
 злити в `master`, потім *Actions → Build → Run workflow* з `release_tag` (`v0.2.0`, або `v0.2.0-beta.1` для
 пре-релізу). Версія збірок (`0.1.<дні>.<хвилини/2>`) лишається прив'язаною до дати. План виходу на рівень
-RAGE Multiplayer 0.3.7 — у [`docs/ROADMAP.md`](docs/ROADMAP.md).
+RAGE Multiplayer 0.3.7 — у [`docs/ROADMAP.md`](docs/ROADMAP.md); розбір синхронізації — у
+[`docs/SYNC.md`](docs/SYNC.md); план оновлення браузера — у [`docs/CEF-UPGRADE.md`](docs/CEF-UPGRADE.md).
 
 ## Відомі обмеження
 

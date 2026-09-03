@@ -40,8 +40,9 @@ namespace GTANetwork.Sync
             {
                 var playerChar = Game.Player.Character;
                 var isInRange = Character.IsInRangeOfEx(playerChar.Position, 30f);
-                var isFreeAimngAtEntity = Function.Call<bool>(Hash.IS_PLAYER_FREE_AIMING_AT_ENTITY, Game.Player, Character);
-                var hasClearLosToEntity = Function.Call<bool>(Hash.HAS_ENTITY_CLEAR_LOS_TO_ENTITY, playerChar, Character, 17);
+                var isFreeAimngAtEntity = isInRange || Function.Call<bool>(Hash.IS_PLAYER_FREE_AIMING_AT_ENTITY, Game.Player, Character);
+                // the line-of-sight trace is the expensive one: only for peds that could get a tag at all
+                var hasClearLosToEntity = (isInRange || isFreeAimngAtEntity) && Function.Call<bool>(Hash.HAS_ENTITY_CLEAR_LOS_TO_ENTITY, playerChar, Character, 17);
 
                 if ((isInRange || isFreeAimngAtEntity) && hasClearLosToEntity)
                 {
