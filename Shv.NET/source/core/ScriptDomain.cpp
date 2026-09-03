@@ -657,6 +657,8 @@ namespace GTA
 
 			_executingScript = script;
 
+			System::Diagnostics::Stopwatch ^stopwatch = System::Diagnostics::Stopwatch::StartNew();
+
 			while ((script->_running = SignalAndWait(script->_continueEvent, script->_waitEvent, 5000)) && _taskQueue->Count > 0)
 			//while ((script->_running = SignalAndWait(script->_continueEvent, script->_waitEvent, 30000)) && _taskQueue->Count > 0)
 			{
@@ -664,6 +666,19 @@ namespace GTA
 			}
 
 			_executingScript = nullptr;
+
+			// A script that keeps the game thread for long is a visible stutter: name it, at most once every 5 s per script.
+			long long elapsed = stopwatch->ElapsedMilliseconds;
+			if (elapsed >= 20)
+			{
+				long long now = System::DateTime::UtcNow.Ticks / 10000;
+				long long last = 0;
+				if (!_slowTickLastLog->TryGetValue(script->Name, last) || now - last >= 5000)
+				{
+					_slowTickLastLog[script->Name] = now;
+					Log("[WARN]", "Script '", script->Name, "' held the game thread for ", Convert::ToString(elapsed), " ms in one tick");
+				}
+			}
 
 			if (!script->_running)
 			{

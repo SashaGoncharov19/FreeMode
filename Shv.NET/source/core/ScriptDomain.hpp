@@ -120,6 +120,8 @@ namespace GTA
 		System::Collections::Generic::List<Script ^> ^_hookedScripts = gcnew System::Collections::Generic::List<Script ^>();
 		System::Collections::Generic::List<Script ^> ^_runningScripts = gcnew System::Collections::Generic::List<Script ^>();
 		System::Collections::Generic::Queue<IScriptTask ^> ^_taskQueue = gcnew System::Collections::Generic::Queue<IScriptTask ^>();
+		// last time (ms) a "slow tick" warning was written per script, so the log is not flooded
+		System::Collections::Generic::Dictionary<System::String ^, long long> ^_slowTickLastLog = gcnew System::Collections::Generic::Dictionary<System::String ^, long long>();
 		System::Collections::Generic::List<System::IntPtr> ^_pinnedStrings = gcnew System::Collections::Generic::List<System::IntPtr>();
 		System::Collections::Generic::List<System::Tuple<System::String ^, System::Type ^> ^> ^_scriptTypes = gcnew System::Collections::Generic::List<System::Tuple<System::String ^, System::Type ^> ^>();
 		bool _recordKeyboardEvents = true;
