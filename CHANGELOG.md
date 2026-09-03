@@ -14,6 +14,18 @@ Two version numbers exist side by side:
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0-alpha.21] - 2026-09-03
+
+### Changed
+* ScriptHookVDotNet thread hand-offs poll for up to 100 µs before blocking. Every native call from a script
+  and every script tick is a round trip between the game thread and the script thread; with kernel events
+  each round trip paid the wake-up latency of a sleeping thread (tens of microseconds, more under wine),
+  which multiplied by a few hundred native calls per frame was a large share of the frame time.
+
+## [0.1.0-alpha.20] - 2026-09-03
+
 ### Added
 * `CHANGELOG.md` (this file) and `docs/ROADMAP.md` (the plan towards a RAGE Multiplayer 0.3.7-class platform).
 * The GitHub release body is taken from the changelog section that matches the release tag.
@@ -23,12 +35,6 @@ Two version numbers exist side by side:
 * Client-side script errors now log the V8 error details (script line and stack) and the resource/file name; an
   "API probe" line in `Runtime.log` says whether `API` and its events are visible to JavaScript before a script
   starts.
-
-### Changed
-* ScriptHookVDotNet thread hand-offs poll for up to 100 µs before blocking. Every native call from a script
-  and every script tick is a round trip between the game thread and the script thread; with kernel events
-  each round trip paid the wake-up latency of a sleeping thread (tens of microseconds, more under wine),
-  which multiplied by a few hundred native calls per frame was a large share of the frame time.
 
 ## [0.1.0-alpha.19] - 2026-09-03
 
@@ -196,7 +202,9 @@ The first build of the revival. Everything below compares with the 2019-2020 cod
   recipient, so any `setEntityPosition`/`setTime`-style API call failed with two players online.
 * Server: the sync relay threw with an empty recipient list when a single player was online.
 
-[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.19...HEAD
+[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.21...HEAD
+[0.1.0-alpha.21]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.21
+[0.1.0-alpha.20]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.20
 [0.1.0-alpha.19]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.19
 [0.1.0-alpha.18]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.18
 [0.1.0-alpha.17]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.17
