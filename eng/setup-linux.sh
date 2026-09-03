@@ -541,8 +541,8 @@ prefix_processes() { # "pid command" of wine processes that run inside the GTA V
   local p pid
   for p in /proc/[0-9]*; do
     pid="${p#/proc/}"; [ "$pid" != "$$" ] || continue
-    if tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -q -x -F -e "WINEPREFIX=${prefix%/}" -e "WINEPREFIX=${prefix%/}/"; then
-      echo "$pid $(tr '\0' ' ' < "$p/cmdline" 2>/dev/null | cut -c1-100)"
+    if { tr '\0' '\n' < "$p/environ"; } 2>/dev/null | grep -q -x -F -e "WINEPREFIX=${prefix%/}" -e "WINEPREFIX=${prefix%/}/"; then
+      echo "$pid $({ tr '\0' ' ' < "$p/cmdline"; } 2>/dev/null | cut -c1-100)"
     fi
   done
 }
