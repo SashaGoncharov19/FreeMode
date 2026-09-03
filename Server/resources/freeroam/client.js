@@ -3,6 +3,8 @@
 
 API.onResourceStart.connect(function () {
     API.sendNotification("~g~freeroam~w~ client script loaded. Type ~y~/help");
+    // Client -> server event: the server answers in chat, which proves the whole JS chain works.
+    API.triggerServerEvent("freeroam:clientReady");
 });
 
 API.onServerEventTrigger.connect(function (eventName, args) {
@@ -11,11 +13,11 @@ API.onServerEventTrigger.connect(function (eventName, args) {
     }
 });
 
-API.onChatCommand.connect(function (command, cancel) {
-    // Client-side command: /ping asks the server for the round trip time.
-    if (command === "/ping") {
-        API.triggerServerEvent("freeroam:ping");
-        cancel.Cancel = true;
+// Fired with the full chat line ("/ping", "/veh adder") before it is sent to the server; it cannot be
+// cancelled here, so every client-side command also needs a server-side [Command] (see freeroam.cs).
+API.onChatCommand.connect(function (msg) {
+    if (msg === "/ping") {
+        API.sendNotification("~b~ping~w~ sent, the server answers in chat");
     }
 });
 

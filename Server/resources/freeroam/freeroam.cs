@@ -49,9 +49,10 @@ public class Freeroam : Script
 
     private void OnClientEvent(Client sender, string eventName, params object[] arguments)
     {
-        if (eventName == "freeroam:ping")
+        // Sent by client.js when the client-side script has started on that player's game.
+        if (eventName == "freeroam:clientReady")
         {
-            API.sendChatMessageToPlayer(sender, "~b~pong~w~ (" + API.getPlayerPing(sender) + " ms)");
+            API.sendChatMessageToPlayer(sender, "~g~Client-side script is running.");
         }
     }
 
@@ -70,7 +71,13 @@ public class Freeroam : Script
         API.sendChatMessageToPlayer(sender, "~y~/weapon [name] [ammo]~w~ e.g. /weapon carbinerifle 250, ~y~/weapons~w~ for a starter pack");
         API.sendChatMessageToPlayer(sender, "~y~/tp [x] [y] [z]~w~ teleport, ~y~/spawn~w~ respawn, ~y~/pos~w~ show position");
         API.sendChatMessageToPlayer(sender, "~y~/skin [model]~w~ e.g. /skin Franklin, ~y~/heal~w~, ~y~/fix~w~ repair vehicle");
-        API.sendChatMessageToPlayer(sender, "~y~/time [hour]~w~, ~y~/weather [0-13]~w~, ~y~/players~w~, ~y~/shard [text]~w~, ~y~/kill");
+        API.sendChatMessageToPlayer(sender, "~y~/time [hour]~w~, ~y~/weather [0-13]~w~, ~y~/players~w~, ~y~/shard [text]~w~, ~y~/ping~w~, ~y~/kill");
+    }
+
+    [Command("ping", Description = "Show your round trip time")]
+    public void Ping(Client sender)
+    {
+        API.sendChatMessageToPlayer(sender, "~b~pong~w~ (" + API.getPlayerPing(sender) + " ms)");
     }
 
     [Command("veh", Alias = "car,vehicle", Description = "Spawn a vehicle and get in")]
