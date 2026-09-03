@@ -69,11 +69,15 @@ namespace GTA
 			if (!String::IsNullOrEmpty(scripts) && IO::Path::IsPathRooted(scripts))
 			{
 				String ^binDirectory = IO::Path::GetDirectoryName(IO::Path::GetFullPath(scripts));
-				String ^root = ReferenceEquals(binDirectory, nullptr) ? nullptr : IO::Path::GetDirectoryName(binDirectory);
 
-				if (!ReferenceEquals(root, nullptr) && IO::Directory::Exists(root))
+				if (!String::IsNullOrEmpty(binDirectory))
 				{
-					return root;
+					String ^root = IO::Path::GetDirectoryName(binDirectory);
+
+					if (!String::IsNullOrEmpty(root) && IO::Directory::Exists(root))
+					{
+						return root;
+					}
 				}
 			}
 		}
@@ -82,7 +86,13 @@ namespace GTA
 		}
 
 		String ^parent = IO::Path::GetDirectoryName(directory);
-		return ReferenceEquals(parent, nullptr) ? directory : parent;
+
+		if (String::IsNullOrEmpty(parent))
+		{
+			return directory;
+		}
+
+		return parent;
 	}
 
 	void Log(String ^logLevel, ... array<String ^> ^message)

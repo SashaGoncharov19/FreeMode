@@ -161,7 +161,9 @@ jobs:
         run: |
           if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress; $env:PATH += ";C:\Program Files (x86)\NSIS" }
           $src = (Resolve-Path artifacts/client).Path
-          makensis /V2 "/DSOURCE_DIR=$src" "/DOUT_FILE=$PWD\artifacts\GTANSetup-$env:GTAN_VERSION.exe" Setup/Setup.nsi
+          $out = Join-Path (Resolve-Path artifacts).Path "GTANSetup-$env:GTAN_VERSION.exe"
+          Push-Location Setup   # makensis resolves License.txt relative to the working directory
+          try { makensis /V2 "/DSOURCE_DIR=$src" "/DOUT_FILE=$out" Setup.nsi } finally { Pop-Location }
           Get-Item artifacts/GTANSetup-*.exe | Select-Object FullName, Length
 
       - uses: actions/upload-artifact@v4
