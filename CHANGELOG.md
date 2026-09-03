@@ -24,6 +24,12 @@ Two version numbers exist side by side:
   "API probe" line in `Runtime.log` says whether `API` and its events are visible to JavaScript before a script
   starts.
 
+### Changed
+* ScriptHookVDotNet thread hand-offs poll for up to 100 µs before blocking. Every native call from a script
+  and every script tick is a round trip between the game thread and the script thread; with kernel events
+  each round trip paid the wake-up latency of a sleeping thread (tens of microseconds, more under wine),
+  which multiplied by a few hundred native calls per frame was a large share of the frame time.
+
 ## [0.1.0-alpha.19] - 2026-09-03
 
 ### Fixed

@@ -27,15 +27,36 @@ namespace WinForms = System::Windows::Forms;
 
 namespace
 {
+	// Every native call and every script tick is a hand-off between the game thread and a script thread.
+	// The other side usually answers within microseconds, while waking a sleeping thread costs tens of
+	// microseconds (more under wine/Proton), so poll for a short while before really blocking.
+	inline bool SpinThenWait(AutoResetEvent ^toWaitOn, int timeout)
+	{
+		static const long long spinTicks = System::Diagnostics::Stopwatch::Frequency / 10000; // 100 us
+		const long long deadline = System::Diagnostics::Stopwatch::GetTimestamp() + spinTicks;
+
+		do
+		{
+			if (toWaitOn->WaitOne(0))
+			{
+				return true;
+			}
+
+			Thread::SpinWait(64);
+		}
+		while (System::Diagnostics::Stopwatch::GetTimestamp() < deadline);
+
+		return toWaitOn->WaitOne(timeout);
+	}
 	inline void SignalAndWait(AutoResetEvent ^toSignal, AutoResetEvent ^toWaitOn)
 	{
 		toSignal->Set();
-		toWaitOn->WaitOne();
+		SpinThenWait(toWaitOn, Timeout::Infinite);
 	}
 	inline bool SignalAndWait(AutoResetEvent ^toSignal, AutoResetEvent ^toWaitOn, int timeout)
 	{
 		toSignal->Set();
-		return toWaitOn->WaitOne(timeout);
+		return SpinThenWait(toWaitOn, timeout);
 	}
 }
 
