@@ -21,11 +21,12 @@ namespace GTANetwork.Util
         private DateTime _last;
         private float _fps;
         private SizeF _screenRatio;
-        private int _Peds = World.GetAllPeds().Length;
-        private int _Vehs = World.GetAllVehicles().Length;
-        private int _Blips = World.GetAllBlips().Length;
-        private int _Props = World.GetAllProps().Length;
-        private int _Entities = World.GetAllEntities().Length;
+        // Refreshed only while StreamerDebug is on: each of these is a full entity pool scan on the game thread.
+        private int _Peds;
+        private int _Vehs;
+        private int _Blips;
+        private int _Props;
+        private int _Entities;
 
         public DebugInfo()
         {
@@ -41,11 +42,16 @@ namespace GTANetwork.Util
             {
                 _fps = Game.FPS;
                 _last = DateTime.Now;
-                _Peds = World.GetAllPeds().Length;
-                _Vehs = World.GetAllVehicles().Length;
-                _Blips = World.GetAllBlips().Length;
-                _Props = World.GetAllProps().Length;
-                _Entities = World.GetAllEntities().Length;
+
+                if (StreamerDebug)
+                {
+                    // Five pool scans took ~170 ms per refresh; nobody sees the numbers unless the overlay is shown.
+                    _Peds = World.GetAllPeds().Length;
+                    _Vehs = World.GetAllVehicles().Length;
+                    _Blips = World.GetAllBlips().Length;
+                    _Props = World.GetAllProps().Length;
+                    _Entities = World.GetAllEntities().Length;
+                }
             }
 
             if (ShowFps)
