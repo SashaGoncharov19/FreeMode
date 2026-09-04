@@ -315,10 +315,11 @@ the synchronization review in [`docs/SYNC.md`](docs/SYNC.md); the browser upgrad
 * **ScriptHookV is not redistributable** and has to be downloaded by every user.
 * **The master server is gone**: no public server list, no updates through the master (the Linux installer
   updates itself from GitHub releases), `announce` is disabled by default.
-* **Browser**: CefSharp.OffScreen (Chromium 151, 2026) with `CefSharp.BrowserSubprocess.exe`; the game is the browser
-  process, pages render in separate processes and land in the DirectX overlay. The whole runtime lives in
-  `<install>/cef`. Pages talk to the client script through `resourceCall(name, ...args)` (one-way, see
-  `docs/CEF-UPGRADE.md`). **JavaScript**: ClearScript 7.5 (V8 12). The SharpDX 2.6/4.0 mix is kept as the binaries
+* **Browser**: CefSharp.OffScreen (Chromium 151, 2026) in its own process, `cef/GTANetwork.CefHost.exe`: the game
+  starts it, sends commands over its stdin/stdout and reads the pages' pixels from shared memory into the DirectX
+  overlay (CefSharp cannot run in the second AppDomain ScriptHookVDotNet uses, see `docs/CEF-UPGRADE.md`). Renderer
+  and GPU work run in the host's `CefSharp.BrowserSubprocess.exe` processes; the runtime lives in `<install>/cef`.
+  Pages talk to the client script through `resourceCall(name, ...args)` (one-way). **JavaScript**: ClearScript 7.5 (V8 12). The SharpDX 2.6/4.0 mix is kept as the binaries
   the DirectX hook was tuned for.
 * The classic Windows launcher still contacts `master.gtanet.work` for updates and silently continues when
   it is unreachable.

@@ -22,31 +22,43 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 `claude/modernize-deps-4d8uyn` is being tested in game.
 
 ### Changed
-* **Browser: CEF 3.2987 (Chromium 57, 2017, single-process) → CefSharp.OffScreen 151 (Chromium 151, 2026)**.
-  The game is the browser process; page rendering and the GPU run in `CefSharp.BrowserSubprocess.exe`
-  processes, which is how Chromium is meant to be embedded and what keeps page work off the game's threads.
-  Pages render off-screen into the same DirectX overlay as before. The runtime (~350 MB) lives in
-  `<install>/cef` and comes from NuGet; `libs/cef` and `libs/Xilium.CefGlue.dll` left the repository (144 MB).
-  Chromium starts with the first browser a resource creates, not at game start (`<CefPreload>true</CefPreload>`
-  restores the old behaviour), so servers without browser UIs never run it. Settings: `<CefGpu>` (GPU process,
-  default off = software rendering), `<CefFrameRate>` (default 30), `<CEFDevtool>` (remote debugger on port
-  9222), `<CefInProcessGpu>` (GPU service inside the game process, default true; false = separate GPU process).
-  Chromium runs with the Alloy runtime style, without DirectComposition, window occlusion tracking, renderer
-  code integrity, extensions, background networking and component updates, and with the network service
-  in-process (fewer Windows-only subsystems and subprocess launches under Wine); its own log
-  `logs/CEF-chromium.log` is kept at Info level while the port is being verified. Creating a browser never
-  blocks the script (and with it the game) while Chromium starts: the browser appears when Chromium is up, a
-  page requested before that is loaded then. Without `<CefGpu>` Chromium runs in its display-compositor-only
-  mode (`--use-gl=disabled --disable-software-rasterizer`): no ANGLE, D3D11, SwiftShader or Vulkan is ever
-  initialised inside the game, which shares its process with DXVK's own D3D11 and Vulkan; off-screen pages are
-  composited in software anyway. `Runtime.log` records a clean `ProcessExit` to tell an exit from a crash, and
-  `CEF.log` gets the exact Chromium switches plus a line every 5 s while `Cef.Initialize` runs, so a crash during
-  start-up can be placed in time. Details, mapping and the performance plan (dirty rectangles, shared textures):
-  `docs/CEF-UPGRADE.md`.
+* **Browser: CEF 3.2987 (Chromium 57, 2017, single-process inside the game) → CefSharp.OffScreen 151 (Chromium 151,
+  2026) in its own process, `cef\GTANetwork.CefHost.exe`.** The game starts the host with the first browser a
+  resource creates (`<CefPreload>true</CefPreload>` starts it at game start), sends it commands over its stdin and
+  receives events over its stdout (length-prefixed JSON, `GTANetworkShared.Cef`), and reads every browser's pixels
+  from a shared-memory frame buffer into the same DirectX overlay as before. Page rendering and the GPU run in the
+  host's `CefSharp.BrowserSubprocess.exe` processes. Nothing of CefSharp or libcef is loaded into `GTA5.exe`:
+  CefSharp is C++/CLI and only works in the default AppDomain, while ScriptHookVDotNet runs the client in a second
+  one — the reason alpha.1 to alpha.5, which hosted Chromium inside the game, died during `Cef.Initialize` under
+  Proton whatever the switches (details and the reproduction: `docs/CEF-UPGRADE.md`, `eng/cef-harness.sh`).
+  The runtime (~350 MB) lives in `<install>/cef` and comes from NuGet; `libs/cef` and `libs/Xilium.CefGlue.dll`
+  left the repository (144 MB). Settings: `<CefGpu>` (GPU in the host, default off = software rendering),
+  `<CefFrameRate>` (default 30), `<CEFDevtool>` (remote debugger on port 9222), `<CefInProcessGpu>` (GPU service
+  inside the host, default true; false = a further GPU process). Chromium runs with the Alloy runtime style, without
+  DirectComposition, window occlusion tracking, renderer code integrity, extensions, background networking and
+  component updates, with the network service in-process and, without `<CefGpu>`, in display-compositor-only mode
+  (`--use-gl=disabled --disable-software-rasterizer`). It is kept small: one renderer process for all pages
+  (`--renderer-process-limit=1 --process-per-site`, no spare renderer), the network and audio services inside the
+  host, no metrics, media-router, optimization-hints, translate or autofill services, a 32 MB disk cache — three
+  processes (host, renderer, storage service) instead of eight. Under Proton the host runs without Wine tracing
+  even when the game has it (`WINEDEBUG=-all`; `GTAN_CEF_WINEDEBUG` overrides). The host starts when a connection
+  to a server is initiated, so a page opened on join is drawn at once. Logs: `logs/CEF.log` (game side),
+  `logs/CEF-host.log` (the host), `logs/CEF-chromium.log` (Chromium). If the host dies mid-session the browsers
+  freeze until the next game session.
+* **Browser frames**: the host publishes only the changed rectangle of each paint; the game copies just that into a
+  staging image and uploads it into one persistent texture (no bitmap and no texture re-creation per frame, as
+  before); a frame is on screen within a few milliseconds. Browsers paint at 60 fps by default (`<CefFrameRate>`).
+  With the browser in its own process `<CefGpu>true</CefGpu>` works under Proton (ANGLE on D3D11 through DXVK):
+  the harness delivers 60 frames/s of an animated 1280x720 page either way, with accelerated canvas and steadier
+  frame pacing on the GPU.
+* **Keyboard in pages**: Caps Lock no longer types a character; modifier, lock, function and navigation keys and
+  Ctrl+letter shortcuts send no text; Caps Lock state goes through the keyboard layout (Shift+Caps Lock = lowercase).
 * **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page
   (also as `gtan.call`/`gtan.eval`) but are one-way now: the page runs in another process, so there is no return
-  value. `browser.call()`/`browser.eval()` from client scripts are unchanged. Local browsers only see
-  `https://<resource>/<file>` from the downloaded resource files; pop-ups navigate the same browser.
+  value. The bridge is the first script of every page served from the resource files (and of pages given to
+  `loadHtmlCefBrowser`), so page scripts can call it while the document loads. `browser.call()`/`browser.eval()`
+  from client scripts are unchanged. Local browsers only see `https://<resource>/<file>` from the downloaded
+  resource files; pop-ups navigate the same browser.
 * **JavaScript runtime: ClearScript 5.4.9 (V8 5.5) → ClearScript 7.5 (V8 12)** from NuGet; modern JavaScript
   (ES2023) in client scripts. The V8 inspector (port 9222) is only opened with `<DebugMode>true</DebugMode>`.
 * Closing a browser removes its image from the overlay (it used to be added a second time).
@@ -55,16 +67,24 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 
 ### Added
 * **Debug mode**: one switch for all diagnostic log lines (client-script API probe, overlay frame geometry,
-  `[PROFILE] Present hook overlay`, CEF paints, request traces, `resourceCall`s, page console output below
+  `[PROFILE] Present hook overlay`, CEF frames, request traces, `resourceCall`s, page console output below
   warning level). On in Debug builds, with `<DebugMode>true</DebugMode>` in `settings.xml` (also the "Enable
   Debug mode" checkbox in the in-game settings) or with `GTAN_DEBUG=1` in the environment. The launcher's
-  `--debug` sets `GTAN_DEBUG=1` and, through Proton, `PROTON_LOG=1` (Wine log with crash backtraces in
-  `~/steam-271590.log`), so a crash report no longer needs log lines to be added and removed by hand.
-  `Runtime.log` starts with a `Debug mode: on/off` line.
+  `--debug` sets `GTAN_DEBUG=1` and, through Proton, `PROTON_LOG=1` with
+  `WINEDEBUG=+timestamp,+pid,+tid,+seh,+threadname,+loaddll,+mscoree,-keyboard` (exceptions and module loads in
+  `~/steam-271590.log`, without the stack-walk tracing and the keyboard-layout spam of GTA V's loading screen that
+  made Proton's default a gigabyte per session; `GTAN_WINEDEBUG` overrides), so a crash report no longer needs log
+  lines to be added and removed by hand. `Runtime.log` starts with a `Debug mode: on/off` line. Debug mode costs
+  frame rate and is not meant for playing.
+* **CEF harness** (`Tools/CefHarness`, `eng/cef-harness.sh`): starts the browser host the way the game does — under
+  Proton in the game's Wine prefix on Linux — creates a browser, serves a local resource page, reads its pixels
+  from shared memory and waits for the page's `resourceCall`; the acceptance test of the browser without a game.
+  Its `--in-process` and `--appdomain` modes reproduce the in-game crash of the in-process design in a second;
+  `--bench <s> --size WxH` measures frames/s, copy cost and CPU on an animated page, with `--gpu` for comparison.
 * **Dev container** (`.devcontainer/`, `docker-compose.yml`): the .NET 8 SDK plus `eng/dev-build-client.sh`
-  and `eng/dev-sync-client.sh` rebuild the managed client on Linux in seconds and drop it into an existing
-  `~/GTANetwork` install, so a client change can be tried in game without waiting for CI or a release.
-  `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
+  and `eng/dev-sync-client.sh` rebuild the managed client and the browser host on Linux in seconds and drop
+  them into an existing `~/GTANetwork` install, so a change can be tried in game without waiting for CI or a
+  release. `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
   See `docs/DEVCONTAINER.md`.
 
 ### Not yet

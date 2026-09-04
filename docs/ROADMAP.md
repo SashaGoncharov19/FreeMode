@@ -17,7 +17,7 @@ sync, chat, commands, vehicles, client-side JavaScript. The rest of the state:
 | Sync | 2016-2018 code: 100 ms pure sync, 1.5 s light sync, ped/vehicle interpolation, ~64 players tested by the original team | Stable with 100+ players per server, no visible warping for vehicles and peds, weapons/aim/animations/ragdoll |
 | Streaming | Client-side streamer thread, fixed ranges, server keeps 250 "near" players | Configurable per entity type, server-side interest management, dimensions used for load |
 | Scripting (server) | C#/VB compiled with Roslyn at startup, `API` with ~700 members, events, commands, entities, colshapes, dimensions | Same plus a first-class JavaScript/TypeScript server runtime, typings, documented and versioned API |
-| Scripting (client) | JavaScript on V8 12 (ClearScript 7.5), Chromium 151 browsers through CefSharp (multi-process, off-screen), `API` with ~600 members | Typings, hot reload, client packages with assets, GPU-shared browser textures |
+| Scripting (client) | JavaScript on V8 12 (ClearScript 7.5), Chromium 151 browsers through CefSharp in a separate browser process (off-screen, shared-memory frames), `API` with ~600 members | Typings, hot reload, client packages with assets, GPU-shared browser textures |
 | Master server / browser | Gone (`master.gtanet.work`), address configurable, empty by default | Own master server ([issue #1](https://github.com/SashaGoncharov19/FreeMode/issues/1)), browser in the launcher and in game |
 | Updates | Linux installer updates from GitHub releases; Windows: NSIS installer, no updater | One updater for all platforms, delta downloads, channels (stable/beta) |
 | Custom content | None | Client packages (scripts, CEF assets, sounds), custom DLC packs (vehicles, clothes, interiors) |
@@ -59,9 +59,11 @@ Goal: a `v0.1.0` release that a stranger can install and play on with friends.
 Decided in September 2026, in this order; each is its own branch and pull request, each ships as an alpha first.
 
 1. **Dependency modernisation** (branch `claude/modernize-deps-4d8uyn`, done in code, in-game verification
-   pending): CEF 3.2987 (Chromium 57, single-process) replaced by CefSharp.OffScreen 151 (Chromium 151, browser
-   subprocess, GPU process optional), ClearScript 5.4.9 by 7.5 (V8 12). Findings and the remaining steps
-   (shared-texture rendering, .NET 10 for server/launcher/bot): `docs/CEF-UPGRADE.md`.
+   pending): CEF 3.2987 (Chromium 57, single-process inside the game) replaced by CefSharp.OffScreen 151
+   (Chromium 151) **in a separate browser process** (`cef/GTANetwork.CefHost.exe`; CefSharp cannot run in the
+   second AppDomain ScriptHookVDotNet uses, which is what killed the in-process attempts), ClearScript 5.4.9 by
+   7.5 (V8 12). The `Tools/CefHarness` acceptance test runs the browser without the game. Findings and the remaining
+   steps (shared-texture rendering, .NET 10 for server/launcher/bot): `docs/CEF-UPGRADE.md`.
    * **Client on modern .NET** (separate step, 1-3 weeks): the in-game client is .NET Framework 4.8 because
      ScriptHookVDotNet is a C++/CLI shell that hosts the desktop CLR. The route is recompiling that shell with
      `/clr:netcore` (.NET 8/10 + `ijwhost`), AssemblyLoadContext instead of the script AppDomain, and the .NET
@@ -76,6 +78,9 @@ Decided in September 2026, in this order; each is its own branch and pull reques
 4. **CEF connect and loading screen**: the server list, connect and loading flow (from the main menu until the
    server is joined) as a CEF page drawn by the overlay, styled like a modern launcher. NativeUI stays for the
    settings and the other in-game menus. Needs the CEF upgrade first.
+5. **Browser performance and 3D browsers**: shared D3D11 textures between the browser host and the game (zero copies),
+   Chromium GPU compositing in the host, then pages placed in the world (a quad in the D3D11 hook, depth-tested against
+   the game's depth buffer; or the game's render targets). Design notes: `docs/CEF-UPGRADE.md`.
 
 ## Phase 1 - platform: master server, updates, crash reports (weeks)
 

@@ -1,18 +1,38 @@
-# The embedded browser: from CEF 3.2987 to CefSharp 151
+# The embedded browser: from CEF 3.2987 to CefSharp 151 in its own process
 
 ## Status (September 2026)
 
-Done in code on the `claude/modernize-deps-4d8uyn` branch, waiting for the in-game run:
+Done in code on the `claude/modernize-deps-4d8uyn` branch, verified outside the game with the harness, waiting
+for the in-game run:
 
 * **Before**: `libs/Xilium.CefGlue.dll` + `libs/cef/` = CEF 3.2987.1590 (Chromium 57, March 2017), started
   in *single-process mode* inside GTA5.exe (`--disable-gpu`), pages talking to the client script through a V8
   handler in the same process.
-* **Now**: `CefSharp.OffScreen` 151.3.240 (Chromium 151) from NuGet. GTA5.exe is the browser process; renderer
-  and GPU run in `CefSharp.BrowserSubprocess.exe` processes. The whole runtime lives in `<install>\cef`
-  (~350 MB unpacked, copied there by the client build via `CefSharpTargetDir`).
+* **Now**: `CefSharp.OffScreen` 151.3.240 (Chromium 151) from NuGet, running in **its own process,
+  `cef\GTANetwork.CefHost.exe`** (`Subprocess/GTANetwork.CefHost`). The game starts the host, talks to it over
+  its stdin/stdout (`Shared/Cef/CefHostProtocol.cs`) and reads the browsers' pixels from shared memory
+  (`Shared/Cef/CefFrameBuffer.cs`). Renderer and GPU work run in `CefSharp.BrowserSubprocess.exe` processes
+  of the host. The whole runtime lives in `<install>\cef` (~350 MB unpacked: the output folder of the host
+  project). Nothing of CefSharp or libcef is loaded into GTA5.exe.
 * **JavaScript runtime** alongside: ClearScript 5.4.9 → 7.5.1 (V8 12), also from NuGet
   (`ClearScriptV8.win-x64.dll` next to the client assemblies; `HostSettings.AuxiliarySearchPath` points at the
   scripts folder because ScriptHookVDotNet shadow-copies assemblies).
+
+## Why a separate process (the AppDomain finding)
+
+Pre-releases `0.2.0-alpha.1 … alpha.5` ran CefSharp inside the game and died during `Cef.Initialize` under
+Proton, before any browser appeared, whatever the switches. The cause is structural, not a flag:
+**CefSharp is C++/CLI and only works in the default AppDomain, while ScriptHookVDotNet runs the client in a
+second AppDomain.** Chromium's threads have no managed context; when one of them enters CefSharp's managed
+code the CLR picks the default domain, where our assemblies are neither loaded nor resolvable, and the
+resulting managed exception on a Chromium thread (`0xe0434352` in the Wine log) is unhandled and kills the
+process. `Tools/CefHarness` reproduces it in a second (`eng/cef-harness.sh --alone --appdomain`: `Cef.Initialize`
+never returns) and shows the same Chromium starting fine in a plain process (`--in-process`). The old CefGlue
+binding was pure P/Invoke with domain-bound delegates, which is why it worked in the script domain.
+
+A separate browser process is the fix and the architecture we wanted anyway: Chromium cannot take the game
+down, its GPU/GL work never shares a process with DXVK, and the frame transport is the basis for the
+shared-texture step below.
 
 ## Why CefSharp and not CefGlue
 
@@ -24,13 +44,13 @@ remnants in the old code).
 
 ## How the pieces map
 
-| Old (CefGlue) | New (CefSharp) | Where |
+| Old (CefGlue, in the game) | New (CefSharp, in the host) | Where |
 | --- | --- | --- |
-| `CefRuntime.Load/Initialize`, `SingleProcess = true` | `Cef.Initialize(CefSettings)` on a dedicated thread, `BrowserSubprocessPath`, `CefLibraryHandle` pre-loads `libcef.dll` from `cef\`, `SetDllDirectory(cef)`, `AssemblyResolve` for `CefSharp.Core.Runtime.dll` | `CEFManager.InitializeCef` |
-| `CefRenderHandler.OnPaint` (pointer wrapped) | `IRenderHandler.OnPaint` copies the BGRA buffer into the overlay bitmap | `OverlayRenderHandler` |
-| `CefSchemeHandlerFactory` for `https://<resource>/` | `RequestHandler.GetResourceRequestHandler` → `ResourceRequestHandler.GetResourceHandler` → `ResourceHandler.FromFilePath`; path checked with `ResourceFileDownloader.TryGetLocalPath` | `LocalResourceRequestHandler` |
-| `CefRenderProcessHandler.OnContextCreated` registering `resourceCall` as a V8 function | `IRenderProcessMessageHandler.OnContextCreated` + `FrameLoadStart` inject a shim: `resourceCall` posts `CefSharp.PostMessage({type, name, args})`; the browser process receives `JavascriptMessageReceived` and runs the client script function on the script thread | `ResourceBridgeInjector`, `Browser.OnJavascriptMessage`, `BrowserJavascriptCallback.Invoke` |
-| `browser.GetHost().SendMouse*/SendKeyEvent` | same names on `IBrowserHost`, `MouseEvent`/`KeyEvent` structs | `CefController` |
+| `CefRuntime.Load/Initialize`, `SingleProcess = true` | The game starts `cef\GTANetwork.CefHost.exe`; the host calls `Cef.Initialize(CefSettings)` (MultiThreadedMessageLoop) and answers `ready` | `CEFManager.StartHost`, `Program.InitializeCef` |
+| `CefRenderHandler.OnPaint` (pointer wrapped) | `IRenderHandler.OnPaint` in the host copies the BGRA buffer into a shared-memory `CefFrameBuffer`; the game's frame pump copies new frames into the overlay bitmap | `HostedBrowser.FrameWriter`, `OverlayRenderHandler.Pump` |
+| `CefSchemeHandlerFactory` for `https://<resource>/` | `RequestHandler` → `ResourceRequestHandler` → `ResourceHandler.FromFilePath/FromByteArray` in the host, paths checked with `ResourceFileDownloader.TryGetLocalPath` against `--resource-root`; served HTML gets the bridge shim as its first script | `LocalResourceRequestHandler` (host) |
+| `CefRenderProcessHandler.OnContextCreated` registering `resourceCall` as a V8 function | The shim (`resourceCall` posts `CefSharp.PostMessage({type, name, args})`) injected into served HTML, from `OnContextCreated` and from `FrameLoadStart`; the host receives `JavascriptMessageReceived` and forwards a `jsMessage` event; the game runs the client script function on the script thread | `ResourceBridgeInjector`, `HostedBrowser.OnJavascriptMessage`, `Browser.OnHostEvent`, `BrowserJavascriptCallback.Invoke` |
+| `browser.GetHost().SendMouse*/SendKeyEvent` | `BrowserInput` (same method names) sends `mouseMove`/`mouseClick`/`mouseWheel`/`key` commands; the host maps them onto `IBrowserHost` | `CefController`, `Program.Dispatch` |
 | `CefSettings.IgnoreCertificateErrors = true` | off (local pages do not need it) | |
 
 **Behaviour change for page authors**: `resourceCall` used to return the value of the client function; pages
@@ -38,57 +58,104 @@ now live in another process, so it returns nothing (fire and forget). `resourceE
 and `browser.eval()` from the client script are unchanged (`ExecuteScriptAsync`). New pages can also use
 `gtan.call(...)` / `gtan.eval(...)`.
 
-**Settings** (`settings.xml`): `<CefGpu>true</CefGpu>` lets Chromium use the GPU (default off = Chromium's
-display-compositor-only mode, `--disable-gpu --disable-gpu-compositing --use-gl=disabled
---disable-software-rasterizer`: no ANGLE, D3D11, SwiftShader or Vulkan is initialised inside the game, which
-already runs DXVK on the same GPU; off-screen pages are composited in software anyway),
-`<CefInProcessGpu>false</CefInProcessGpu>` moves the GPU service out of the game into a
-`CefSharp.BrowserSubprocess.exe --type=gpu-process` (default: a thread inside the game, no extra process to launch
-under Wine), `<CefFrameRate>30</CefFrameRate>` paints per second, `<CEFDevtool>true</CEFDevtool>` opens the remote
-debugger on port 9222 (http://localhost:9222), `<DebugMode>` also enables the V8 inspector of ClearScript.
+**Settings** (`settings.xml`, passed to the host as command-line options): `<CefGpu>true</CefGpu>` lets Chromium
+use the GPU (default off = Chromium's display-compositor-only mode, `--disable-gpu --disable-gpu-compositing
+--use-gl=disabled --disable-software-rasterizer`; off-screen pages are composited in software anyway — now that
+Chromium is out of the game process this is worth revisiting), `<CefInProcessGpu>false</CefInProcessGpu>` moves
+the GPU service out of the host into a `CefSharp.BrowserSubprocess.exe --type=gpu-process` (default: a thread
+inside the host), `<CefFrameRate>30</CefFrameRate>` paints per second, `<CEFDevtool>true</CEFDevtool>` opens the
+remote debugger on port 9222 (http://localhost:9222), `<CefPreload>` starts the host at game start, `<DebugMode>`
+turns on the verbose logs and the V8 inspector of ClearScript. The switch list itself is `Shared/CefLaunch.cs`; every
+feature and switch name in it was checked against the strings of `libcef.dll` (Chromium ignores unknown names
+silently). Footprint with it: host ~460 MB, one renderer ~760 MB, storage service ~390 MB RSS under Wine.
 
-**Logs**: `logs\CEF.log` (our side: initialisation lines with the Chromium/CEF/CefSharp versions and the exact
-Chromium switches, a line every 5 s while `Cef.Initialize` runs, browser creation, page loads, page console
-output, `resourceCall`s), `logs\CEF-chromium.log` (Chromium's own log, verbose in debug mode).
+**Logs**: `logs\CEF.log` (the game side: host start and arguments, `CEF initialised` with the versions, browser
+creation, page loads, page console output, `resourceCall`s, the first lines of the host's stderr),
+`logs\CEF-host.log` (the host: `Cef.Initialize`, switches, browsers, frame buffers, local file serving),
+`logs\CEF-chromium.log` (Chromium's own log, verbose in debug mode).
 
 ## Packaging
 
 The CefSharp NuGet targets copy the Chromium runtime, `CefSharp.BrowserSubprocess.exe` and
-`CefSharp.Core.Runtime.dll` into `Client\bin\<cfg>\net48\cef\`; `eng/package-client.ps1` ships that folder as
-`cef\` without `.pdb`/`.xml` and with a subset of locales (en-US, uk, ru, pl, de, fr, es, pt-BR, tr, it, nl, cs,
-ro, hu). The managed `CefSharp.dll`, `CefSharp.Core.dll`, `CefSharp.OffScreen.dll` go to `bin\scripts` with the
-client. `libs/cef` and `libs/Xilium.CefGlue.dll` are gone from the repository (144 MB less).
+`CefSharp.Core.Runtime.dll` next to `GTANetwork.CefHost.exe` in `Subprocess\GTANetwork.CefHost\bin\<cfg>\net48\`;
+`eng/package-client.ps1` ships that folder as `cef\` without CefSharp's `.pdb`/`.xml` and with a subset of
+locales (en-US, uk, ru, pl, de, fr, es, pt-BR, tr, it, nl, cs, ro, hu). The in-game client in `bin\scripts`
+has no CefSharp dependency any more; `eng/dev-sync-client.sh` syncs the host's managed files into an install's
+`cef\` (and the whole runtime with `--cef`). `libs/cef` and `libs/Xilium.CefGlue.dll` are gone from the
+repository (144 MB less).
 
-Requirements in the Proton prefix: .NET Framework 4.8 (the subprocess is a .NET Framework executable) and the
-VC++ 2022 x64 runtime (C++/CLI parts) — both already installed by `setup-linux.sh`.
+Requirements in the Proton prefix: .NET Framework 4.8 (the host and the subprocess are .NET Framework
+executables) and the VC++ 2022 x64 runtime (C++/CLI parts) — both already installed by `setup-linux.sh`.
 
-## Performance path (next)
+## Performance path
 
-1. **Software paint copy** (today): BGRA copy per paint into a `Bitmap`, one texture upload per paint in the
-   overlay. Fine for a login form, not for a full-screen HUD at 60 fps.
-2. **Dirty rectangles**: upload only `dirtyRect` (`OnPaint` provides it) into a persistent texture with
-   `UpdateSubresource` instead of re-creating the texture.
-3. **Shared textures**: `IRenderHandler.OnAcceleratedPaint` hands over a D3D11 shared handle when the GPU
-   process is on (`CefGpu`) and `--shared-texture-enabled`; the overlay opens it with `OpenSharedResource` and
-   draws it directly: zero copies, no CPU work per frame. This is the "real performance" step.
-4. `WindowlessFrameRate` up to 60 for HUD-style pages (`API.setCefFramerate`), 30 default.
+1. ~~Software paint copy with a bitmap per frame~~ → **done (4 Sept)**: the host writes only the dirty rectangle of each
+   paint into the shared frame buffer (the buffer always holds a complete frame; the rectangle travels in the header);
+   the game's frame pump (every 4 ms) copies only that rectangle into a staging image (`CefFrameStager`, an
+   `IDynamicSurface`), and the overlay uploads the accumulated rectangle into a **persistent** `Default`-usage texture
+   with `UpdateSubresource` on the immediate context inside Present (`DXImage.UpdateRegion`). No bitmaps, no texture
+   re-creation, a frame reaches the screen within a few milliseconds. Missed or torn frames fall back to a full copy.
+   `<CefFrameRate>` defaults to 60 now. `eng/cef-harness.sh --bench 15 --size 1280x720` measures frames/s delivered,
+   copy cost and CPU of the host and its subprocesses on an animated page.
+2. **GPU in the host — works** (measured 4 Sept with `eng/cef-harness.sh --bench 15 --size 1280x720`, animated page,
+   Proton Experimental, NVIDIA): software rendering 59.2 frames/s delivered, 0.39 ms per copy, host 4 % CPU,
+   subprocesses 8 %, longest gap 230 ms; `--gpu` 60.1 frames/s, same CPU, longest gap 20 ms, ANGLE on D3D11 (DXVK)
+   initialised, canvas accelerated. `<CefGpu>true</CefGpu>` is therefore worth using; in-game verification by the owner
+   decides whether it becomes the default.
+3. **Shared textures**: `IRenderHandler.OnAcceleratedPaint` hands the host a D3D11 shared handle when the GPU is
+   on and `--shared-texture-enabled`; the handle can be passed to the game, which opens it with
+   `OpenSharedResource` and draws it directly: zero copies, no CPU work per frame. This is the "real performance"
+   step, and the reason the browser had to leave the game process first. Needs DXVK's shared-resource support in
+   Proton to hold up between two processes.
+4. `WindowlessFrameRate` per browser (`API.setCefFramerate`), 60 default.
+
+## Input
+
+The game gets key events from ScriptHookVDotNet as key codes; `CefController` sends CEF a `RawKeyDown` (WM_KEYDOWN)
+and, for keys that type something, a `Char` (WM_CHAR) translated with `ToUnicodeEx` and the real keyboard state
+(Shift, AltGr, and Caps Lock as its toggle bit — the old code upper-cased by hand, and sent a character for Caps Lock
+itself). Modifier, lock, function and navigation keys and Ctrl+letter shortcuts send no `Char`.
+
+## 3D browsers (later)
+
+"CEF in the world" — a page on a TV screen, a billboard, a UI attached to an entity. Two routes:
+
+* **Own quad in the D3D11 hook** (the RAGE Multiplayer way): the browser texture already lives in our overlay; draw
+  it as a textured quad with a world→view→projection transform from the game camera (`GET_GAMEPLAY_CAM_COORD/ROT`,
+  FOV), and depth-test it against the game's depth buffer so it hides behind geometry. Needs the depth buffer: hook
+  `OMSetRenderTargets`/`ClearDepthStencilView` to catch the main depth-stencil view before Present. Builds on the
+  existing overlay and on the shared texture step above (the same texture, one more shader).
+* **Game render targets** (`REGISTER_NAMED_RENDERTARGET`, `LINK_NAMED_RENDERTARGET`, `SET_TEXT_RENDER_ID`,
+  `DRAW_SPRITE`): the game draws our image onto props that expose a script render target (TVs, monitors). Vanilla
+  natives cannot create a texture dictionary at runtime; that needs the grcTexture factory (what FiveM's
+  `CREATE_RUNTIME_TXD` does) — reverse engineering of the current build's texture code.
+
+A cheap stepping stone that needs neither: "3D-projected 2D" — `WORLD3D_TO_SCREEN2D` of an anchor, the browser
+placed and scaled there each frame by the client script (`setCefBrowserPosition/Size`), no occlusion.
 
 ## Verification
 
-* CI: the Linux job compiles the client against the packages; the Windows job builds the package and fails
-  if `cef\libcef.dll`, `CefSharp.BrowserSubprocess.exe` or `CefSharp.Core.Runtime.dll` are missing.
+* **Harness** (`Tools/CefHarness`, `eng/cef-harness.sh`): starts the host under Proton in the game's prefix (or
+  on Windows directly), creates a local-mode browser, serves `https://harness/ui/index.html` from a resources
+  folder, reads the pixels from the shared frame buffer, waits for the page's `resourceCall`, resizes, closes.
+  `--install-cef` tests the host of an installed game. `--in-process`, `--appdomain` and `--alone --appdomain`
+  reproduce the in-game failure of the in-process design.
+* CI: the Linux job compiles everything; the Windows job builds the package and fails if
+  `cef\GTANetwork.CefHost.exe`, `cef\libcef.dll`, `CefSharp.BrowserSubprocess.exe` or `CefSharp.Core.Runtime.dll`
+  are missing. Running the harness against the assembled package on the Windows job is the next step.
 * In game (the acceptance test): join a server with the `auth` resource, the login form appears, typing and
-  clicking work, `CEF.log` shows `CEF initialised: Chromium 151...`, `Browser created!`, the page loads with
-  `200`, `resourceCall authSubmit` when the form is submitted, and Task Manager (or `ps` in the prefix) shows
+  clicking work, `CEF.log` shows `Browser host started`, `CEF initialised: Chromium 151...`, `Browser 1 created!`,
+  `End: https://auth/ui/index.html, 200`, and `pgrep -fa GTANetwork.CefHost` shows the host and its
   `CefSharp.BrowserSubprocess.exe` processes.
-* If Chromium refuses to start under Wine: `CEF.log` shows how far `Cef.Initialize` got (heartbeat lines) and
-  `logs\CEF-chromium.log` where Chromium stopped; try `<CefInProcessGpu>false</CefInProcessGpu>` (separate GPU
-  process) and the Wine log of the game process (`play.sh --debug`, `~/steam-271590.log`, `seh:dispatch_exception`
-  lines of the game's pid). `--no-sandbox` is already implied by CefSharp.
 
 ## Risks
 
-* Chromium 151 under Wine/Proton is untested here; Electron-class apps run under Wine 9+, usually with software
-  rendering.
+* The host must stay a Windows-subsystem exe (`WinExe`): as a console exe, Wine's `conhost` opens a visible
+  console window for it, which takes the foreground from the game (system cursor, GTA V's background frame limiter).
+
+* Chromium 151 still contacts Google at start-up (time source, account consistency): add the usual privacy
+  switches to `Shared/CefLaunch.cs` and re-run the harness.
+* If the host dies mid-session the browsers freeze until the next game session (the game logs it); a restart on
+  demand is not implemented yet.
 * The x86 runtime package is downloaded by NuGet as a dependency of `CefSharp.Common` although nothing uses it.
 * `EnableDebugging` of ClearScript and CEF's remote debugging both default to port 9222; only one should be on.

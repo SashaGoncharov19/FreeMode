@@ -277,10 +277,11 @@ RAGE Multiplayer 0.3.7 — у [`docs/ROADMAP.md`](docs/ROADMAP.md); розбір
 * **ScriptHookV не можна розповсюджувати** — кожен користувач завантажує його сам.
 * **Мастер-сервера немає**: без публічного списку серверів і оновлень через мастер (Linux-інсталятор
   оновлюється сам з GitHub Releases), `announce` вимкнено.
-* **Браузер**: CefSharp.OffScreen (Chromium 151, 2026) з `CefSharp.BrowserSubprocess.exe`: гра є browser process,
-  сторінки рендеряться в окремих процесах і потрапляють у DirectX-оверлей. Увесь рантайм лежить у `<install>/cef`.
-  Сторінки звертаються до клієнтського скрипта через `resourceCall(name, ...args)` (в один бік, див.
-  `docs/CEF-UPGRADE.md`). **JavaScript**: ClearScript 7.5 (V8 12). Мікс SharpDX 2.6/4.0 залишений як бінарники,
+* **Браузер**: CefSharp.OffScreen (Chromium 151, 2026) в окремому процесі `cef/GTANetwork.CefHost.exe`: гра
+  запускає його, шле команди через його stdin/stdout і читає пікселі сторінок із shared memory у DirectX-оверлей
+  (CefSharp не працює у другому AppDomain, який використовує ScriptHookVDotNet, див. `docs/CEF-UPGRADE.md`).
+  Рендерери і GPU працюють у процесах `CefSharp.BrowserSubprocess.exe` хоста; рантайм лежить у `<install>/cef`.
+  Сторінки звертаються до клієнтського скрипту через `resourceCall(name, ...args)` (в один бік). **JavaScript**: ClearScript 7.5 (V8 12). Мікс SharpDX 2.6/4.0 залишений як бінарники,
   під які налаштований DirectX-хук.
 
 ## Ліцензія
