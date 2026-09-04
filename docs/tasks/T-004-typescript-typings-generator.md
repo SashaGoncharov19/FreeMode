@@ -1,6 +1,6 @@
 # T-004 — TypeScript typings generated from the C# APIs (server, client, CEF)
 
-Status: ready
+Status: in progress
 Epic: E-04 TypeScript
 Size: M
 Branch: task/T-004-typegen from the integration branch
@@ -76,6 +76,7 @@ The client DLL is net48: load it with `MetadataLoadContext` and the reference as
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-04 23:35 agent — started on task/T-004-typegen (worktree).
 
 ## Result
 
