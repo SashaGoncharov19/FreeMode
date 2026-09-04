@@ -1,6 +1,6 @@
 # T-006 — Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload
 
-Status: ready
+Status: in progress
 Epic: E-04 TypeScript
 Size: L (two stages; stop after stage 1 if the numbers are missed and re-plan)
 Branch: task/T-006-bun-runtime from the integration branch
@@ -96,6 +96,7 @@ port and a token in the environment. Ordering between `state` and `event`: one c
 
 * 2026-09-04 22:10 agent — created (ClearScript variant).
 * 2026-09-04 23:00 agent — rewritten for D-09 (Bun runtime with a bridge spike first).
+* 2026-09-05 06:45 agent — stage 1 (the spike) started on task/T-006-bun-bridge (worktree); standalone bench, no server changes yet.
 
 ## Result
 
