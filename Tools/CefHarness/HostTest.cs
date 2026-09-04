@@ -53,7 +53,7 @@ namespace GTANetwork.CefHarness
         private static string _jsEval;
         private static int _events;
 
-        public static int Run(string hostExe, string logDir, int timeoutSec, bool gpu, bool inProcessGpu, bool verbose, string url, int holdSec, int benchSec, int benchW, int benchH, bool sharedTexture)
+        public static int Run(string hostExe, string logDir, int timeoutSec, bool gpu, bool inProcessGpu, bool verbose, string url, int holdSec, int benchSec, int benchW, int benchH, bool sharedTexture, string uiRoot = null)
         {
             var log = Program.Log;
             if (!File.Exists(hostExe))
@@ -80,6 +80,7 @@ namespace GTANetwork.CefHarness
                 "--resource-root", resourceRoot,
             };
             if (gpu) args.Add("--gpu");
+            if (!string.IsNullOrEmpty(uiRoot)) { args.Add("--ui-root"); args.Add(uiRoot); }
             if (!inProcessGpu) args.Add("--gpu-process");
             if (verbose) args.Add("--verbose");
             foreach (var sw in Program.HostSwitches) { args.Add("--chromium-switch"); args.Add(sw); }
@@ -206,6 +207,14 @@ namespace GTANetwork.CefHarness
                 var latency = LatencyProbe(channel, 1, false, 6);
                 log(latency);
                 if (!latency.StartsWith("latency")) return Finish(channel, host, latency, 3, clock);
+
+                if (!string.IsNullOrEmpty(uiRoot))
+                {
+                    // The client's own pages: https://gtan/<path> from --ui-root; the connect loader must render and accept its state.
+                    var loader = LoaderPageCheck(channel, deadline);
+                    log(loader);
+                    if (!loader.StartsWith("loader page OK")) return Finish(channel, host, loader, 3, clock);
+                }
 
                 if (holdSec > 0)
                 {
@@ -520,6 +529,25 @@ namespace GTANetwork.CefHarness
             if (version == ringSeen || ring == null) return;
             ringSeen = version;
             reader.Retain(ring.Select(h => new IntPtr(h)).ToList());
+        }
+
+        /// <summary>Browser 3 loads https://gtan/loader/index.html, gets a state through gtanLoader.update and must paint an opaque page.</summary>
+        private static string LoaderPageCheck(CefHostChannel channel, TimeSpan deadline)
+        {
+            const int id = 3;
+            FrameAnnounced.Reset();
+            Created.Reset();
+            channel.Send(new CefHostMessage(CefHostProtocol.Create, id) { W = 640, H = 360, Local = true, Fps = 30 });
+            if (WaitHandle.WaitAny(new WaitHandle[] { Created, Exited }, TimeSpan.FromSeconds(15)) != 0) return "loader page: no 'created'";
+            channel.Send(new CefHostMessage(CefHostProtocol.Load, id) { Url = "https://gtan/loader/index.html" });
+            if (WaitHandle.WaitAny(new WaitHandle[] { FrameAnnounced, Exited }, TimeSpan.FromSeconds(15)) != 0) return "loader page: no frame buffer (is --ui-root right? the host log says what it refused)";
+            channel.Send(new CefHostMessage(CefHostProtocol.Eval, id) { Code = "gtanLoader.update({server:'127.0.0.1:4499',stage:'downloading',label:'ui/style.css',index:2,total:5,detail:'Downloading ui/style.css (2/5)',elapsed:1200})" });
+            string frameName;
+            lock (StateLock) frameName = _frameName;
+            int opaque, frames;
+            var ok = WaitForPixels(frameName, 640, 360, TimeSpan.FromSeconds(15), out opaque, out frames);
+            channel.Send(new CefHostMessage(CefHostProtocol.Close, id));
+            return ok ? "loader page OK: https://gtan/loader/index.html painted (" + opaque + " opaque pixels of " + (640 * 360) + ", " + frames + " frame(s))" : "loader page never painted (" + frames + " frame(s), " + opaque + " opaque pixels)";
         }
 
         private static bool Near(byte value, byte target)

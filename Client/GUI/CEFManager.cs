@@ -363,6 +363,7 @@ namespace GTANetwork.GUI
             Argument(args, "--chromium-log", Path.Combine(LogManager.LogDirectory, "CEF-chromium.log"));
             Argument(args, "--cache", Path.Combine(cefDir, "cache"));
             Argument(args, "--resource-root", FileTransferId._DOWNLOADFOLDER_.TrimEnd('\\', '/'));
+            Argument(args, "--ui-root", Path.Combine(Main.GTANInstallDir.TrimEnd('\\', '/'), "ui")); // the client's own pages: https://gtan/<path>
             if (settings != null && settings.CefGpu) args.Append(" --gpu");
             if (settings != null && !settings.CefInProcessGpu) args.Append(" --gpu-process");
             if (Main.EnableMediaStream) args.Append(" --media-stream");
@@ -965,6 +966,11 @@ namespace GTANetwork.GUI
         private Point _position;
         private Size _size;
 
+        /// <summary>For browsers the client itself owns (no script engine): resourceCall(name, args) from the page lands here.</summary>
+        internal Action<string, object[]> PageMessage;
+        /// <summary>Main frame finished loading (any browser): the URL and the HTTP status.</summary>
+        internal Action<string, int> PageLoaded;
+
         /// <summary>Input and focus of the browser, or null until it exists in the host.</summary>
         public BrowserInput Host => _created && !_closed ? _input : null;
 
@@ -1097,6 +1103,7 @@ namespace GTANetwork.GUI
                 case CefHostProtocol.LoadEnd:
                     _address = m.Url;
                     LogManager.CefLog("-> End: " + m.Url + ", " + m.Status);
+                    PageLoaded?.Invoke(m.Url, m.Status);
                     break;
                 case CefHostProtocol.LoadError:
                     LogManager.CefLog("-> Load error " + m.Status + " (" + m.Text + ") for " + m.Url);
@@ -1118,9 +1125,11 @@ namespace GTANetwork.GUI
                             _messagesLogged++;
                             LogManager.CefLog("-> resourceCall " + m.Name + " (" + args.Length + " argument(s))");
                         }
-                        _callback?.Invoke(m.Name, args);
+                        var pageMessage = PageMessage;
+                        if (pageMessage != null) pageMessage(m.Name, args);
+                        else _callback?.Invoke(m.Name, args);
                     }
-                    else if (m.Code != null)
+                    else if (m.Code != null && PageMessage == null)
                     {
                         _callback?.Run(m.Code);
                     }

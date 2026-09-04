@@ -33,6 +33,7 @@ namespace GTANetwork.CefHarness
         private static string _logDir;
         private static string _cachePath;
         private static string _url;
+        private static string _uiRoot;
         private static bool _gpu;
         private static bool _inProcessGpu = true;
         private static bool _externalPump;
@@ -84,6 +85,7 @@ namespace GTANetwork.CefHarness
                     case "--log-dir": _logDir = Next(); break;
                     case "--cache": _cachePath = Next(); break;
                     case "--url": _url = Next(); break;
+                    case "--ui-root": _uiRoot = Next(); break; // the client's pages (repo ui/ or <install>\ui): the loader page is tested
                     case "--gpu": _gpu = true; break;
                     case "--gpu-process": _inProcessGpu = false; break;
                     case "--external-pump": _externalPump = true; break;
@@ -157,7 +159,7 @@ namespace GTANetwork.CefHarness
 
             if (!_inProcess)
             {
-                var rc = HostTest.Run(_hostExe ?? Path.Combine(exeDir, "GTANetwork.CefHost.exe"), _logDir, _timeoutSec, _gpu, _inProcessGpu, _verbose, _url, _holdSec, _benchSec, _benchW, _benchH, _sharedTexture);
+                var rc = HostTest.Run(_hostExe ?? Path.Combine(exeDir, "GTANetwork.CefHost.exe"), _logDir, _timeoutSec, _gpu, _inProcessGpu, _verbose, _url, _holdSec, _benchSec, _benchW, _benchH, _sharedTexture, _uiRoot);
                 _log.Flush();
                 return rc;
             }

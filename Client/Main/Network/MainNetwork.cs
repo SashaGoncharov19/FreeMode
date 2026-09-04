@@ -168,6 +168,7 @@ namespace GTANetwork
         private void OnLocalDisconnect()
         {
             StopLoadingPrompt();
+            ConnectLoader.Hide("disconnect");
             DEBUG_STEP = 42;
             if (NetEntityHandler.ServerWorld?.LoadedIpl != null)
             {
