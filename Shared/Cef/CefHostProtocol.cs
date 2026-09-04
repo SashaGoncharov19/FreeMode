@@ -18,7 +18,8 @@ namespace GTANetworkShared.Cef
         public const int Version = 1;
 
         // ---- commands, game -> host ----
-        /// <summary>Create a browser: Id, W, H, Local (only https://&lt;resource&gt;/ files), Fps.</summary>
+        /// <summary>Create a browser: Id, W, H, Local (only https://&lt;resource&gt;/ files), Fps, Shared (frames as
+        /// D3D11 shared textures, needs the GPU; "texture" events instead of "frame" events when Chromium delivers them).</summary>
         public const string Create = "create";
         /// <summary>Load Url in browser Id (queued by the host until the browser exists).</summary>
         public const string Load = "load";
@@ -54,6 +55,9 @@ namespace GTANetworkShared.Cef
         public const string Created = "created";
         /// <summary>Browser Id paints into shared memory FrameName (W x H, Stride bytes per row, generation Gen).</summary>
         public const string Frame = "frame";
+        /// <summary>Browser Id painted a new frame into the D3D11 texture behind Handle (an NT handle duplicated into the
+        /// game process; open once with OpenSharedResource1 and keep), W x H, dirty rectangle X, Y, Dx, Dy (width, height).</summary>
+        public const string Texture = "texture";
         public const string LoadStart = "loadStart";
         /// <summary>Main frame of browser Id finished loading Url with HTTP Status.</summary>
         public const string LoadEnd = "loadEnd";
@@ -96,6 +100,7 @@ namespace GTANetworkShared.Cef
         public string Text;
         public string Source;
         public bool Local;
+        public bool Shared;
         public bool On;
         public bool IsLoading;
         public int X;
@@ -113,6 +118,7 @@ namespace GTANetworkShared.Cef
         public int Level;
         public int Line;
         public object[] Args;
+        public long Handle;
         public string Chromium;
         public string CefVersion;
         public string CefSharp;

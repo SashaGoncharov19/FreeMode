@@ -33,6 +33,9 @@ namespace GTANetworkShared
         public bool CefPreload { get; set; }
         /// <summary>Run Chromium's GPU service inside the browser host process instead of a further GPU process (default true).</summary>
         public bool CefInProcessGpu { get; set; }
+        /// <summary>With <see cref="CefGpu"/>: pages arrive as D3D11 shared textures copied GPU-side into the overlay instead of
+        /// CPU frames through shared memory (default true; the client falls back by itself if a texture cannot be opened).</summary>
+        public bool CefSharedTexture { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -81,6 +84,7 @@ namespace GTANetworkShared
             CefFrameRate = 60;
             CefPreload = false;
             CefInProcessGpu = true;
+            CefSharedTexture = true;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";

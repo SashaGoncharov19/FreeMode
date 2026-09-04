@@ -25,7 +25,12 @@ namespace GTANetwork.GUI
         private int _height;
         private ImageElement _imageElement;
         private CefFrameStager _stager;
+        private SharedTextureSurface _shared;
         private int _framesLogged;
+        private int _texturesLogged;
+
+        /// <summary>Called (once) when the overlay could not open a shared texture: the browser falls back to CPU frames.</summary>
+        internal Action<string> SharedTextureFailed;
 
         public Point Position { get; private set; }
 
@@ -83,6 +88,74 @@ namespace GTANetwork.GUI
             LogManager.VerboseCefLog("-> Frame buffer " + name + " (" + width + "x" + height + ", stride " + stride + ")");
         }
 
+        /// <summary>The host painted into a shared D3D11 texture: the overlay copies it on the render thread.</summary>
+        internal void AttachTexture(long handle, int width, int height)
+        {
+            if (handle == 0) return;
+            SharedTextureSurface shared;
+            var failed = false;
+            string error = null;
+            lock (_lock)
+            {
+                var element = _imageElement;
+                if (element == null) return;
+                if (_shared == null)
+                {
+                    _shared = new SharedTextureSurface();
+                    element.SharedTexture = _shared;
+                    // shared textures replace the shared-memory path for this browser
+                    var stager = _stager;
+                    _stager = null;
+                    element.Surface = null;
+                    stager?.Dispose();
+                }
+                shared = _shared;
+            }
+            lock (shared.SyncRoot)
+            {
+                var h = new IntPtr(handle);
+                if (!shared.Handles.Contains(h)) shared.Handles.Add(h);
+                shared.Pending = h;
+                failed = shared.Failed;
+                error = shared.LastError;
+            }
+            if (_texturesLogged < 3 && LogManager.Verbose)
+            {
+                _texturesLogged++;
+                LogManager.CefLog("-> Texture frame " + width + "x" + height + " in shared texture 0x" + handle.ToString("X"));
+            }
+            if (failed) SharedTextureFailed?.Invoke(error);
+        }
+
+        /// <summary>Back to CPU frames: releases the shared textures; the next "frame" event attaches a frame buffer.</summary>
+        internal void DropSharedTexture()
+        {
+            SharedTextureSurface shared;
+            lock (_lock)
+            {
+                shared = _shared;
+                _shared = null;
+                var element = _imageElement;
+                if (element != null) element.SharedTexture = null;
+            }
+            ReleaseShared(shared);
+        }
+
+        private static void ReleaseShared(SharedTextureSurface shared)
+        {
+            if (shared == null) return;
+            IntPtr[] handles;
+            lock (shared.SyncRoot)
+            {
+                handles = shared.Handles.ToArray();
+                shared.Handles.Clear();
+                shared.Pending = IntPtr.Zero;
+            }
+            var engine = CEFManager.DirectXHook?.OverlayEngine;
+            if (engine != null) engine.RetireSharedTextures(handles);
+            else foreach (var h in handles) NativeMethods.CloseHandle(h);
+        }
+
         /// <summary>Called by the frame pump: stages the newest frame (or its changed part) for the overlay.</summary>
         internal void Pump()
         {
@@ -104,21 +177,32 @@ namespace GTANetwork.GUI
         {
             ImageElement element;
             CefFrameStager stager;
+            SharedTextureSurface shared;
             lock (_lock)
             {
                 element = _imageElement;
                 _imageElement = null;
                 stager = _stager;
                 _stager = null;
+                shared = _shared;
+                _shared = null;
             }
             if (element != null)
             {
                 element.Surface = null;
+                element.SharedTexture = null;
                 CEFManager.DirectXHook?.RemoveImage(element);
                 element.Dispose();
             }
             stager?.Dispose();
+            ReleaseShared(shared);
         }
+    }
+
+    internal static class NativeMethods
+    {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr handle);
     }
 
     /// <summary>

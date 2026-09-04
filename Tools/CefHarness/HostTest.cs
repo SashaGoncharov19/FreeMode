@@ -42,10 +42,14 @@ namespace GTANetwork.CefHarness
         private static string _frameName;
         private static int _frameW, _frameH, _frameStride;
         private static string _jsCall;
+        private static long _textureEvents;
+        private static long _textureHandle;
+        private static int _textureW, _textureH;
+        private static readonly ManualResetEvent TextureAnnounced = new ManualResetEvent(false);
         private static string _jsEval;
         private static int _events;
 
-        public static int Run(string hostExe, string logDir, int timeoutSec, bool gpu, bool inProcessGpu, bool verbose, string url, int holdSec, int benchSec, int benchW, int benchH)
+        public static int Run(string hostExe, string logDir, int timeoutSec, bool gpu, bool inProcessGpu, bool verbose, string url, int holdSec, int benchSec, int benchW, int benchH, bool sharedTexture)
         {
             var log = Program.Log;
             if (!File.Exists(hostExe))
@@ -124,13 +128,34 @@ namespace GTANetwork.CefHarness
                 }
                 log("host ready after " + clock.ElapsedMilliseconds + " ms");
 
-                channel.Send(new CefHostMessage(CefHostProtocol.Create, 1) { W = 420, H = 480, Local = true, Fps = 30 });
+                channel.Send(new CefHostMessage(CefHostProtocol.Create, 1) { W = 420, H = 480, Local = true, Fps = 30, Shared = sharedTexture });
                 if (WaitHandle.WaitAny(new WaitHandle[] { Created, Exited }, deadline) != 0)
                     return Finish(channel, host, "no 'created' for the browser", 5, clock);
                 log("browser created after " + clock.ElapsedMilliseconds + " ms");
                 channel.Send(new CefHostMessage(CefHostProtocol.Focus, 1) { On = true }); // as CefController does in game
 
                 channel.Send(new CefHostMessage(CefHostProtocol.Load, 1) { Url = pageUrl });
+
+                if (sharedTexture)
+                {
+                    // The zero-copy path: Chromium's frames arrive as D3D11 shared textures; open them on our own device
+                    // (DXVK under Proton, like the game's) and read pixels back once to prove the content is there.
+                    if (WaitHandle.WaitAny(new WaitHandle[] { TextureAnnounced, FrameAnnounced, Exited }, deadline) != 0)
+                        return Finish(channel, host, TextureAnnounced.WaitOne(0) ? "?" : FrameAnnounced.WaitOne(0) ? "Chromium fell back to CPU frames (no shared textures; is the GPU on?)" : "no texture announced", 3, clock);
+                    var verdict = SharedTextureCheck(deadline);
+                    if (verdict.StartsWith("OK")) log(verdict);
+                    else return Finish(channel, host, verdict, 3, clock);
+                    if (benchSec > 0)
+                    {
+                        channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
+                        WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));
+                        return Finish(channel, host, Benchmark(channel, host, benchW, benchH, benchSec, deadline, true), 0, clock);
+                    }
+                    channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
+                    WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));
+                    return Finish(channel, host, verdict, 0, clock);
+                }
+
                 if (WaitHandle.WaitAny(new WaitHandle[] { FrameAnnounced, Exited }, deadline) != 0)
                     return Finish(channel, host, "no frame buffer announced (page " + (Loaded.WaitOne(0) ? "loaded" : "not loaded") + ")", 3, clock);
 
@@ -144,7 +169,7 @@ namespace GTANetwork.CefHarness
                     // what a copy costs on our side, and what the host and its Chromium processes burn.
                     channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
                     WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));
-                    return Finish(channel, host, Benchmark(channel, host, benchW, benchH, benchSec, deadline), 0, clock);
+                    return Finish(channel, host, Benchmark(channel, host, benchW, benchH, benchSec, deadline, false), 0, clock);
                 }
 
                 var pixels = WaitForPixels(frameName, w, h, deadline, out var opaque, out var frames);
@@ -204,15 +229,48 @@ namespace GTANetwork.CefHarness
             "c.fillStyle='rgba(0,0,0,0.2)';c.fillRect(0,0,480,320);for(var i=0;i<24;i++){c.fillStyle='hsl('+((t/10+i*15)%360)+',80%,60%)';c.beginPath();" +
             "c.arc(240+Math.cos(t/500+i)*180,160+Math.sin(t/400+i)*120,18,0,6.283);c.fill();}requestAnimationFrame(f);}requestAnimationFrame(f);</script></body></html>";
 
-        private static string Benchmark(CefHostChannel channel, Process host, int w, int h, int seconds, TimeSpan deadline)
+        private static string Benchmark(CefHostChannel channel, Process host, int w, int h, int seconds, TimeSpan deadline, bool sharedTexture)
         {
             var log = Program.Log;
             const int id = 2;
             FrameAnnounced.Reset();
+            TextureAnnounced.Reset();
             Created.Reset();
-            channel.Send(new CefHostMessage(CefHostProtocol.Create, id) { W = w, H = h, Local = false, Fps = 60 });
+            channel.Send(new CefHostMessage(CefHostProtocol.Create, id) { W = w, H = h, Local = false, Fps = 60, Shared = sharedTexture });
             if (WaitHandle.WaitAny(new WaitHandle[] { Created, Exited }, deadline) != 0) return "bench: no 'created'";
             channel.Send(new CefHostMessage(CefHostProtocol.Load, id) { Url = "data:text/html;charset=utf-8;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(BenchPage)) });
+            if (sharedTexture)
+            {
+                if (WaitHandle.WaitAny(new WaitHandle[] { TextureAnnounced, Exited }, deadline) != 0) return "bench: no shared texture announced";
+                var cpu0 = ProcessorTimes(host);
+                var clock0 = Stopwatch.StartNew();
+                var events0 = Interlocked.Read(ref _textureEvents);
+                using (var reader = new SharedTextureReader())
+                {
+                    long copies = 0, gpuTicks = 0, lastHandle = 0;
+                    var opened = 0;
+                    while (clock0.Elapsed.TotalSeconds < seconds)
+                    {
+                        var handle = Interlocked.Read(ref _textureHandle);
+                        var evts = Interlocked.Read(ref _textureEvents);
+                        if (handle != 0 && evts != copies + events0)
+                        {
+                            var t0 = Stopwatch.GetTimestamp();
+                            if (reader.CopyFrom(new IntPtr(handle), out var freshlyOpened)) { copies++; gpuTicks += Stopwatch.GetTimestamp() - t0; if (freshlyOpened) opened++; }
+                            lastHandle = handle;
+                        }
+                        else Thread.Sleep(1);
+                    }
+                    var el = clock0.Elapsed.TotalSeconds;
+                    var cpu1 = ProcessorTimes(host);
+                    var stResult = "bench " + w + "x" + h + " shared textures: " + ((Interlocked.Read(ref _textureEvents) - events0) / el).ToString("0.0", CultureInfo.InvariantCulture) + " texture events/s, " +
+                                 (copies / el).ToString("0.0", CultureInfo.InvariantCulture) + " GPU copies/s (" + (copies > 0 ? gpuTicks * 1000.0 / Stopwatch.Frequency / copies : 0).ToString("0.000", CultureInfo.InvariantCulture) +
+                                 " ms per CopyResource, " + opened + " texture(s) in Chromium's pool); CPU: host " + Percent(cpu1.Item1 - cpu0.Item1, el) + ", Chromium subprocesses " + Percent(cpu1.Item2 - cpu0.Item2, el) + ", this harness " + Percent(cpu1.Item3 - cpu0.Item3, el);
+                    log(stResult);
+                    channel.Send(new CefHostMessage(CefHostProtocol.Close, id));
+                    return stResult;
+                }
+            }
             if (WaitHandle.WaitAny(new WaitHandle[] { FrameAnnounced, Exited }, deadline) != 0) return "bench: no frame buffer";
 
             string frameName;
@@ -330,6 +388,15 @@ namespace GTANetwork.CefHarness
                             Program.Log("event created #" + m.Id);
                             Created.Set();
                             break;
+                        case CefHostProtocol.Texture:
+                        {
+                            var n = Interlocked.Increment(ref _textureEvents);
+                            Interlocked.Exchange(ref _textureHandle, m.Handle);
+                            lock (StateLock) { _textureW = m.W; _textureH = m.H; }
+                            if (n <= 3 || (verbose && n % 60 == 0)) Program.Log("event texture #" + m.Id + ": handle 0x" + m.Handle.ToString("X") + " " + m.W + "x" + m.H + " dirty " + m.Dx + "x" + m.Dy + " at " + m.X + "," + m.Y + " (pool " + m.Gen + ")");
+                            TextureAnnounced.Set();
+                            break;
+                        }
                         case CefHostProtocol.Frame:
                             Program.Log("event frame #" + m.Id + ": " + m.FrameName + " " + m.W + "x" + m.H + " stride " + m.Stride + " gen " + m.Gen);
                             lock (StateLock) { _frameName = m.FrameName; _frameW = m.W; _frameH = m.H; _frameStride = m.Stride; }
@@ -376,6 +443,37 @@ namespace GTANetwork.CefHarness
             catch (Exception ex)
             {
                 Program.Log("event reader stopped: " + ex.Message);
+            }
+        }
+
+        /// <summary>Open the current shared texture on our own D3D11 device, copy it, read it back and count opaque pixels.</summary>
+        private static string SharedTextureCheck(TimeSpan deadline)
+        {
+            try
+            {
+                using (var reader = new SharedTextureReader())
+                {
+                    var clock = Stopwatch.StartNew();
+                    var attempts = 0;
+                    while (clock.Elapsed < deadline)
+                    {
+                        var handle = Interlocked.Read(ref _textureHandle);
+                        if (handle == 0) { Thread.Sleep(20); continue; }
+                        attempts++;
+                        int opaque, w, h;
+                        var text = reader.ReadBack(new IntPtr(handle), out opaque, out w, out h);
+                        if (text != null) return "shared texture open failed: " + text;
+                        Program.Log("shared texture 0x" + handle.ToString("X") + ": " + w + "x" + h + ", " + opaque + " opaque pixels (read-back " + attempts + ")");
+                        if (opaque > w * h / 2)
+                            return "OK: shared D3D11 texture " + w + "x" + h + " opened cross-process and read back, " + opaque + " opaque pixels, " + Interlocked.Read(ref _textureEvents) + " texture event(s)";
+                        Thread.Sleep(100);
+                    }
+                    return "shared texture never showed the page (" + attempts + " read-backs)";
+                }
+            }
+            catch (Exception ex)
+            {
+                return "shared texture check failed: " + ex.GetType().Name + ": " + ex.Message;
             }
         }
 

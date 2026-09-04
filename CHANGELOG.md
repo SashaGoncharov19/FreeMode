@@ -50,7 +50,10 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   before); a frame is on screen within a few milliseconds. Browsers paint at 60 fps by default (`<CefFrameRate>`).
   With the browser in its own process `<CefGpu>true</CefGpu>` works under Proton (ANGLE on D3D11 through DXVK):
   the harness delivers 60 frames/s of an animated 1280x720 page either way, with accelerated canvas and steadier
-  frame pacing on the GPU.
+  frame pacing on the GPU. With the GPU on, frames travel as **D3D11 shared textures** (`<CefSharedTexture>`, default
+  on): Chromium renders into textures the host hands to the game by handle, and the overlay copies them GPU-side into
+  its own texture — no CPU work per frame (0.03 ms of GPU copy instead of a 0.4 ms memcpy per 720p frame). If a
+  texture cannot be opened on the game's device the browser silently falls back to CPU frames.
 * **Keyboard in pages**: Caps Lock no longer types a character; modifier, lock, function and navigation keys and
   Ctrl+letter shortcuts send no text; Caps Lock state goes through the keyboard layout (Shift+Caps Lock = lowercase).
 * **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page

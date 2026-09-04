@@ -284,6 +284,19 @@ namespace GTANetwork.GUI
         private static string _cefDirectory;
         private static int _nextBrowserId;
         private static int _sendErrorsLogged;
+
+        /// <summary>Set once a shared texture could not be opened on the game's device: every later browser uses CPU frames.</summary>
+        internal static bool SharedTexturesBroken;
+
+        /// <summary>Frames as D3D11 shared textures: GPU on, the setting on, and no failure so far this session.</summary>
+        internal static bool WantSharedTextures
+        {
+            get
+            {
+                var s = Main.PlayerSettings;
+                return s != null && s.CefGpu && s.CefSharedTexture && !SharedTexturesBroken;
+            }
+        }
         private static readonly Dictionary<int, Browser> ById = new Dictionary<int, Browser>();
         private static readonly object InitLock = new object();
         private static readonly List<Action> WhenReady = new List<Action>();
@@ -827,6 +840,8 @@ namespace GTANetwork.GUI
         private volatile bool _closed;
         private volatile bool _loading;
         private volatile string _address;
+        private volatile string _lastUrl;
+        private bool _fellBack;
         private int _messagesLogged;
         private bool _headless;
         private Point _position;
@@ -884,7 +899,7 @@ namespace GTANetwork.GUI
             LogManager.CefLog("--> Browser " + Id + ": Start (" + browserSize.Width + "x" + browserSize.Height + ", " + (localMode ? "local" : "remote") + ")");
 
             _callback = new BrowserJavascriptCallback(father, this);
-            _render = new OverlayRenderHandler(browserSize.Width, browserSize.Height);
+            _render = new OverlayRenderHandler(browserSize.Width, browserSize.Height) { SharedTextureFailed = OnSharedTexturesFailed };
             _input = new BrowserInput(this);
             CEFManager.Register(this);
 
@@ -895,9 +910,29 @@ namespace GTANetwork.GUI
             {
                 if (_closed) return;
                 var fps = Main.PlayerSettings != null && Main.PlayerSettings.CefFrameRate > 0 ? Math.Min(60, Main.PlayerSettings.CefFrameRate) : 60;
-                LogManager.CefLog("--> Browser " + Id + ": Creating Browser");
-                CEFManager.Send(new CefHostMessage(CefHostProtocol.Create, Id) { W = _size.Width, H = _size.Height, Local = _localMode, Fps = fps });
+                var shared = CEFManager.WantSharedTextures;
+                LogManager.CefLog("--> Browser " + Id + ": Creating Browser" + (shared ? " (shared textures)" : ""));
+                CEFManager.Send(new CefHostMessage(CefHostProtocol.Create, Id) { W = _size.Width, H = _size.Height, Local = _localMode, Fps = fps, Shared = shared });
             });
+        }
+
+        /// <summary>
+        /// The overlay could not open one of the host's shared textures on the game's device: this browser is created
+        /// again with CPU frames (same id, the host replaces it), and no later browser asks for shared textures.
+        /// </summary>
+        private void OnSharedTexturesFailed(string error)
+        {
+            if (_fellBack || _closed) return;
+            _fellBack = true;
+            CEFManager.SharedTexturesBroken = true;
+            LogManager.CefLog("-> Browser " + Id + ": shared textures unavailable (" + error + "); falling back to CPU frames");
+
+            _render?.DropSharedTexture();
+            _created = false;
+            var fps = Main.PlayerSettings != null && Main.PlayerSettings.CefFrameRate > 0 ? Math.Min(60, Main.PlayerSettings.CefFrameRate) : 60;
+            CEFManager.Send(new CefHostMessage(CefHostProtocol.Create, Id) { W = _size.Width, H = _size.Height, Local = _localMode, Fps = fps, Shared = false });
+            var url = _lastUrl;
+            if (url != null) CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = url });
         }
 
         internal void OnHostEvent(CefHostMessage m)
@@ -910,6 +945,9 @@ namespace GTANetwork.GUI
                     break;
                 case CefHostProtocol.Frame:
                     _render?.AttachFrame(m.FrameName, m.W, m.H, m.Stride);
+                    break;
+                case CefHostProtocol.Texture:
+                    _render?.AttachTexture(m.Handle, m.W, m.H);
                     break;
                 case CefHostProtocol.Loading:
                     _loading = m.IsLoading;
@@ -985,6 +1023,7 @@ namespace GTANetwork.GUI
         {
             if (CefUtil.DISABLE_CEF || _closed) return;
 
+            _lastUrl = page;
             LogManager.CefLog("Trying to load page " + page + "..." + (_created ? "" : " (queued until the browser exists)"));
             CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = page });
         }

@@ -220,7 +220,16 @@ namespace GTANetwork.CefHost
         {
             if (m.Type == CefHostProtocol.Create)
             {
-                var browser = new HostedBrowser(m.Id, Math.Max(1, m.W), Math.Max(1, m.H), m.Local, m.Fps > 0 ? Math.Min(60, m.Fps) : 30);
+                HostedBrowser previous;
+                lock (BrowsersLock) Browsers.TryGetValue(m.Id, out previous);
+                if (previous != null)
+                {
+                    // The game creates a browser again under the same id when it changes how frames travel.
+                    Log("browser " + m.Id + ": replaced");
+                    lock (BrowsersLock) Browsers.Remove(m.Id);
+                    previous.Dispose();
+                }
+                var browser = new HostedBrowser(m.Id, Math.Max(1, m.W), Math.Max(1, m.H), m.Local, m.Fps > 0 ? Math.Min(60, m.Fps) : 30, m.Shared && _gpu);
                 lock (BrowsersLock) Browsers[m.Id] = browser;
                 browser.Start();
                 return;
@@ -320,6 +329,7 @@ namespace GTANetwork.CefHost
 
         internal static string ResourceRoot => _resourceRoot;
         internal static bool Verbose => _verbose;
+        internal static int ParentPid => _parentPid;
 
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string name);
@@ -349,6 +359,7 @@ namespace GTANetwork.CefHost
         public readonly int Id;
         private readonly bool _local;
         private readonly int _fps;
+        private readonly bool _shared;
         private ChromiumWebBrowser _browser;
         private FrameWriter _render;
         private string _pendingUrl;
@@ -356,13 +367,14 @@ namespace GTANetwork.CefHost
         private int _width;
         private int _height;
 
-        public HostedBrowser(int id, int width, int height, bool local, int fps)
+        public HostedBrowser(int id, int width, int height, bool local, int fps, bool shared)
         {
             Id = id;
             _width = width;
             _height = height;
             _local = local;
             _fps = fps;
+            _shared = shared;
         }
 
         public IBrowserHost Host
@@ -383,7 +395,7 @@ namespace GTANetwork.CefHost
 
         public void Start()
         {
-            Program.Log("browser " + Id + ": create " + _width + "x" + _height + (_local ? " local" : " remote") + ", " + _fps + " fps");
+            Program.Log("browser " + Id + ": create " + _width + "x" + _height + (_local ? " local" : " remote") + ", " + _fps + " fps" + (_shared ? ", shared textures" : ""));
             _render = new FrameWriter(this);
 
             var settings = new BrowserSettings(true)
@@ -434,7 +446,12 @@ namespace GTANetwork.CefHost
                 Program.TrySend(new CefHostMessage(CefHostProtocol.Console, Id) { Level = (int)e.Level, Text = e.Message, Source = e.Source, Line = e.Line });
             _browser.JavascriptMessageReceived += OnJavascriptMessage;
 
-            _browser.CreateBrowser(null, settings);
+            // Shared textures: Chromium renders into D3D11 textures and hands us their handles (OnAcceleratedPaint)
+            // instead of CPU buffers (OnPaint); the game opens the same textures on its device.
+            var windowInfo = new WindowInfo();
+            windowInfo.SetAsWindowless(IntPtr.Zero);
+            windowInfo.SharedTextureEnabled = _shared;
+            _browser.CreateBrowser(windowInfo, settings);
         }
 
         public void Load(string url)
@@ -560,9 +577,59 @@ namespace GTANetwork.CefHost
                 return true;
             }
 
+            private readonly Dictionary<IntPtr, IntPtr> _sharedHandles = new Dictionary<IntPtr, IntPtr>();
+            private IntPtr _parentProcess;
+            private int _texturePaints;
+
+            /// <summary>
+            /// Chromium painted into one of its shared D3D11 textures. The handle is ours; the game needs its own, so
+            /// it is duplicated into the game process once per texture (Chromium cycles through a small pool) and the
+            /// game is told which texture holds this frame.
+            /// </summary>
             public void OnAcceleratedPaint(PaintElementType type, Rect dirtyRect, AcceleratedPaintInfo acceleratedPaintInfo)
             {
-                // Shared D3D11 textures are the next step of the performance plan (docs/CEF-UPGRADE.md).
+                try
+                {
+                    if (type != PaintElementType.View) return;
+                    var source = acceleratedPaintInfo.SharedTextureHandle;
+                    if (source == IntPtr.Zero) return;
+
+                    IntPtr forGame;
+                    if (!_sharedHandles.TryGetValue(source, out forGame))
+                    {
+                        if (_parentProcess == IntPtr.Zero)
+                        {
+                            _parentProcess = Program.ParentPid > 0 ? NativeMethods.OpenProcess(NativeMethods.ProcessDupHandle, false, Program.ParentPid) : IntPtr.Zero;
+                            if (_parentProcess == IntPtr.Zero)
+                            {
+                                Program.Notify("Browser " + _owner.Id + ": cannot open the game process for handle duplication (error " + Marshal.GetLastWin32Error() + "); shared textures unavailable");
+                                _parentProcess = new IntPtr(-1);
+                            }
+                        }
+                        if (_parentProcess == new IntPtr(-1)) return;
+
+                        if (!NativeMethods.DuplicateHandle(NativeMethods.GetCurrentProcess(), source, _parentProcess, out forGame, 0, false, NativeMethods.DuplicateSameAccess))
+                        {
+                            Program.Notify("Browser " + _owner.Id + ": DuplicateHandle failed (error " + Marshal.GetLastWin32Error() + ")");
+                            return;
+                        }
+                        _sharedHandles[source] = forGame;
+                        Program.Log("browser " + _owner.Id + ": shared texture " + source.ToString("X") + " -> game handle " + forGame.ToString("X") + " (" + _owner.Width + "x" + _owner.Height + ")");
+                    }
+
+                    if (++_texturePaints <= 3 && Program.Verbose)
+                        Program.Log("browser " + _owner.Id + ": texture paint " + _owner.Width + "x" + _owner.Height + " (dirty " + dirtyRect.Width + "x" + dirtyRect.Height + " at " + dirtyRect.X + "," + dirtyRect.Y + ")");
+
+                    Program.TrySend(new CefHostMessage(CefHostProtocol.Texture, _owner.Id)
+                    {
+                        Handle = forGame.ToInt64(), W = _owner.Width, H = _owner.Height,
+                        X = dirtyRect.X, Y = dirtyRect.Y, Dx = dirtyRect.Width, Dy = dirtyRect.Height, Gen = _sharedHandles.Count,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Program.Log("browser " + _owner.Id + ": accelerated paint failed: " + ex);
+                }
             }
 
             public void OnPaint(PaintElementType type, Rect dirtyRect, IntPtr buffer, int width, int height)
@@ -610,6 +677,21 @@ namespace GTANetwork.CefHost
                 _frame = null;
             }
         }
+    }
+
+    internal static class NativeMethods
+    {
+        public const uint ProcessDupHandle = 0x0040;
+        public const uint DuplicateSameAccess = 0x2;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr GetCurrentProcess();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool DuplicateHandle(IntPtr sourceProcess, IntPtr sourceHandle, IntPtr targetProcess, out IntPtr targetHandle, uint desiredAccess, bool inheritHandle, uint options);
     }
 
     /// <summary>

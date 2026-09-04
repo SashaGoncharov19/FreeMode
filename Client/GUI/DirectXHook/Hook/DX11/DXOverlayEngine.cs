@@ -5,9 +5,11 @@ using System.Linq;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
 using GTANetworkShared;
 using GTANetwork.Util;
+using System.Runtime.InteropServices;
 using SharpDX;
 using SharpDX.Direct3D11;
 using Device = SharpDX.Direct3D11.Device;
+using Device1 = SharpDX.Direct3D11.Device1;
 
 namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 {
@@ -37,6 +39,52 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         Dictionary<string, DXFont> _fontCache = new Dictionary<string, DXFont>();
         Dictionary<Element, DXImage> _imageCache = new Dictionary<Element, DXImage>();
         DXHookD3D11 _hook;
+
+        // Shared textures of the browser host, opened on the game's device: one entry per handle, released when the
+        // host's Chromium stops using them (RetireSharedTextures, or unused for a few seconds).
+        Device1 _device1;
+        readonly Dictionary<IntPtr, SharedTextureEntry> _sharedTextures = new Dictionary<IntPtr, SharedTextureEntry>();
+        readonly List<IntPtr> _retire = new List<IntPtr>();
+        long _frame;
+        int _sharedErrorsLogged;
+
+        sealed class SharedTextureEntry
+        {
+            public Texture2D Texture;
+            public long LastUsed;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool CloseHandle(IntPtr handle);
+
+        /// <summary>Release the textures behind these handles (and the handles) on the next frame; any thread.</summary>
+        public void RetireSharedTextures(IEnumerable<IntPtr> handles)
+        {
+            lock (_retire) _retire.AddRange(handles);
+        }
+
+        private void ReleaseRetired()
+        {
+            IntPtr[] handles;
+            lock (_retire)
+            {
+                if (_retire.Count == 0) return;
+                handles = _retire.ToArray();
+                _retire.Clear();
+            }
+            foreach (var handle in handles) ReleaseSharedTexture(handle);
+        }
+
+        private void ReleaseSharedTexture(IntPtr handle)
+        {
+            SharedTextureEntry entry;
+            if (_sharedTextures.TryGetValue(handle, out entry))
+            {
+                _sharedTextures.Remove(handle);
+                try { entry.Texture?.Dispose(); } catch { }
+            }
+            CloseHandle(handle);
+        }
 
         public DXOverlayEngine(DXHookD3D11 hook)
         {
@@ -148,6 +196,9 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         public void Draw()
         {
             if (!_initialised) return;
+
+            _frame++;
+            ReleaseRetired();
 
             if (!Begin()) return;
 
@@ -271,6 +322,9 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
         DXImage GetImageForImageElement(ImageElement element)
         {
+            var shared = element.SharedTexture;
+            if (shared != null) return GetImageForSharedTexture(element, shared);
+
             var surface = element.Surface;
             if (surface != null)
             {
@@ -331,11 +385,89 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         }
 
         /// <summary>
+        /// The newest frame of a browser is in a D3D11 texture of the browser host: open it on the game's device (once per
+        /// handle), copy it GPU-side into the element's own texture and draw that. Zero CPU work per frame.
+        /// </summary>
+        DXImage GetImageForSharedTexture(ImageElement element, SharedTextureSurface shared)
+        {
+            lock (shared.SyncRoot)
+            {
+                var handle = shared.Pending;
+                if (handle == IntPtr.Zero) return element.Image;
+                shared.Pending = IntPtr.Zero;
+
+                SharedTextureEntry entry;
+                if (!_sharedTextures.TryGetValue(handle, out entry))
+                {
+                    try
+                    {
+                        if (_device1 == null) _device1 = Collect(_device.QueryInterface<Device1>());
+                        entry = new SharedTextureEntry { Texture = _device1.OpenSharedResource1<Texture2D>(handle) };
+                        _sharedTextures[handle] = entry;
+                        if (LogManager.Verbose)
+                        {
+                            var d = entry.Texture.Description;
+                            LogManager.CefLog("-> Shared texture 0x" + handle.ToInt64().ToString("X") + " opened: " + d.Width + "x" + d.Height + " " + d.Format + " " + d.OptionFlags);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        shared.Failed = true;
+                        shared.LastError = ex.Message.Trim();
+                        if (_sharedErrorsLogged++ < 3) LogManager.CefLog("-> Shared texture 0x" + handle.ToInt64().ToString("X") + " could not be opened on the game's device: " + shared.LastError);
+                        return element.Image;
+                    }
+                }
+                entry.LastUsed = _frame;
+
+                var desc = entry.Texture.Description;
+                if (element.Image == null || element.Image.Width != desc.Width || element.Image.Height != desc.Height)
+                {
+                    element.Image?.Dispose();
+                    element.Image = new DXImage(_device, _deviceContext);
+                    if (!element.Image.InitialiseDynamic(desc.Width, desc.Height))
+                    {
+                        element.Image.Dispose();
+                        element.Image = null;
+                        return null;
+                    }
+                }
+
+                // A full GPU copy (a few microseconds): the host's texture may be rendered into again at any moment,
+                // our copy is stable for the draw and for the frames until the next one.
+                _device.ImmediateContext.CopyResource(entry.Texture, element.Image.Texture);
+
+                // Chromium cycles through a small pool and re-creates it now and then; a texture it has not handed us
+                // for a few seconds is gone on its side, and our duplicated handle would pin its memory.
+                if (shared.Handles.Count > 4)
+                {
+                    for (var i = shared.Handles.Count - 1; i >= 0; i--)
+                    {
+                        var h = shared.Handles[i];
+                        SharedTextureEntry e;
+                        var stale = _sharedTextures.TryGetValue(h, out e) ? _frame - e.LastUsed > 240 : h != handle;
+                        if (!stale) continue;
+                        shared.Handles.RemoveAt(i);
+                        ReleaseSharedTexture(h);
+                    }
+                }
+            }
+            return element.Image;
+        }
+
+        /// <summary>
         /// Releases unmanaged and optionally managed resources
         /// </summary>
         /// <param name="disposing">true if disposing both unmanaged and managed</param>
         protected override void Dispose(bool disposing)
         {
+            foreach (var entry in _sharedTextures.Values)
+            {
+                try { entry.Texture?.Dispose(); } catch { }
+            }
+            _sharedTextures.Clear();
+            _device1 = null;
+
             // Releases everything that was Collect()ed: the sprite engine, the deferred context, the device
             // reference and the fonts. Element images belong to the elements.
             base.Dispose(disposing);

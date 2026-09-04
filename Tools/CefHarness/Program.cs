@@ -42,6 +42,7 @@ namespace GTANetwork.CefHarness
         private static int _stackMb = 8;
         private static int _holdSec;
         private static int _benchSec;
+        private static bool _sharedTexture;
         private static int _benchW = 1280;
         private static int _benchH = 720;
         private static bool _appDomain;
@@ -94,6 +95,7 @@ namespace GTANetwork.CefHarness
                     case "--host": _hostExe = Next(); break;
                     case "--hold": _holdSec = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                     case "--bench": _benchSec = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                    case "--shared-texture": _sharedTexture = true; _gpu = true; break;
                     case "--size":
                     {
                         var parts = Next().Split('x');
@@ -153,7 +155,7 @@ namespace GTANetwork.CefHarness
 
             if (!_inProcess)
             {
-                var rc = HostTest.Run(_hostExe ?? Path.Combine(exeDir, "GTANetwork.CefHost.exe"), _logDir, _timeoutSec, _gpu, _inProcessGpu, _verbose, _url, _holdSec, _benchSec, _benchW, _benchH);
+                var rc = HostTest.Run(_hostExe ?? Path.Combine(exeDir, "GTANetwork.CefHost.exe"), _logDir, _timeoutSec, _gpu, _inProcessGpu, _verbose, _url, _holdSec, _benchSec, _benchW, _benchH, _sharedTexture);
                 _log.Flush();
                 return rc;
             }
@@ -197,6 +199,7 @@ namespace GTANetwork.CefHarness
             "  --in-process         instead start Chromium inside this process, the way the client did before the host existed\n" +
             "  --host <exe>         path of GTANetwork.CefHost.exe for the default mode\n" +
             "  --hold <s>           keep the browser open that many seconds after the checks (to watch windows/focus)\n" +
+            "  --shared-texture     frames as D3D11 shared textures (implies --gpu): open them on our own device and read back\n" +
             "  --bench <s>          then run an animated page in a --size WxH browser (default 1280x720) for that many seconds:\n" +
             "                       frames/s delivered to shared memory, copy cost, CPU of the host and its subprocesses\n" +
             "  --cef-dir <dir>      Chromium runtime folder (default: cef\\ next to the exe; e.g. Z:\\home\\me\\GTANetwork\\cef)\n" +

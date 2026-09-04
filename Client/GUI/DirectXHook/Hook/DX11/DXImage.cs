@@ -35,6 +35,9 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
             get { return _device; }
         }
 
+        /// <summary>The texture itself (for GPU-side copies into it).</summary>
+        public Texture2D Texture => _tex;
+
         public DXImage(Device device, DeviceContext deviceContext)
         {
             _device = device;

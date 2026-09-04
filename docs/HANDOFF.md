@@ -142,6 +142,15 @@ with ANGLE/D3D11 (DXVK) up in the host and a longest gap of 20 ms instead of 230
 process. The owner's `settings.xml` has `<CefGpu>true</CefGpu>` for the in-game test; if it misbehaves, set it back to
 false. 3D browsers: design in `docs/CEF-UPGRADE.md`, roadmap item 5.
 
+**Fifth step (4 Sept, night): shared textures.** Committed the above (three commits), then built the zero-copy path:
+with the GPU on, browsers are created with shared textures; the host duplicates Chromium's D3D11 texture handles into
+the game process and sends `texture` events; the overlay opens each handle once (`OpenSharedResource1` on the game's
+DXVK device), `CopyResource`s into its persistent texture and draws it; stale handles are released; a failure to open
+falls back to CPU frames for the session. Verified with the harness (`--shared-texture`: open + read-back across
+processes OK; `--shared-texture --bench 15`: 60 GPU copies/s at 0.027 ms, no CPU). **Not yet run in game** — the
+owner's settings have `CefGpu=true`, so the next game start uses it; `CEF.log` shows "Creating Browser (shared
+textures)" and, in debug mode, "Texture frame …"; a fallback logs "shared textures unavailable".
+
 ## How to test in game (what to ask the owner for)
 
 The install is already synced (`eng/dev-sync-client.sh --cef`, and the launcher published into it with

@@ -102,12 +102,21 @@ executables) and the VC++ 2022 x64 runtime (C++/CLI parts) — both already inst
    subprocesses 8 %, longest gap 230 ms; `--gpu` 60.1 frames/s, same CPU, longest gap 20 ms, ANGLE on D3D11 (DXVK)
    initialised, canvas accelerated. `<CefGpu>true</CefGpu>` is therefore worth using; in-game verification by the owner
    decides whether it becomes the default.
-3. **Shared textures**: `IRenderHandler.OnAcceleratedPaint` hands the host a D3D11 shared handle when the GPU is
-   on and `--shared-texture-enabled`; the handle can be passed to the game, which opens it with
-   `OpenSharedResource` and draws it directly: zero copies, no CPU work per frame. This is the "real performance"
-   step, and the reason the browser had to leave the game process first. Needs DXVK's shared-resource support in
-   Proton to hold up between two processes.
+3. **Shared textures — done (4 Sept)**: with `<CefGpu>true</CefGpu>` (and `<CefSharedTexture>true</CefSharedTexture>`,
+   the default) browsers are created with `WindowInfo.SharedTextureEnabled`; Chromium renders into D3D11 textures and
+   `IRenderHandler.OnAcceleratedPaint` gives the host their NT handles. The host duplicates each handle into the game
+   process (`DuplicateHandle`, once per texture of Chromium's pool) and sends a `texture` event per frame; the overlay
+   opens each handle once on the game's device (`Device1.OpenSharedResource1`), copies the texture GPU-side into the
+   element's persistent texture (`CopyResource`, 0.027 ms measured) and draws that. **No CPU work per frame at all.**
+   Handles Chromium stops using are released after a few seconds (it re-creates its pool now and then: 14 textures in
+   a 15 s benchmark); on a browser's close all its handles are closed. If a handle cannot be opened, the browser is
+   created again with CPU frames and no later browser asks for shared textures (`CEF.log`: "shared textures
+   unavailable"). Measured with `eng/cef-harness.sh --shared-texture --bench 15 --size 1280x720` on Proton
+   Experimental / DXVK / RTX 4050: 60 texture events/s, 60 GPU copies/s, host 4 % CPU, Chromium 9 % — the textures
+   are `B8G8R8A8_UNorm`, `Shared | SharedNthandle`, no keyed mutex, and open fine across processes (both sides DXVK).
 4. `WindowlessFrameRate` per browser (`API.setCefFramerate`), 60 default.
+5. Next: what is left is Chromium's own cost (renderer ~9 % CPU for an animated 720p page) and, for 3D browsers,
+   drawing the texture with a world transform (below).
 
 ## Input
 

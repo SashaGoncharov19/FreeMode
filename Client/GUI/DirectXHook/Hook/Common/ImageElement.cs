@@ -40,6 +40,9 @@ namespace GTANetwork.GUI.DirectXHook.Hook.Common
         /// </summary>
         public IDynamicSurface Surface { get; set; }
 
+        /// <summary>When set (and Surface is not), the element shows frames that arrive as D3D11 shared textures.</summary>
+        public SharedTextureSurface SharedTexture { get; set; }
+
         public object SwitchLock = new object();
 
         public void SetBitmap(Bitmap bmp)

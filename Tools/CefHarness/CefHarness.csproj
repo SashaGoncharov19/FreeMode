@@ -18,6 +18,7 @@
     <Description>Starts Chromium (CefSharp) the way the GTA Network client does, without the game.</Description>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CefSharpTargetDir>cef</CefSharpTargetDir>
     <CefSharpPlatformTargetOverride>x64</CefSharpPlatformTargetOverride>
   </PropertyGroup>
@@ -27,6 +28,10 @@
     <PackageReference Include="CefSharp.OffScreen" Version="$(CefSharpVersion)" />
     <ProjectReference Include="..\..\Shared\GTANetworkShared.csproj" />
     <Reference Include="System.Drawing" />
+    <!-- The game's D3D11 binding, to open the browser host's shared textures the way the overlay will. -->
+    <Reference Include="SharpDX"><HintPath>$(GtanLibsDir)SharpDX.dll</HintPath></Reference>
+    <Reference Include="SharpDX.DXGI"><HintPath>$(GtanLibsDir)SharpDX.DXGI.dll</HintPath></Reference>
+    <Reference Include="SharpDX.Direct3D11"><HintPath>$(GtanLibsDir)SharpDX.Direct3D11.dll</HintPath></Reference>
   </ItemGroup>
 
 </Project>
