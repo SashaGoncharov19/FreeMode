@@ -18,16 +18,19 @@ Nothing yet.
 
 ## [0.1.1] - 2026-09-04
 
-Resource files (`<file src="..."/>` in `meta.xml`: CEF pages, images, sounds) now actually reach the client, so
-browser UIs such as the `auth` login form can work. Found with the first in-game CEF test of 0.1.0: the browser
-was created, but `https://auth/ui/index.html` was "File does not exist" and nothing was drawn.
+Resource files (`<file src="..."/>` in `meta.xml`: CEF pages, images, sounds) now actually reach the client, and
+the CEF overlay no longer takes the game down, so browser UIs such as the `auth` login form work. **Verified in
+game** (GTA V Legacy 1.0.3889 under Proton): the login form appears over the world, the cursor moves, an account
+was registered through the form, the player is released after login. Found with the first in-game CEF test of
+0.1.0: the browser was created, `https://auth/ui/index.html` was "File does not exist" and nothing was drawn.
+Pre-releases `0.1.1-alpha.1` … `alpha.3` were the steps to get here.
 
-### Fixed
-* **Client never downloaded resource files in HTTP file server mode** (`<httpserver>true</httpserver>`, the
-  default): the download thread was created but never started; a file in a sub-folder (`ui/index.html`) had no
-  folder to be written to; errors of the async download were dropped. The download now runs on a started
-  background thread, creates the folders, logs a summary to `Runtime.log` and shows the progress in the loading
-  prompt. An inherited upstream bug: the 2017 client had the same code.
+### Fixed: resource files never reached the client
+* **HTTP file server mode** (`<httpserver>true</httpserver>`, the default): the download thread was created
+  but never started; a file in a sub-folder (`ui/index.html`) had no folder to be written to; errors of the
+  async download were dropped. The download now runs on a started background thread, creates the folders, logs a
+  summary to `Runtime.log` and shows the progress in the loading prompt. An inherited upstream bug: the 2017
+  client had the same code.
 * **Client scripts started before the files arrived**: the end-of-transfer marker (UDP: map + scripts) now waits
   for the HTTP download to finish before `onResourceStart` runs, both on connect and when a resource starts while
   playing (`RedownloadManifest`). A failed download no longer blocks the scripts; it is reported instead.
@@ -40,30 +43,20 @@ was created, but `https://auth/ui/index.html` was "File does not exist" and noth
 * Downloads that would leave `resources/<resource>/` (`..`, rooted paths, drive letters) are refused on both the
   UDP and the HTTP path.
 
-### Fixed in alpha.2: crash a few seconds after the first CEF page
-* The overlay that draws browsers and the cursor wrapped the game's swap chain in a new SharpDX object every frame
-  without owning a reference, while `Configuration.EnableReleaseOnFinalizer` made the finalizer call `Release()` on
-  each of them: the first garbage collection after the page appeared released the swap chain from under the game
-  (fatal at once under DXVK, a latent bug on Windows). One wrapper per swap chain now, with its own reference,
-  and both SharpDX debugging switches (object tracking, release on finalizer) are off.
+### Fixed: the game died a few seconds after the first CEF page (alpha.1)
+* The overlay that draws browsers and the cursor runs in the game's present callback and wrapped the game's swap
+  chain in a new SharpDX object every frame without owning a reference, while
+  `Configuration.EnableReleaseOnFinalizer` made the finalizer call `Release()` on each of them: the first garbage
+  collection after the page appeared released the swap chain from under the game (fatal at once under DXVK, a
+  latent bug on Windows). One wrapper per swap chain now, with its own reference, and both SharpDX debugging
+  switches (object tracking, release on finalizer) are off.
 * The overlay leaked one texture reference per drawn image per frame (`ResourceAs` without dispose), kept a view
-  on the back buffer across frames (a resolution change of the game could not release its buffers) and copied
-  the CEF paint buffer by pointer although CEF owns it only during the paint callback. It now creates the render
-  target view per frame, clears the deferred context state afterwards and copies the paint buffer.
-* An exception in a `Present` handler of a script (the overlay runs in the game's present callback) ended the
-  process; ScriptHookVDotNet now logs it to its log (first five) and continues, and the overlay handler checks
-  for a missing menu or warning object.
-* Diagnostics: `Runtime.log` gets `CEF overlay: initialised on swap chain 0x... (feature level, back buffer,
-  context)`, `CEF.log` the first three paints of a browser.
-
-### Fixed in alpha.3: black screen after joining with alpha.2
-* alpha.2 disposed the SharpDX wrapper of the immediate device context after the first frame; that wrapper is
-  cached inside the device object, so from the second frame on the overlay worked on a released wrapper. Not
-  disposed any more. The `ClearState` on the deferred context after each frame is gone as well (back to the
-  alpha.1 behaviour, which rendered correctly).
-* Diagnostics: `Runtime.log` gets the geometry of the first three overlay frames (back buffer, every element with
-  position and size) and `[PROFILE] Present hook overlay: ... errors so far` every 10 s; exceptions of the
-  overlay go to `Error.log` (first five).
+  on the back buffer across frames and copied the CEF paint buffer by pointer although CEF owns it only during the
+  paint callback. It now creates the render target view per frame, releases it before `Present` returns and copies
+  the paint buffer. (alpha.2 also disposed the device's cached immediate context wrapper after the first frame,
+  which turned the screen black; alpha.3 undid that.)
+* An exception in a `Present` handler of a script ended the process; ScriptHookVDotNet now logs it (first five)
+  and continues, and the overlay handler checks for a missing menu or warning object.
 
 ### Added
 * `GTANetworkShared.ResourceFileDownloader`: the manifest download shared by the game client and the headless
@@ -71,9 +64,14 @@ was created, but `https://auth/ui/index.html` was "File does not exist" and noth
 * `eng/integration-test-auth.sh` checks the HTTP file server directly (manifest lists the page, the three files
   are served byte for byte, the server script and a path traversal are refused) and that the bot ends up with
   complete copies of the `auth` UI files.
+* Diagnostics in `Runtime.log`: `Resource files from http://...: N downloaded ...`, `CEF overlay: initialised on
+  swap chain ... (feature level, back buffer, context)`, the geometry of the first three overlay frames and
+  `[PROFILE] Present hook overlay: ... errors so far` every 10 s; `CEF.log` logs the first three paints of a
+  browser; overlay exceptions go to `Error.log` (first five).
 
 ### Docs and release process
-* README (EN/UK): how resource files travel and where they land; `docs/ROADMAP.md` phase 0 status.
+* README (EN/UK): how resource files travel and where they land; `docs/ROADMAP.md` phase 0 status and the plan
+  for the next updates (dependency modernisation, Linux GUI launcher, debug logging mode, CEF connect screen).
 * A pre-release tag without its own changelog section (`v0.1.1-alpha.1`) gets the notes of its base version
   (`## [0.1.1]`) as release body instead of a placeholder.
 

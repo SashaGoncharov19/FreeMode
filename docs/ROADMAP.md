@@ -45,14 +45,30 @@ Goal: a `v0.1.0` release that a stranger can install and play on with friends.
       `Runtime.log`), no stutter, pattern fallbacks matched on 1.0.3889, 60 fps.
 * [ ] Two real players on one server (not only bots): position, vehicles, chat, weapons.
 * [ ] Windows path verified once (installer + classic launcher or the cross-platform launcher).
-* [ ] CEF browser UI verified in game (enable the `auth` resource and log in through the form). First attempt
-      (0.1.0) showed nothing: the client never downloaded the resource files in HTTP file server mode and the CEF
-      overlay stayed switched off; both fixed in 0.1.1, waiting for the next in-game run.
+* [x] CEF browser UI verified in game (0.1.1): the `auth` login form appears, an account was registered through
+      it. Took three fixes: resource files were never downloaded in HTTP file server mode, the overlay draw switch
+      was never turned on, and the overlay released the game's swap chain (crash under DXVK).
 * [ ] Missing patterns on 1.0.3889: "force offline" patch (decide whether it is still needed with
       `-scOfflineOnly`) and the euphoria functions (port the upstream NaturalMotion message implementation or
       drop the API).
 * [x] Release process: merge to `master`, `build.yml` → `release_tag=v0.1.0`, changelog section becomes the
       release body.
+
+## Next updates (after 0.1.1)
+
+Decided in September 2026, in this order; each is its own branch and pull request, each ships as an alpha first.
+
+1. **Dependency modernisation** (branch `claude/modernize-deps-4d8uyn`): CEF from 3.2987 (Chromium 57) to a
+   current CEF with a maintained binding, ClearScript 5.4.9 to 7.x (modern V8), NuGet packages to current
+   versions, server/launcher/bot to the current .NET LTS. Plan and findings: `docs/CEF-UPGRADE.md`.
+2. **Debug mode**: one switch (settings.xml `<debug>`, launcher `--debug`, Debug builds default to on) that keeps
+   all diagnostics in the code (API probe, download summaries, overlay frames, profiler lines) and turns them on
+   or off per build instead of adding and removing log lines by hand.
+3. **Linux GUI launcher**: a graphical shell over `GTANetwork.Launcher` (Avalonia, one binary for Linux and
+   Windows): server list with favourites, settings, update/install progress, log viewer, "play" button.
+4. **CEF connect screen**: replace the NativeUI pause-menu-style main menu (server list, connect, loading) with a
+   CEF page drawn by the overlay from the main menu until the server is joined, styled like a modern launcher.
+   Needs the CEF upgrade first.
 
 ## Phase 1 - platform: master server, updates, crash reports (weeks)
 
