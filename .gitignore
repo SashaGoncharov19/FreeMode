@@ -228,3 +228,5 @@ Server/bans.xml
 # Local dev-container settings (docker-compose.yml reads GTAN_INSTALL from here) and the fallback install mount
 .env
 .gtan-install/
+# Added by code-review-graph
+.code-review-graph/

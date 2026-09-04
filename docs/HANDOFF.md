@@ -1,8 +1,9 @@
 # Handoff — start here
 
 Read this first if you are picking up the project in a new session. It is the live state: what we are
-doing, where it hurts, and what to do next. The long-term plan is `docs/ROADMAP.md`; this file is the
-"right now".
+doing, where it hurts, and what to do next. The plan is `docs/PLAN.md`, decisions are in `docs/DECISIONS.md`, work
+items in `docs/tasks/`, the layout in `docs/CODEMAP.md`, the way of working in `AGENTS.md` and `docs/agents/`. This
+file is the "right now".
 
 ## The project in three lines
 
@@ -37,8 +38,13 @@ rendering can only be verified in game by the owner.
 
 * **`master`**: `v0.1.1` — the **old** browser stack (CefGlue, Chromium 57, single-process). Last
   release verified working in game (auth login form, account registered).
-* **`claude/modernize-deps-4d8uyn`** (working branch, all new commits go here, **not pushed** since the
-  browser-host work started — six commits ahead of origin): CefSharp 151 **in its own process**, ClearScript
+* **`claude/agent-framework`** (branched from `claude/modernize-deps-4d8uyn` on 4 Sept, night): the agent
+  operating framework — `AGENTS.md`, `docs/agents/`, `docs/tasks/` (T-000…T-020), `docs/PLAN.md`, `docs/DECISIONS.md`,
+  `docs/CODEMAP.md`, the code graph (`.mcp.json`, `.claude/`). To be merged into the integration branch; agents then take
+  tasks from `docs/tasks/`. The **integration branch** for tasks is `claude/modernize-deps-4d8uyn` until the owner merges
+  it into `master`.
+* **`claude/modernize-deps-4d8uyn`** (working branch of the modernisation, **not pushed** since the
+  browser-host work started — seven commits ahead of origin): CefSharp 151 **in its own process**, ClearScript
   7.5, debug mode, dev container. Pre-releases `v0.2.0-alpha.1 … alpha.5` ran Chromium *inside* the game and
   crashed (below). No PR open, no alpha.6 yet.
 * **Verified in game by the owner (4 Sept)**: the browser host starts on connect, the `auth` login form
