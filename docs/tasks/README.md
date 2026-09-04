@@ -18,7 +18,7 @@ done
 | Task | Title | Status | Epic | Depends on |
 | --- | --- | --- | --- | --- |
 | [T-000-in-game-checks-texture-ring-hitches-idle-exit](T-000-in-game-checks-texture-ring-hitches-idle-exit.md) | In-game checks: texture ring, hitch diagnostics, idle exit of the browser host | needs owner | E-02 Agent framework (closing the browser work of 4 Sept) | none |
-| [T-001-dotnet-10-for-server-launcher-bot-tools](T-001-dotnet-10-for-server-launcher-bot-tools.md) | .NET 10 for server, launcher, bot, Map2Resource and the dev container | ready | E-01 Platform upgrade | none |
+| [T-001-dotnet-10-for-server-launcher-bot-tools](T-001-dotnet-10-for-server-launcher-bot-tools.md) | .NET 10 for server, launcher, bot, Map2Resource and the dev container | in progress | E-01 Platform upgrade | none |
 | [T-002-bot-load-harness-and-baseline](T-002-bot-load-harness-and-baseline.md) | Bot load harness: N simulated players, server metrics, baseline numbers at 100/300/1000 | ready | E-03 Scale | none (T-001 preferred first) |
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
 | [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | ready | E-04 TypeScript | none (T-001 preferred first) |

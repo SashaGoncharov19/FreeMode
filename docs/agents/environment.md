@@ -15,7 +15,7 @@ and restores the mod files around every game session.
 
 | Path | Content |
 | --- | --- |
-| `GTANetwork.Launcher`, `play.sh`, `setup.conf` (`AUTO_UPDATE=0` on the owner's machine: dev builds are not replaced by releases), `update.sh`, `setup-linux.sh` | The Linux launcher (self-contained .NET 8 single file) and the scripts the installer wrote. |
+| `GTANetwork.Launcher`, `play.sh`, `setup.conf` (`AUTO_UPDATE=0` on the owner's machine: dev builds are not replaced by releases), `update.sh`, `setup-linux.sh` | The Linux launcher (self-contained .NET 10 single file) and the scripts the installer wrote. |
 | `bin/` | ScriptHookV (`ScriptHookV.dll`, `dinput8.dll` — the player's own download), `ScriptHookVDotNet.dll/.asi/.ini`, native helpers, ClearScript native DLL. |
 | `bin/scripts/` | The managed client: `GTANetwork.dll`, `NativeUI.dll`, `GTANetworkShared.dll`, Newtonsoft, protobuf-net, SharpDX, ClearScript, … |
 | `cef/` | The browser host `GTANetwork.CefHost.exe` and the whole Chromium runtime (CefSharp, `libcef.dll`, `CefSharp.BrowserSubprocess.exe`, locales, …), page-aligned; `cef/cache` is Chromium's profile. |
@@ -41,7 +41,7 @@ and restores the mod files around every game session.
 ## The repository checkout and the dev container
 
 Repository: `~/Projects/FreeMode`. Builds run in the dev container (`docker compose run --rm dev <cmd>`; image
-`gtanetwork-dev`, .NET SDK 8, pwsh, python3, rsync). `.env` (git-ignored) sets `GTAN_INSTALL=/home/sviatoslav/GTANetwork`,
+`gtanetwork-dev`, .NET SDK 10, pwsh, python3, rsync). `.env` (git-ignored) sets `GTAN_INSTALL=/home/sviatoslav/GTANetwork`,
 mounted as `/gtanetwork` in the container. Details: `docs/DEVCONTAINER.md`.
 
 ```bash

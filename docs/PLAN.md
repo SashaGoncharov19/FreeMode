@@ -28,9 +28,9 @@ Targets that decide "done" (each has a task that measures it):
 
 | Component | Now | Target | Notes |
 | --- | --- | --- | --- |
-| .NET SDK / runtime (server, launcher, bot, tools) | 8.0 (`global.json` 8.0.100, container SDK 8.0.424) | **10.0 LTS** (supported to Nov 2028) | .NET 8 support ends 10 Nov 2026. E-01. |
+| .NET SDK / runtime (server, launcher, bot, tools) | **10.0 LTS** (`global.json` 10.0.100, T-001 on 4 Sept 2026) | 10.0 LTS (supported to Nov 2028) | .NET 8 support ends 10 Nov 2026. |
 | In-game client runtime | .NET Framework 4.8 in `GTA5.exe` via the SHVDN C++/CLI shell | stays for the MVP (D-04); .NET 10 in-process hosting later (E-13) | |
-| C# compiler for server resources (Roslyn) | Microsoft.CodeAnalysis 4.14.0 | 5.9.0 | With E-01. |
+| C# compiler for server resources (Roslyn) | Microsoft.CodeAnalysis 5.9.0 (T-001) | 5.9.0 | |
 | Browser | CefSharp.OffScreen 151.3.240 (Chromium 151) in `cef/GTANetwork.CefHost.exe` | keep current; bump per CefSharp release | `docs/CEF-UPGRADE.md`. |
 | Client JS engine | ClearScript 7.5.1 (V8 12) | 7.5.1.1; also the **server** TS runtime (Q-01) | |
 | Bun | none | 1.4.1 pinned in `runtime/.bun-version`, shipped with the server package | E-04 (D-09): the server gamemode runtime and the TS bundler; the client keeps V8. |

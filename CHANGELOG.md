@@ -22,6 +22,8 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 `claude/modernize-deps-4d8uyn` is being tested in game.
 
 ### Changed
+* **.NET 10** for the server, launcher, headless bot and Map2Resource (was .NET 8, whose support ends on
+  10 Nov 2026); server resources are compiled with Roslyn 5.9. The dev container and CI build with the .NET 10 SDK.
 * **Browser: CEF 3.2987 (Chromium 57, 2017, single-process inside the game) → CefSharp.OffScreen 151 (Chromium 151,
   2026) in its own process, `cef\GTANetwork.CefHost.exe`.** The game starts the host with the first browser a
   resource creates (`<CefPreload>true</CefPreload>` starts it at game start), sends it commands over its stdin and

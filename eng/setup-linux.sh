@@ -55,7 +55,7 @@ GTA Network Linux installer / updater
   --dir <path>        install folder (default: $DIR)
   --release <tag>     GitHub release to install: "latest" (default, newest incl. pre-releases) or a tag like v0.1.0-alpha.2
   --client-zip <zip>  use an already downloaded gtanetwork-client-win64-*.zip instead of fetching it
-  --build             build launcher/server/bot from this git checkout instead (needs the .NET 8 SDK);
+  --build             build launcher/server/bot from this git checkout instead (needs the .NET 10 SDK);
                       the client package is still downloaded (it needs the Windows-built ScriptHookVDotNet)
   --shv <zip>         ScriptHookV archive from http://www.dev-c.com/gtav/scripthookv/ (default: newest ~/Downloads/ScriptHookV*.zip)
   --name <nick>       in-game name (default: $NAME)

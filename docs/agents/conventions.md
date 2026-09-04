@@ -4,7 +4,7 @@
 
 | Part | Language / target | Notes |
 | --- | --- | --- |
-| `Server/`, `Launcher/`, `Tools/GTANetwork.Bot`, `Map2Resource/` | C#, .NET 8 (`net8.0`; the upgrade target is in `docs/PLAN.md`) | Runs on Linux; nothing Windows-only without an `OperatingSystem.IsWindows()` guard. |
+| `Server/`, `Launcher/`, `Tools/GTANetwork.Bot`, `Map2Resource/` | C#, .NET 10 (`net10.0`) | Runs on Linux; nothing Windows-only without an `OperatingSystem.IsWindows()` guard. |
 | `Client/`, `NativeUI/`, `Subprocess/GTANetwork.CefHost`, `Tools/CefHarness` | C#, .NET Framework 4.8 (`net48`) | Loaded into `GTA5.exe` (client) or run under Wine (host, harness). Only APIs that exist in .NET Framework 4.8; JSON is Newtonsoft. |
 | `Shared/` | C#, `net48` + `netstandard2.0` | Compiles for both worlds; no platform APIs. |
 | `Shv.NET/` | C++/CLI | Windows + MSVC only (CI Windows job). The managed stub `Shv.NET/ref` is for compiling on Linux only and is never shipped. |
@@ -12,7 +12,7 @@
 | Client scripts / CEF pages | JavaScript (V8 12 via ClearScript), HTML/CSS/JS in Chromium 151 | TypeScript comes with the plan's TS epic. |
 
 `LangVersion` is `latest` everywhere; on `net48` avoid features that need runtime support (default interface
-methods, `Span<T>`-heavy APIs, `System.Text.Json`). `Nullable` is off in the old code; new files in the .NET 8
+methods, `Span<T>`-heavy APIs, `System.Text.Json`). `Nullable` is off in the old code; new files in the .NET 10
 projects use `#nullable enable` at the top.
 
 ## Code
