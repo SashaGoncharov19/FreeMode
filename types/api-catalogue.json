@@ -1,7 +1,6 @@
 {
   "generatedBy": "Tools/GTANetwork.TypeGen",
   "assembly": "GTANetworkServer",
-  "version": "0.1.3899.650",
   "functions": [
     {
       "name": "getResourceFolder",
@@ -185,7 +184,7 @@
           "isParams": false
         }
       ],
-      "returns": "System.Collections.Generic.IEnumerable\u00601[[System.String, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+      "returns": "System.Collections.Generic.IEnumerable\u00601[System.String]",
       "returnsTs": "string[]",
       "needsResult": true
     },
@@ -215,7 +214,7 @@
           "isParams": false
         }
       ],
-      "returns": null,
+      "returns": "T",
       "returnsTs": "T",
       "needsResult": true
     },
@@ -281,7 +280,7 @@
           "isParams": false
         }
       ],
-      "returns": null,
+      "returns": "T",
       "returnsTs": "T",
       "needsResult": true
     },
@@ -614,7 +613,7 @@
           "isParams": false
         }
       ],
-      "returns": null,
+      "returns": "T",
       "returnsTs": "T",
       "needsResult": true
     },
@@ -4150,7 +4149,7 @@
           "isParams": false
         }
       ],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkServer.Client, GTANetworkServer, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkServer.Client]",
       "returnsTs": "Client[]",
       "needsResult": true
     },
@@ -4172,7 +4171,7 @@
           "isParams": false
         }
       ],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkServer.Client, GTANetworkServer, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkServer.Client]",
       "returnsTs": "Client[]",
       "needsResult": true
     },
@@ -4436,56 +4435,56 @@
     {
       "name": "getAllPlayers",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkServer.Client, GTANetworkServer, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkServer.Client]",
       "returnsTs": "Client[]",
       "needsResult": true
     },
     {
       "name": "getAllVehicles",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllObjects",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllMarkers",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllBlips",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllPickups",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllLabels",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
     {
       "name": "getAllPeds",
       "parameters": [],
-      "returns": "System.Collections.Generic.List\u00601[[GTANetworkShared.NetHandle, GTANetworkShared, Version=0.1.3899.650, Culture=neutral, PublicKeyToken=null]]",
+      "returns": "System.Collections.Generic.List\u00601[GTANetworkShared.NetHandle]",
       "returnsTs": "NetHandle[]",
       "needsResult": true
     },
