@@ -251,6 +251,11 @@ else
   download "gtanetwork-client-win64-" "$DIR/downloads/client.zip"
 fi
 info "Unpacking the client package (bin/scripts, cef, images, Windows launchers)"
+# The zip carries these folders in full; files of the previous version must not linger next to the new ones
+# (ScriptHookVDotNet loads every DLL in bin/scripts, Chromium reads every file in cef). bin/ itself is kept:
+# it holds the player's ScriptHookV.dll and dinput8.dll.
+rm -rf "$DIR/cef" "$DIR/bin/scripts"
+rm -f "$DIR/bin/ClearScriptV8-64.dll" "$DIR/bin/v8-x64.dll"
 unzip -oq "$DIR/downloads/client.zip" -d "$DIR"
 
 if [ "$BUILD" -eq 1 ]; then
