@@ -1,0 +1,32 @@
+# CLI path for the dev container (no editor needed). VS Code / JetBrains users can just
+# "Reopen in Container" instead — both read .devcontainer/.
+#
+#   export GTAN_INSTALL=$HOME/GTANetwork   # your installed game (optional, for --sync)
+#   docker compose build
+#   docker compose run --rm dev eng/dev-build-client.sh --sync   # build + drop into the install
+#   docker compose run --rm dev eng/dev-test.sh                  # server + bot tests, like CI
+#   docker compose run --rm dev bash                             # a shell
+#
+# UID/GID are passed so files written to the bind mounts stay owned by you.
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        USER_UID: "${UID:-1000}"
+        USER_GID: "${GID:-1000}"
+    image: gtanetwork-dev
+    volumes:
+      - .:/workspace
+      - gtan-nuget:/home/dev/.nuget/packages
+      # Your install, so --sync lands the fresh client straight in. Defaults to a throwaway local
+      # folder when GTAN_INSTALL is unset, so the mount is always valid.
+      - "${GTAN_INSTALL:-./.gtan-install}:/gtanetwork"
+    environment:
+      GTAN_INSTALL: /gtanetwork
+    working_dir: /workspace
+    init: true
+
+volumes:
+  gtan-nuget:

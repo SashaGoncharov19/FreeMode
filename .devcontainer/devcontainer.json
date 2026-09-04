@@ -1,0 +1,30 @@
+{
+  "name": "GTA Network",
+  "build": { "dockerfile": "Dockerfile", "context": ".." },
+  "remoteUser": "dev",
+
+  // A named volume for the NuGet cache so restores survive container rebuilds.
+  // To rebuild the client straight into your install, also mount it here, e.g.:
+  //   "source=${localEnv:HOME}/GTANetwork,target=/gtanetwork,type=bind"
+  // then inside the container: eng/dev-build-client.sh --sync
+  "mounts": [
+    "source=gtan-nuget,target=/home/dev/.nuget/packages,type=volume"
+  ],
+
+  "containerEnv": {
+    "DOTNET_NOLOGO": "1",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1"
+  },
+
+  // Warm the NuGet cache once so the first in-container build is fast.
+  "postCreateCommand": "dotnet restore GTANetwork.sln",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-dotnettools.csharp"],
+      "settings": {
+        "dotnet.defaultSolution": "GTANetwork.sln"
+      }
+    }
+  }
+}

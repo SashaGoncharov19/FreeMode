@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Run the same checks the Linux CI job runs, locally: build the whole solution, then start a real
+# server and exercise it with the headless bot over the actual protocol. Lets you validate server,
+# launcher, bot and shared-protocol changes in under a minute instead of waiting for CI.
+#
+# Usage: eng/dev-test.sh
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+art="$(mktemp -d)"
+trap 'rm -rf "$art"' EXIT
+
+echo "== Building the solution (Release) =="
+dotnet build GTANetwork.sln -c Release -nologo
+
+echo "== Publishing server + bot (linux-x64) =="
+dotnet publish Server/GTANetworkServer.csproj -c Release -r linux-x64 --self-contained true  -o "$art/server" -v quiet
+dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$art/bot" -v quiet
+cp vehicleData.json "$art/server/"
+
+echo "== Server smoke test =="
+eng/smoke-test-server.sh "$art/server"
+echo "== Bot integration tests =="
+eng/integration-test.sh "$art/server" "$art/bot/GTANetwork.Bot"
+eng/integration-test-auth.sh "$art/server" "$art/bot/GTANetwork.Bot"
+
+echo "All local checks passed."

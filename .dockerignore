@@ -1,0 +1,9 @@
+# Keep the Docker build context small (the image installs everything from apt/NuGet; it does not
+# COPY the repo — the container bind-mounts it — so none of this needs to be sent).
+.git/
+**/bin/
+**/obj/
+artifacts/
+downloads/
+*.user
+Setup/**/*.exe

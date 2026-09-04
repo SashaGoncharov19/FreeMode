@@ -144,6 +144,20 @@ msbuild Shv.NET/ScriptHookVDotNet.sln /p:Configuration=Release /p:Platform=x64
 When `Shv.NET/bin/ScriptHookVDotNet.dll` exists, `Client` and `NativeUI` link against it; otherwise they use
 `Shv.NET/ref` (`UseRealShvdn` property). Only binaries built against the real DLL may be shipped.
 
+### Fast local loop (dev container)
+
+To iterate on the client without waiting for CI, use the dev container (`.devcontainer/`, or
+`docker-compose.yml` from the CLI): it has the .NET 8 SDK and rebuilds `GTANetwork.dll` in seconds.
+
+```bash
+eng/dev-build-client.sh --sync     # build the client and drop it into ~/GTANetwork
+~/GTANetwork/play.sh --debug        # test in game
+eng/dev-test.sh                     # the Linux CI checks (server + bot) locally
+```
+
+See [`docs/DEVCONTAINER.md`](docs/DEVCONTAINER.md). Only the real `ScriptHookVDotNet.dll` (C++/CLI)
+and player-facing releases still need CI/Windows.
+
 Version numbers keep the original scheme `0.1.<days since 2016-01-01>.<UTC minutes / 2>` (the protocol
 compares them), computed in `Directory.Build.props`; CI passes the commit date via `eng/version.sh`.
 

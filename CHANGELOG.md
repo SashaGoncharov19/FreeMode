@@ -61,6 +61,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `--debug` sets `GTAN_DEBUG=1` and, through Proton, `PROTON_LOG=1` (Wine log with crash backtraces in
   `~/steam-271590.log`), so a crash report no longer needs log lines to be added and removed by hand.
   `Runtime.log` starts with a `Debug mode: on/off` line.
+* **Dev container** (`.devcontainer/`, `docker-compose.yml`): the .NET 8 SDK plus `eng/dev-build-client.sh`
+  and `eng/dev-sync-client.sh` rebuild the managed client on Linux in seconds and drop it into an existing
+  `~/GTANetwork` install, so a client change can be tried in game without waiting for CI or a release.
+  `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
+  See `docs/DEVCONTAINER.md`.
 
 ### Not yet
 * Server, launcher and bot stay on .NET 8; the client stays on .NET Framework 4.8 (ScriptHookVDotNet hosts the
