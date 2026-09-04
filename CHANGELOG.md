@@ -16,6 +16,14 @@ Two version numbers exist side by side:
 
 Nothing yet.
 
+## [0.1.0-alpha.24] - 2026-09-04
+
+### Fixed
+* Client-side JavaScript could not see any member of any host object (`API.sendNotification` was `undefined`,
+  so every client script failed at its first line): `libs/v8-x64.dll` was V8 5.4.500.40 from ClearScript
+  5.4.6/5.4.7 while the native bridge `ClearScriptV8-64.dll` was a 5.4.9 build made for V8 5.5.372.40. The
+  three files are now the official ClearScript.V8 5.4.9 package (managed assembly, bridge, V8 5.5.372.40).
+
 ## [0.1.0-alpha.23] - 2026-09-03
 
 ### Added
@@ -240,7 +248,8 @@ The first build of the revival. Everything below compares with the 2019-2020 cod
   recipient, so any `setEntityPosition`/`setTime`-style API call failed with two players online.
 * Server: the sync relay threw with an empty recipient list when a single player was online.
 
-[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.23...HEAD
+[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.24...HEAD
+[0.1.0-alpha.24]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.24
 [0.1.0-alpha.23]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.23
 [0.1.0-alpha.22]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.22
 [0.1.0-alpha.21]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.21

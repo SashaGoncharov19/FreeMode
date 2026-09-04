@@ -44,9 +44,9 @@
   <!-- Binary dependencies without a matching NuGet package (ClearScript 5.4.9 with its native V8 bridge,
        custom Lidgren fork, CEF 3.2987 (Chromium 57) CefGlue build, the exact SharpDX mix that the DirectX hook was tested with, NAudio). -->
   <ItemGroup>
-    <!-- The managed ClearScript.dll must be the exact build that matches libs/ClearScriptV8-64.dll (5.4.9);
-         the ClearScript.V8 NuGet package ships 5.4.6 and its assembly version does not match the native bridge,
-         which makes V8ScriptEngine throw FileLoadException at runtime. -->
+    <!-- libs/ClearScript.dll, ClearScriptV8-64.dll and v8-x64.dll are the three files of the official ClearScript.V8
+         5.4.9 package (V8 5.5.372.40). They must always come from one build: a bridge compiled against another V8
+         still loads and runs scripts, but host object members are silently invisible to JavaScript. -->
     <Reference Include="ClearScript"><HintPath>$(GtanLibsDir)ClearScript.dll</HintPath></Reference>
     <Reference Include="Lidgren.Network"><HintPath>$(GtanLibsDir)Lidgren.Network.dll</HintPath></Reference>
     <Reference Include="NAudio"><HintPath>$(GtanLibsDir)NAudio.dll</HintPath></Reference>
