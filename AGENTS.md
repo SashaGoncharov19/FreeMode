@@ -6,7 +6,7 @@ also reads `CLAUDE.md`, which adds only Claude-specific notes. Everything here i
 ## 1. What this is
 
 FreeMode / GTA Network: a revival of the 2016–2018 GTA V multiplayer mod, Linux-first. The dedicated server, the
-launcher and the headless bot are .NET 8 (moving to .NET 10, `docs/PLAN.md` E-01); the game runs through Proton.
+launcher and the headless bot are .NET 10; the game runs through Proton.
 The in-game client `GTANetwork.dll` is .NET Framework 4.8, loaded into `GTA5.exe` by a C++/CLI ScriptHookVDotNet
 fork in a second AppDomain. The browser is Chromium 151 (CefSharp) in a separate process
 (`cef/GTANetwork.CefHost.exe`); client scripting is JavaScript on ClearScript 7.5 (V8 12). Tested by hand by the

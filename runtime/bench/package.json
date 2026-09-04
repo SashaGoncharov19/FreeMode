@@ -1,0 +1,9 @@
+{
+  "name": "gtan-bridge-bench",
+  "private": true,
+  "description": "Bun side of the engine <-> runtime bridge benchmark (T-006 stage 1).",
+  "type": "module",
+  "dependencies": {
+    "msgpackr": "2.1.0"
+  }
+}

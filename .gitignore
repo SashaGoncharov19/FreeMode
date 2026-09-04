@@ -231,6 +231,9 @@ Server/bans.xml
 # Added by code-review-graph
 .code-review-graph/
 
+# Bun dependencies of the bridge benchmark
+runtime/bench/node_modules/
+
 # core dumps of crashed tools
 core
 core.*

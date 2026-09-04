@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stage 1 of T-006 (docs/tasks/T-006-server-runtime-on-bun-bridge.md): the engine side of the bridge benchmark. A
+    stand-alone .NET 10 process that speaks the frame protocol the server will use towards the Bun runtime
+    (u32 length + MessagePack array [type, id, name, payload]) over a Unix domain socket or loopback TCP, answers calls,
+    and publishes fake entity state for N players at a fixed rate. runtime/bench/bench.ts is the Bun side;
+    eng/bench-bridge.sh runs both and prints the numbers docs/PLAN.md E-04 asks for.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GTANetwork.BridgeBench</AssemblyName>
+    <RootNamespace>GTANetwork.BridgeBench</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MessagePack" Version="3.1.8" />
+  </ItemGroup>
+
+</Project>

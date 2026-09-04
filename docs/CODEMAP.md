@@ -10,7 +10,7 @@ When a project, directory or entry point moves, change this file in the same com
 ```mermaid
 flowchart LR
   subgraph player["Player's machine"]
-    L[GTANetwork.Launcher<br/>Launcher/ · .NET 8] -->|deploys ScriptHookV + SHVDN.asi, starts| P[Proton / Steam]
+    L[GTANetwork.Launcher<br/>Launcher/ · .NET 10] -->|deploys ScriptHookV + SHVDN.asi, starts| P[Proton / Steam]
     P --> G[GTA5.exe]
     G -->|dinput8.dll ASI loader| S[ScriptHookVDotNet.asi<br/>Shv.NET/ · C++/CLI]
     S -->|hosts .NET Framework 4.8,<br/>second AppDomain| C[GTANetwork.dll<br/>Client/ · net48]
@@ -19,9 +19,9 @@ flowchart LR
     H --> R[CefSharp.BrowserSubprocess.exe<br/>renderer, storage]
     C -->|SharpDX + EasyHook<br/>Present hook| G
   end
-  C <-->|Lidgren UDP "GTANETWORK"<br/>Shared/Packets.cs| SRV[GTANetworkServer<br/>Server/ · .NET 8]
+  C <-->|Lidgren UDP "GTANETWORK"<br/>Shared/Packets.cs| SRV[GTANetworkServer<br/>Server/ · .NET 10]
   C -->|HTTP GET /manifest.json, /res/file<br/>Shared/ResourceFiles.cs| SRV
-  B[GTANetwork.Bot<br/>Tools/GTANetwork.Bot · .NET 8] <-->|same protocol| SRV
+  B[GTANetwork.Bot<br/>Tools/GTANetwork.Bot · .NET 10] <-->|same protocol| SRV
   SRV -.->|POST /addserver (announce, off)| M[(master list<br/>none today)]
   C -.->|GET /servers, /verified, /stats| M
 ```
@@ -31,14 +31,14 @@ flowchart LR
 | Path | Target | Output | What it is |
 | --- | --- | --- | --- |
 | `Shared/GTANetworkShared.csproj` | net48; netstandard2.0 | library | Packets, sync packet codecs, entity properties, settings, resource download, CEF wire protocol, math. Used by every other project. |
-| `Server/GTANetworkServer.csproj` | net8.0 | exe | Dedicated server: Lidgren UDP, streamer, resources compiled with Roslyn, scripting API, HTTP file server. |
+| `Server/GTANetworkServer.csproj` | net10.0 | exe | Dedicated server: Lidgren UDP, streamer, resources compiled with Roslyn, scripting API, HTTP file server. |
 | `Client/GTANetworkClient.csproj` | net48 x64 | `GTANetwork.dll` | In-game client: sync, streaming, JS engine (ClearScript), browser client, DirectX overlay. No CefSharp reference. |
 | `NativeUI/NativeUI.csproj` | net48 x64 | library | Rockstar-style menus (GPL-3.0) used by the client's menus. |
-| `Launcher/GTANetwork.Launcher.csproj` | net8.0 | exe | Cross-platform CLI launcher: deploy/restore, Steam/Proton detection, game patching, debug mode, hitch monitor. |
+| `Launcher/GTANetwork.Launcher.csproj` | net10.0 | exe | Cross-platform CLI launcher: deploy/restore, Steam/Proton detection, game patching, debug mode, hitch monitor. |
 | `Subprocess/GTANetwork.CefHost/GTANetwork.CefHost.csproj` | net48 x64 | WinExe | The browser process (CefSharp.OffScreen 151). Its output folder ships as `cef/`. |
-| `Tools/GTANetwork.Bot/GTANetwork.Bot.csproj` | net8.0 | exe | Headless client over the real protocol (CI integration tests, load tests). |
+| `Tools/GTANetwork.Bot/GTANetwork.Bot.csproj` | net10.0 | exe | Headless client over the real protocol (CI integration tests, load tests). |
 | `Tools/CefHarness/CefHarness.csproj` | net48 x64 | exe | Browser acceptance test without the game (drives the host; in-process modes reproduce the AppDomain failure). |
-| `Map2Resource/Map2Resource.csproj` | net8.0 | exe | Map Editor XML → server map resource. |
+| `Map2Resource/Map2Resource.csproj` | net10.0 | exe | Map Editor XML → server map resource. |
 | `Shv.NET/ScriptHookVDotNet.vcxproj` | C++/CLI, v4.8 | `ScriptHookVDotNet.dll/.asi` | The hook (MSVC + ScriptHookV SDK; CI Windows job). `Shv.NET/sdk-compat/` builds a stub `ScriptHookV.lib` when the SDK is not downloadable. |
 | `Shv.NET/ref/ScriptHookVDotNet.Ref.csproj` | net48 | stub `ScriptHookVDotNet.dll` | Compile-only reference stub (every native throws). Never shipped; not binary compatible. |
 | `Subprocess/GTANSubprocess`, `Subprocess/PlayGTANetwork`, `Subprocess/PlayGTANetworkUpdater` | net48 | `launcher/GTANetwork.dll`, `GTANSubprocess.exe`, `GTANLauncher.exe` | The classic three-stage Windows launcher (registry, self-update from the old master, DLL injection). Still built and packaged into `launcher/`; superseded by `Launcher/` (see `docs/DECISIONS.md` Q-13). |
@@ -146,6 +146,7 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 | `Launcher/Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | Deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, logging, the `--debug` system monitor. |
 | `Tools/GTANetwork.Bot/Program.cs` | Options (`--host`, `--port`, `--name`, `--password`, `--say`, `--expect`, `--duration`, `--no-sync`, `--discover`, `--download-files`, `-i`), one Lidgren connection, the protocol handshake and sync loop, chat assertions. Also compiles `Shv.NET/ref/Core/NativeHashes.g.cs`. |
 | `Map2Resource/` | Map Editor XML → resource. |
+| `Tools/GTANetwork.BridgeBench/Program.cs`, `runtime/bench/bench.ts`, `eng/bench-bridge.sh` | The engine ⇄ Bun bridge benchmark (T-006 stage 1): frame protocol `u32 length + msgpack [type, id, name, payload]`, one-way/round-trip/state-mirror measurements over a Unix socket and loopback TCP. `runtime/.bun-version` pins Bun. |
 
 ## 8. Network protocol (server ⇄ client)
 

@@ -28,9 +28,9 @@ Targets that decide "done" (each has a task that measures it):
 
 | Component | Now | Target | Notes |
 | --- | --- | --- | --- |
-| .NET SDK / runtime (server, launcher, bot, tools) | 8.0 (`global.json` 8.0.100, container SDK 8.0.424) | **10.0 LTS** (supported to Nov 2028) | .NET 8 support ends 10 Nov 2026. E-01. |
+| .NET SDK / runtime (server, launcher, bot, tools) | **10.0 LTS** (`global.json` 10.0.100, T-001 on 4 Sept 2026) | 10.0 LTS (supported to Nov 2028) | .NET 8 support ends 10 Nov 2026. |
 | In-game client runtime | .NET Framework 4.8 in `GTA5.exe` via the SHVDN C++/CLI shell | stays for the MVP (D-04); .NET 10 in-process hosting later (E-13) | |
-| C# compiler for server resources (Roslyn) | Microsoft.CodeAnalysis 4.14.0 | 5.9.0 | With E-01. |
+| C# compiler for server resources (Roslyn) | Microsoft.CodeAnalysis 5.9.0 (T-001) | 5.9.0 | |
 | Browser | CefSharp.OffScreen 151.3.240 (Chromium 151) in `cef/GTANetwork.CefHost.exe` | keep current; bump per CefSharp release | `docs/CEF-UPGRADE.md`. |
 | Client JS engine | ClearScript 7.5.1 (V8 12) | 7.5.1.1; also the **server** TS runtime (Q-01) | |
 | Bun | none | 1.4.1 pinned in `runtime/.bun-version`, shipped with the server package | E-04 (D-09): the server gamemode runtime and the TS bundler; the client keeps V8. |
@@ -99,10 +99,13 @@ in one Bun process (trusted code, as C# resources are today), routes events to h
 restarts on crash (the engine keeps players connected; handlers see `onRuntimeRestarted`). (4) Client TS: bundled by the
 engine at resource start with `bun build` and delivered as today's JS (T-005). (5) A `gtanetwork create` template and
 `freeroam` ported (T-007). **Bun** is pinned in `runtime/.bun-version` (1.4.1 at the time of writing) and shipped with the
-server package for Linux and Windows (Bun is MIT-licensed, ~100 MB). **Numbers the spike must reach** (T-006): one-way
+server package for Linux and Windows (Bun is MIT-licensed, ~100 MB). **Numbers the spike had to reach** (T-006): one-way
 `call` ≤ 5 µs amortised, round trip p50 ≤ 60 µs / p99 ≤ 300 µs on the owner's machine, ≥ 200 000 one-way calls/s,
-state mirror at 1000 players × 10 Hz ≤ 3 % of one core on each side. Below that, gameplay scripts use ClearScript
-in-process and Bun keeps the services (the fallback in D-09). **Tasks**: T-004, T-005, T-006, T-007. **Risks**: two
+state mirror at 1000 players × 10 Hz ≤ 3 % of one core on each side. **Measured on 5 Sept 2026** (`eng/bench-bridge.sh`,
+dev container, Bun 1.4.1, .NET 10.0.11): 2.0 M one-way calls/s at 0.50 µs; round trip p50 6 µs / p99 13 µs over a Unix
+socket (8 / 18 µs over loopback TCP); mirror of 1000 players at 10 Hz: engine 1.8 %, Bun 3.4–3.6 % of a core (the one
+number above target, by 0.4 points; stage 2 sends deltas). The full table is in the T-006 task file. Verdict: the bridge
+is fast enough; stage 2 goes ahead. ClearScript in-process stays the fallback only if the runtime turns out unreliable. **Tasks**: T-004, T-005, T-006, T-007. **Risks**: two
 processes to supervise (the engine already does this for the browser host — same watchdog pattern); ordering between
 `state` and `event` frames (one connection, one order); operators need Bun (shipped).
 

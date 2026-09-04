@@ -26,6 +26,8 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the
   coming Bun runtime. CI regenerates them and fails on stale typings; `samples/ts-resource/` is a resource type-checked against them.
+* **.NET 10** for the server, launcher, headless bot and Map2Resource (was .NET 8, whose support ends on
+  10 Nov 2026); server resources are compiled with Roslyn 5.9. The dev container and CI build with the .NET 10 SDK.
 * **Browser: CEF 3.2987 (Chromium 57, 2017, single-process inside the game) → CefSharp.OffScreen 151 (Chromium 151,
   2026) in its own process, `cef\GTANetwork.CefHost.exe`.** The game starts the host with the first browser a
   resource creates (`<CefPreload>true</CefPreload>` starts it at game start), sends it commands over its stdin and

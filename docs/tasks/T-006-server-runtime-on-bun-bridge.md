@@ -1,6 +1,6 @@
 # T-006 — Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload
 
-Status: ready
+Status: in progress
 Epic: E-04 TypeScript
 Size: L (two stages; stop after stage 1 if the numbers are missed and re-plan)
 Branch: task/T-006-bun-runtime from the integration branch
@@ -77,7 +77,7 @@ Stage 2 — implementation:
 
 ## Acceptance criteria
 
-- [ ] Stage 1 table recorded in the Result and `docs/PLAN.md` E-04, with the machine and Bun version.
+- [x] Stage 1 table recorded in the Result and `docs/PLAN.md` E-04, with the machine and Bun version.
 - [ ] Stage 2: `eng/integration-test.sh` passes with freeroam's server part in TS on Bun; killing the Bun process during the
       test → it restarts and the next command works; a thrown error in a handler is logged with file:line and the engine
       keeps running.
@@ -96,7 +96,39 @@ port and a token in the environment. Ordering between `state` and `event`: one c
 
 * 2026-09-04 22:10 agent — created (ClearScript variant).
 * 2026-09-04 23:00 agent — rewritten for D-09 (Bun runtime with a bridge spike first).
+* 2026-09-05 06:45 agent — stage 1 (the spike) started on task/T-006-bun-bridge (worktree); standalone bench, no server changes yet.
+* 2026-09-05 07:40 agent — bench works after two protocol-level fixes (a ref struct passed by value lost the reply payload; a 1 ms flush on both sides put 1 ms on every round trip → flush on demand for calls with an id). Numbers met, except the Bun side of the state mirror at 3.4–3.6 % vs 3 %. Decision: stage 2 goes ahead (D-09). PR opened.
 
-## Result
+## Result (stage 1)
 
-(empty)
+* **Changed**: new `Tools/GTANetwork.BridgeBench/` (net10.0 + MessagePack 3.1.8: the engine side — frame protocol `u32 length +
+  msgpack array [type, id, name, payload]`, `ping`/`stats`/`state.start`/`state.stop`, 1 ms / 64 KB batching, replies flushed after
+  each received chunk, state publisher with msgpack-array and float32-buffer encodings), new `runtime/bench/bench.ts` + `package.json`
+  + `bun.lock` (the Bun side with msgpackr 2.1.0: phases A one-way, B round trips at 1/16/256 in flight, C state mirror),
+  `runtime/.bun-version` (1.4.1), new `eng/bench-bridge.sh` (downloads Bun into `artifacts/` when the container has none, builds, runs
+  both transports), `.gitignore`. Not added to the solution (the script builds the project directly; avoids a merge conflict with T-004's
+  solution change).
+* **Verified** (`docker compose run --rm dev eng/bench-bridge.sh --players 1000 --seconds 10 --oneway 1000000`):
+
+| Measure | Target (PLAN E-04) | Unix domain socket | Loopback TCP |
+| --- | --- | --- | --- |
+| One-way calls per second (batched, 1 ms / 64 KB) | ≥ 200 000 | 2 010 000 | 2 078 000 |
+| µs per one-way call, amortised | ≤ 5 | 0.50 | 0.48 |
+| Round trip, 1 in flight: p50 / p99 / max | ≤ 60 / ≤ 300 / — µs | 6 / 13 / 2205 µs (142k/s) | 8 / 18 / 1099 µs (102k/s) |
+| Round trip, 16 in flight: p50 / p99 | — | 19 / 48 µs (689k/s) | 21 / 57 µs (617k/s) |
+| Round trip, 256 in flight: p50 / p99 | — | 170 / 1445 µs (1 131k/s) | 172 / 1471 µs (1 107k/s) |
+| State mirror, 1000 players @ 10 Hz, 10 s: engine CPU | ≤ 3 % of a core | 1.8 % | 2.0 % |
+| State mirror: Bun CPU, msgpack arrays / float32 buffer | ≤ 3 % of a core | 3.6 % / 3.4 % | 3.6 % / 3.3 % |
+| State mirror: bytes | — | 0.53 / 0.58 MB/s (101 frames, 101 000 rows) | same |
+
+Conditions: the dev container on the owner's machine (i5-13420H), .NET 10.0.11 runtime (SDK 10.0.400), MessagePack 3.1.8,
+Bun 1.4.1 with msgpackr 2.1.0, both processes on one host; one-way payload `["setPos", [i, 1.5, 2.5, 3.5]]` = 45 bytes on the wire.
+Latency depends on the flush policy, not the transport: a call that waits for an answer is flushed at the end of the
+current microtask (Bun) and replies leave right after the received chunk is processed (engine); with a fixed 1 ms flush on
+both sides the round trip was 1.07 ms p50. The max outliers (2–9 ms) are GC/scheduling; the mirror's Bun cost is the
+1000 Map updates per frame, not the decode (the float32 encoding saves 0.2 points).
+
+* **Decision**: every target is met except the Bun side of the 1000-player mirror (3.4–3.6 % vs 3 %), close enough to proceed:
+  stage 2 (the runtime, the resource loader, hot reload) goes ahead with a Unix domain socket on Linux and loopback TCP on Windows;
+  the state mirror in stage 2 sends deltas (changed fields only), which removes most of the 1000 Map writes per frame.
+* **Not done / follow-ups**: stage 2 (this task, next PR); a `--windows` run of the bench on a Windows box (loopback TCP numbers there).
