@@ -18,6 +18,8 @@
     <Description>GTA Network multiplayer client (runs inside GTA5.exe via ScriptHookVDotNet).</Description>
     <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- XML doc file next to the DLL: Tools/GTANetwork.TypeGen copies the summaries into the TypeScript typings. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

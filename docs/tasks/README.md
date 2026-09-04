@@ -21,7 +21,7 @@ done
 | [T-001-dotnet-10-for-server-launcher-bot-tools](T-001-dotnet-10-for-server-launcher-bot-tools.md) | .NET 10 for server, launcher, bot, Map2Resource and the dev container | in progress | E-01 Platform upgrade | none |
 | [T-002-bot-load-harness-and-baseline](T-002-bot-load-harness-and-baseline.md) | Bot load harness: N simulated players, server metrics, baseline numbers at 100/300/1000 | ready | E-03 Scale | none (T-001 preferred first) |
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
-| [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | ready | E-04 TypeScript | none (T-001 preferred first) |
+| [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | in progress | E-04 TypeScript | none (T-001 preferred first) |
 | [T-005-client-typescript-resources](T-005-client-typescript-resources.md) | Client resources in TypeScript: `lang="typescript"` bundled by the server with Bun | ready | E-04 TypeScript | T-004 |
 | [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | in progress | E-04 TypeScript | T-001, T-004 |
 | [T-007-gamemode-template-and-freeroam-in-typescript](T-007-gamemode-template-and-freeroam-in-typescript.md) | Gamemode template (`gtanetwork create`) and freeroam fully in TypeScript | ready | E-04 TypeScript | T-005, T-006 |

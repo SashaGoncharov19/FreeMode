@@ -46,6 +46,14 @@ Ukrainian version: [README.uk.md](README.uk.md).
 | `eng/` | - | scripts | Version computation, server smoke test, client packaging. |
 | `.github/workflows/` | - | CI | The build pipeline. |
 
+## Scripting in TypeScript
+
+`types/` holds the TypeScript typings of the scripting APIs, generated from the built assemblies by
+`Tools/GTANetwork.TypeGen` (`types/README.md`): `client.d.ts` (the in-game `API`, host types, events), `server.d.ts` (the
+server `API` and the element classes), `shared.d.ts` (enums, `Vector3`, …), `cef.d.ts` (the page bridge). `samples/ts-resource/`
+is a resource written against them; `bun run check` type-checks it. Client and server TypeScript resources run through the
+build pipeline of `docs/PLAN.md` E-04 (tasks T-005, T-006).
+
 ## How it works
 
 ### Client side (what happens when you press "Play")

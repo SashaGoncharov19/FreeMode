@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Generates the TypeScript typings of the scripting APIs from the built assemblies:
+      types/shared.d.ts  - enums, Vector3, entity properties and the other types both APIs use
+      types/client.d.ts  - the in-game API (GTANetwork.dll: ScriptContext exposed to V8 as `API`, host types)
+      types/server.d.ts  - the server API (GTANetworkServer.dll: API, Script, the element classes)
+      types/api-catalogue.json - every server API member with its parameter/return types (for the Bun bridge, T-006)
+    The assemblies are inspected with MetadataLoadContext, so the net48 client DLL can be read by this .NET 10 tool
+    without loading it. Run: dotnet run -p Tools/GTANetwork.TypeGen (arguments in Program.cs).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GTANetwork.TypeGen</AssemblyName>
+    <RootNamespace>GTANetwork.TypeGen</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>
