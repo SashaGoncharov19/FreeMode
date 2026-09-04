@@ -40,6 +40,22 @@ was created, but `https://auth/ui/index.html` was "File does not exist" and noth
 * Downloads that would leave `resources/<resource>/` (`..`, rooted paths, drive letters) are refused on both the
   UDP and the HTTP path.
 
+### Fixed in alpha.2: crash a few seconds after the first CEF page
+* The overlay that draws browsers and the cursor wrapped the game's swap chain in a new SharpDX object every frame
+  without owning a reference, while `Configuration.EnableReleaseOnFinalizer` made the finalizer call `Release()` on
+  each of them: the first garbage collection after the page appeared released the swap chain from under the game
+  (fatal at once under DXVK, a latent bug on Windows). One wrapper per swap chain now, with its own reference,
+  and both SharpDX debugging switches (object tracking, release on finalizer) are off.
+* The overlay leaked one texture reference per drawn image per frame (`ResourceAs` without dispose), kept a view
+  on the back buffer across frames (a resolution change of the game could not release its buffers) and copied
+  the CEF paint buffer by pointer although CEF owns it only during the paint callback. It now creates the render
+  target view per frame, clears the deferred context state afterwards and copies the paint buffer.
+* An exception in a `Present` handler of a script (the overlay runs in the game's present callback) ended the
+  process; ScriptHookVDotNet now logs it to its log (first five) and continues, and the overlay handler checks
+  for a missing menu or warning object.
+* Diagnostics: `Runtime.log` gets `CEF overlay: initialised on swap chain 0x... (feature level, back buffer,
+  context)`, `CEF.log` the first three paints of a browser.
+
 ### Added
 * `GTANetworkShared.ResourceFileDownloader`: the manifest download shared by the game client and the headless
   bot (`--download-files <dir>`), so CI runs the same code as the game.

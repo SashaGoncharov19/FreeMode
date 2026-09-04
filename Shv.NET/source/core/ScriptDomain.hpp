@@ -35,6 +35,7 @@ namespace GTA
 		ScriptDomain();
 		~ScriptDomain();
 		void DoD3DCall(void *swapchain);
+		int _d3dErrorsLogged = 0;
 		
 		static property Script ^ExecutingScript
 		{

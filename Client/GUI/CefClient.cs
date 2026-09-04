@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
@@ -350,11 +350,43 @@ namespace GTANetwork.GUI
         {
         }
 
+        private int _paintsLogged;
+
         protected override void OnPaint(CefBrowser browser, CefPaintElementType type, CefRectangle[] dirtyRects, IntPtr buffer, int width, int height)
         {
             try
             {
-                _imageElement?.SetBitmap(new Bitmap(width, height, width*4, PixelFormat.Format32bppArgb, buffer));
+                if (type != CefPaintElementType.View || _imageElement == null || width <= 0 || height <= 0) return;
+
+                // The buffer belongs to CEF and is only valid during this call; the overlay uploads the bitmap later
+                // on the render thread, so take a copy instead of wrapping the pointer.
+                var copy = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                var data = copy.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    unsafe
+                    {
+                        var rowBytes = (long)width * 4;
+                        var src = (byte*)buffer;
+                        var dst = (byte*)data.Scan0;
+                        for (var y = 0; y < height; y++)
+                        {
+                            System.Buffer.MemoryCopy(src + y * rowBytes, dst + (long)y * data.Stride, rowBytes, rowBytes);
+                        }
+                    }
+                }
+                finally
+                {
+                    copy.UnlockBits(data);
+                }
+
+                _imageElement.SetBitmap(copy);
+
+                if (_paintsLogged < 3)
+                {
+                    _paintsLogged++;
+                    LogManager.CefLog("-> Paint " + width + "x" + height + " (" + dirtyRects.Length + " dirty rect(s))");
+                }
             }
             catch (Exception ex)
             {
