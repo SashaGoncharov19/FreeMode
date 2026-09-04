@@ -21,6 +21,9 @@
 
 namespace GTA
 {
+	// Writes a line to <root>\logs\ScriptHookVDotNet-<date>.log (implemented in ScriptDomain.cpp).
+	void Log(System::String ^logLevel, ... array<System::String ^> ^message);
+
 	private interface class IScriptTask
 	{
 		void Run();
@@ -109,6 +112,8 @@ namespace GTA
 		bool LoadAssembly(System::String ^filename, System::Reflection::Assembly ^assembly);
 		Script ^InstantiateScript(System::Type ^scripttype);
 		void CleanupStrings();
+		void FlushProfile(long long windowMs);
+		static int CompareProfileEntries(System::Collections::Generic::KeyValuePair<System::String ^, array<long long> ^> a, System::Collections::Generic::KeyValuePair<System::String ^, array<long long> ^> b);
 
 		static ScriptDomain ^sCurrentDomain;
 		System::AppDomain ^_appdomain;
@@ -117,6 +122,13 @@ namespace GTA
 		System::Collections::Generic::List<Script ^> ^_hookedScripts = gcnew System::Collections::Generic::List<Script ^>();
 		System::Collections::Generic::List<Script ^> ^_runningScripts = gcnew System::Collections::Generic::List<Script ^>();
 		System::Collections::Generic::Queue<IScriptTask ^> ^_taskQueue = gcnew System::Collections::Generic::Queue<IScriptTask ^>();
+		// last time (ms) a "slow tick" warning was written per script, so the log is not flooded
+		System::Collections::Generic::Dictionary<System::String ^, long long> ^_slowTickLastLog = gcnew System::Collections::Generic::Dictionary<System::String ^, long long>();
+		// per-script totals of the current profile window: [0] stopwatch ticks, [1] worst tick, [2] ticks, [3] native calls
+		System::Collections::Generic::Dictionary<System::String ^, array<long long> ^> ^_profile = gcnew System::Collections::Generic::Dictionary<System::String ^, array<long long> ^>();
+		long long _profileWindowStart = 0;
+		long long _profileTotalTicks = 0;
+		int _profileFrames = 0;
 		System::Collections::Generic::List<System::IntPtr> ^_pinnedStrings = gcnew System::Collections::Generic::List<System::IntPtr>();
 		System::Collections::Generic::List<System::Tuple<System::String ^, System::Type ^> ^> ^_scriptTypes = gcnew System::Collections::Generic::List<System::Tuple<System::String ^, System::Type ^> ^>();
 		bool _recordKeyboardEvents = true;

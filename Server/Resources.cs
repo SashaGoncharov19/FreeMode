@@ -1,5 +1,4 @@
-﻿using System;
-using System.CodeDom.Compiler;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +16,6 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.CSharp;
-using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using ProtoBuf;
 
@@ -235,13 +232,13 @@ namespace GTANetworkServer
 
                 if (cSharp.Count > 0)
                 {
-                    var csharpAss = CompileScript(cSharp.ToArray(), currentResInfo.References.Select(r => r.Name).ToArray(), false);
+                    var csharpAss = CompileScript(cSharp.ToArray(), (currentResInfo.References ?? new List<AssemblyReferences>()).Select(r => r.Name).ToArray(), false);
                     ourResource.Engines.AddRange(csharpAss.Select(sss => new ScriptingEngine(sss, sss.GetType().Name, ourResource, multithreaded)));
                 }
 
                 if (vBasic.Count > 0)
                 {
-                    var vbasicAss = CompileScript(vBasic.ToArray(), currentResInfo.References.Select(r => r.Name).ToArray(), true);
+                    var vbasicAss = CompileScript(vBasic.ToArray(), (currentResInfo.References ?? new List<AssemblyReferences>()).Select(r => r.Name).ToArray(), true);
                     ourResource.Engines.AddRange(vbasicAss.Select(sss => new ScriptingEngine(sss, sss.GetType().Name, ourResource, multithreaded)));
                 }
 
@@ -306,7 +303,7 @@ namespace GTANetworkServer
                 if (ourResource.Info.Map != null && !string.IsNullOrWhiteSpace(ourResource.Info.Map.Path))
                 {
                     ourResource.Map = new XmlGroup();
-                    ourResource.Map.Load("resources\\" + ourResource.DirectoryName + "\\" + ourResource.Info.Map.Path);
+                    ourResource.Map.Load(Path.Combine("resources", ourResource.DirectoryName, ourResource.Info.Map.Path));
 
                     LoadMap(ourResource, ourResource.Map, ourResource.Info.Map.Dimension);
 

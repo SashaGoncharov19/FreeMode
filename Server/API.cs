@@ -2524,7 +2524,12 @@ namespace GTANetworkServer
 
         public List<Client> getAllPlayers()
         {
-            return new List<Client>(Program.ServerInstance.Clients);
+            // Clients is mutated under its own lock on the network thread; copy under the same lock.
+            var clients = Program.ServerInstance.Clients;
+            lock (clients)
+            {
+                return new List<Client>(clients);
+            }
         }
 
         public List<NetHandle> getAllVehicles()
@@ -2777,7 +2782,7 @@ namespace GTANetworkServer
 
         public void sendNativeToPlayersInRangeInDimension(Vector3 pos, float range, int dimension, Hash native, params object[] args)
         {
-            sendNativeToPlayersInRangeInDimension(pos, range, dimension, native, args);
+            sendNativeToPlayersInRangeInDimension(pos, range, dimension, (ulong) native, args);
         }
 
         public void sendNativeToPlayersInDimension(int dimension, ulong hash, params object[] args)

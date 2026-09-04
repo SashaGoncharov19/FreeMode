@@ -87,7 +87,7 @@ namespace GTANetwork.Sync
 
             if (IsCustomAnimationPlaying) DisplayCustomAnimation();
 
-            if (GetResponsiblePed(MainVehicle).Handle == Character.Handle && Environment.TickCount - LastUpdateReceived < 10000)
+            if (GetResponsiblePed(MainVehicle).Handle == Character.Handle && TicksSinceLastUpdate < 10000)
             {
                 UpdateVehicleInternalInfo();
                 DisplayVehiclePosition();
@@ -100,13 +100,13 @@ namespace GTANetwork.Sync
         {
             if (_lastPosition != null)
             {
-                var avrLat = Math.Min(1.5f, TicksSinceLastUpdate / (float) AverageLatency);
+                var avrLat = Math.Min(1.5f, TicksSinceLastUpdate / SafeAverageLatency);
                 var thisSpeed = Util.Util.Lerp(_thislastSpeed, Speed, avrLat);
                 _thislastSpeed = Speed;
 
                 var vecDif = Position - currentInterop.vecStart; 
-                var force = 1.10f + (float)Math.Sqrt(_latencyAverager.Average() / 2500) + (thisSpeed / 250); 
-                var forceVelo = 0.97f + (float)Math.Sqrt(_latencyAverager.Average() / 5000) + (thisSpeed / 750);
+                var force = 1.10f + (float)Math.Sqrt(AverageLatency / 2500) + (thisSpeed / 250); 
+                var forceVelo = 0.97f + (float)Math.Sqrt(AverageLatency / 5000) + (thisSpeed / 750);
 
                 //MainVehicle.Velocity = VehicleVelocity * forceVelo + (vecDif * 3f);
                 MainVehicle.Velocity = VehicleVelocity * (forceVelo - 0.20f) + (vecDif * force);
@@ -260,7 +260,7 @@ namespace GTANetwork.Sync
             thisCollection.Execute();
 
             MainVehicle.CurrentRPM = VehicleRPM;
-            MainVehicle.SteeringAngle = Util.Util.Lerp(MainVehicle.SteeringAngle.ToRadians(), SteeringScale.ToRadians(), Math.Min(1.5f, TicksSinceLastUpdate / (float)AverageLatency));
+            MainVehicle.SteeringAngle = Util.Util.Lerp(MainVehicle.SteeringAngle.ToRadians(), SteeringScale.ToRadians(), Math.Min(1.5f, TicksSinceLastUpdate / SafeAverageLatency));
         }
 
         private bool DisplayVehicleDriveBy()

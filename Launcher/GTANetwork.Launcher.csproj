@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Cross-platform launcher (Linux + Windows). Replaces the classic three-stage Windows launcher
+    (GTANLauncher.exe, GTANSubprocess.exe, GTANetwork.dll + DLL injection) with the standard
+    ScriptHookV ASI-loader flow, which also works when GTA V runs through Proton/Wine:
+
+      1. locate GTA V (Steam library folders, settings.xml or the game-path option)
+      2. copy ScriptHookV + ScriptHookVDotNet(.asi) + native helpers into the game folder,
+         write ScriptHookVDotNet.ini pointing at [install]/bin/scripts
+      3. patch the game settings (no pause on focus loss, DX11, skip landing page, scOfflineOnly)
+      4. start the game through Steam or Proton, wait for GTA5.exe to exit
+      5. put everything back
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>GTANetwork.Launcher</AssemblyName>
+    <RootNamespace>GTANetwork.Launcher</RootNamespace>
+    <AssemblyTitle>GTA Network launcher</AssemblyTitle>
+    <Description>Cross-platform GTA Network launcher (Steam / Proton / Windows).</Description>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SelfContained>false</SelfContained>
+    <RollForward>LatestMajor</RollForward>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\GTANetworkShared.csproj" />
+  </ItemGroup>
+
+</Project>

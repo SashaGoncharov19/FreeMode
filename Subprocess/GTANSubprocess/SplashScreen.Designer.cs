@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace GTANetwork
@@ -31,7 +31,6 @@ namespace GTANetwork
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SplashScreen));
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.progressBar1 = new System.Windows.Forms.ProgressBar();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
@@ -40,7 +39,7 @@ namespace GTANetwork
             // pictureBox1
             // 
             this.pictureBox1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.pictureBox1.Image = ((System.Drawing.Image)(resources.GetObject("pictureBox1.Image")));
+            this.pictureBox1.Image = LoadSplashImage();
             this.pictureBox1.Location = new System.Drawing.Point(0, 0);
             this.pictureBox1.Name = "pictureBox1";
             this.pictureBox1.Size = new System.Drawing.Size(400, 500);
@@ -82,5 +81,13 @@ namespace GTANetwork
 
         private PictureBox pictureBox1;
         public ProgressBar progressBar1;
+
+        /// <summary>The splash banner is an embedded PNG (Subprocess/splash.png) instead of a typed .resx entry,
+        /// so the project builds with the .NET SDK on any OS.</summary>
+        private static Image LoadSplashImage()
+        {
+            var stream = typeof(SplashScreen).Assembly.GetManifestResourceStream("splash.png");
+            return stream == null ? null : Image.FromStream(stream);
+        }
     }
 }

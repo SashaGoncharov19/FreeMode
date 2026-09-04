@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -88,10 +88,11 @@ namespace GTANetwork
             {
                 try
                 {
+                    var masterServerAddress = (PlayerSettings.MasterServerAddress ?? string.Empty).Trim().TrimEnd('/');
+                    if (string.IsNullOrEmpty(masterServerAddress)) return;   // no master server configured
                     using (var wc = new ImpatientWebClient())
                     {
-                        const string masterServerAddress = "http://master.gtanet.work";
-                        var rawJson = wc.DownloadString(masterServerAddress.Trim('/') + "/welcome.json");
+                        var rawJson = wc.DownloadString(masterServerAddress + "/welcome.json");
                         var jsonObj = JsonConvert.DeserializeObject<WelcomeSchema>(rawJson);
                         if (jsonObj == null) throw new WebException();
                         if (!File.Exists(GTANInstallDir + "images\\" + jsonObj.Picture))
@@ -106,8 +107,10 @@ namespace GTANetwork
                         LogManager.RuntimeLog("Set text to " + jsonObj.Message + " and title to " + jsonObj.Title);
                     }
                 }
-                catch (WebException)
+                catch (Exception ex)
                 {
+                    // An unhandled exception on a thread-pool thread terminates the whole game process.
+                    LogManager.LogException(ex, "WELCOME MESSAGE");
                 }
             });
         }
@@ -227,22 +230,22 @@ namespace GTANetwork
 
                     Client.DiscoverLocalPeers(Port);
 
-                    const string masterServerAddress = "http://master.gtanet.work";
-
-                    LogManager.RuntimeLog("Contacting " + masterServerAddress);
-
-                    if (string.IsNullOrEmpty(masterServerAddress)) return;
+                    var masterServerAddress = (PlayerSettings.MasterServerAddress ?? string.Empty).Trim().TrimEnd('/');
 
                     var response = string.Empty;
                     var responseVerified = string.Empty;
                     var responseStats = string.Empty;
+                    // Without a master server (the default since master.gtanet.work is gone) the favourites,
+                    // recent servers and LAN discovery below still work.
+                    if (!string.IsNullOrEmpty(masterServerAddress))
                     try
                     {
+                        LogManager.RuntimeLog("Contacting " + masterServerAddress);
                         using (var wc = new ImpatientWebClient())
                         {
-                            response = wc.DownloadString(masterServerAddress.Trim() + "/servers");
-                            responseVerified = wc.DownloadString(masterServerAddress.Trim() + "/verified");
-                            responseStats = wc.DownloadString(masterServerAddress.Trim() + "/stats");
+                            response = wc.DownloadString(masterServerAddress + "/servers");
+                            responseVerified = wc.DownloadString(masterServerAddress + "/verified");
+                            responseStats = wc.DownloadString(masterServerAddress + "/stats");
                         }
                     }
                     catch (Exception e)

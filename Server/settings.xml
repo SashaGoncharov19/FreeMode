@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <servername>GTA Network development server</servername>
+  <serverport>4499</serverport>
+  <maxplayers>32</maxplayers>
+  <minclientversion>0.0.0.0</minclientversion>
+  <minclientversion_auto_update>false</minclientversion_auto_update>
+  <!-- The public master server (master.gtanet.work) is gone; keep announcing off unless you host your own. -->
+  <announce>false</announce>
+  <upnp>false</upnp>
+  <announce_lan>true</announce_lan>
+  <password></password>
+  <acl_enabled>false</acl_enabled>
+  <log>false</log>
+  <loglevel>2</loglevel>
+  <!-- Serve resource files over HTTP (same port, TCP) instead of streaming them over UDP. -->
+  <httpserver>true</httpserver>
+  <local_address>0.0.0.0</local_address>
+  <fqdn></fqdn>
+  <conntimeout>true</conntimeout>
+  <allowcefdevtool>false</allowcefdevtool>
+  <!-- Resources to start, in order. Each one lives in resources/<name>/meta.xml -->
+  <!-- Accounts with a login form (resources/auth): uncomment to require /register and /login before playing. -->
+  <!-- <resource src="auth" /> -->
+  <resource src="freeroam" />
+  <resource src="example" />
+</config>

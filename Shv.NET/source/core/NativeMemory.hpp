@@ -112,7 +112,12 @@ namespace GTA
 			static property System::IntPtr NullString {
 				System::IntPtr get();
 			}
+			/// <summary>Number of memory patterns that were not found in this game build (0 = everything is fine).</summary>
+			static property int MissingPatternCount { int get(); }
+			/// <summary>Names of the memory patterns that were not found in this game build.</summary>
+			static property array<System::String ^> ^MissingPatterns { array<System::String ^> ^get(); }
 		public:
+			static System::Collections::Generic::List<System::String ^> ^_missingPatterns;
 			static System::IntPtr _cellEmailBconPtr;
 			static System::IntPtr _stringPtr;
 			static System::IntPtr _nullString;

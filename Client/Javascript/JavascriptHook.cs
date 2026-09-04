@@ -1,4 +1,4 @@
-﻿//#define RELATIVE_CEF_POS
+//#define RELATIVE_CEF_POS
 
 using System;
 using System.Collections.Generic;
@@ -403,6 +403,26 @@ namespace GTANetwork.Javascript
             scriptEngine.AddHostType("BadgeStyle", typeof(UIMenuItem.BadgeStyle));
             scriptEngine.AllowReflection = false;
 
+            // One line in Runtime.log that says whether the API events and methods are visible from JavaScript,
+            // next to a trivial host object, so that "ClearScript exposes nothing" and "ScriptContext is special"
+            // can be told apart from the log alone.
+            try
+            {
+                scriptEngine.AddHostObject("probeHost", new ProbeHost());
+                var probe = scriptEngine.Evaluate(
+                    "(function () {" +
+                    "  var names = []; try { for (var k in API) { names.push(k); if (names.length >= 6) break; } } catch (e) { names.push('enum error: ' + e); }" +
+                    "  return 'API=' + typeof API + ' onResourceStart=' + typeof API.onResourceStart + ' sendNotification=' + typeof API.sendNotification +" +
+                    "    ' ToString=' + typeof API.ToString + ' members=[' + names.join(',') + ']' +" +
+                    "    ' | probeHost: ping=' + typeof probeHost.ping + ' value=' + typeof probeHost.value + ' onPing=' + typeof probeHost.onPing + ' Name=' + typeof probeHost.Name;" +
+                    "})()");
+                LogManager.RuntimeLog("Client script API probe for " + script.ResourceParent + "/" + script.Filename + ": " + probe);
+            }
+            catch (Exception probeException)
+            {
+                LogManager.RuntimeLog("Client script API probe failed: " + probeException);
+            }
+
             try
             {
                 scriptEngine.Execute(script.Script);
@@ -410,7 +430,7 @@ namespace GTANetwork.Javascript
             }
             catch (ScriptEngineException ex)
             {
-                LogException(ex);
+                LogException(ex, script.ResourceParent + "/" + script.Filename);
             }
             finally
             {
@@ -491,8 +511,9 @@ namespace GTANetwork.Javascript
         }
 
 
-        private static void LogException(Exception ex)
+        private static void LogException(Exception ex, string scriptName = null)
         {
+            var where = scriptName != null ? " in " + scriptName : "";
             Func<string, int, string[]> splitter = (string input, int everyN) =>
             {
                 var list = new List<string>();
@@ -503,7 +524,7 @@ namespace GTANetwork.Javascript
                 return list.ToArray();
             };
 
-            Util.Util.SafeNotify("~r~~h~Clientside Javascript Error~h~~w~");
+            Util.Util.SafeNotify("~r~~h~Clientside Javascript Error~h~~w~" + where);
 
             var count = splitter(ex.Message, 99).Length;
             for (var index = 0; index < count; index++)
@@ -511,8 +532,25 @@ namespace GTANetwork.Javascript
                 Util.Util.SafeNotify(splitter(ex.Message, 99)[index]);
             }
 
-            LogManager.LogException(ex, "CLIENTSIDE SCRIPT ERROR");
+            LogManager.LogException(ex, "CLIENTSIDE SCRIPT ERROR" + where);
+
+            // V8 knows the script line and stack; ex.ToString() only carries the message.
+            var engineException = ex as ScriptEngineException;
+            if (!string.IsNullOrEmpty(engineException?.ErrorDetails) && engineException.ErrorDetails != ex.Message)
+            {
+                LogManager.SimpleLog("Error", "Script error details" + where + ":\r\n" + engineException.ErrorDetails);
+            }
         }
+    }
+
+    /// <summary>Minimal host object for the API probe: one method, one field, one property, one event.</summary>
+    public class ProbeHost
+    {
+        public delegate void PingEvent();
+        public int value = 1;
+        public string Name { get; set; } = "probe";
+        public event PingEvent onPing;
+        public void ping() { onPing?.Invoke(); }
     }
 
     public class ScriptContext
@@ -4519,11 +4557,8 @@ namespace GTANetwork.Javascript
         {
             var addr = Util.Util.FindPattern("\x74\x25\xB9\x40\x00\x00\x00\xE8\x00\x00\xC4\xFF", "xxxx???x??xx");
 
-
-            //4c 6f 61 64 69 6e 67 20 47 54 41 4e 65 74 77 6f 72 6b
-
-
-            var original = Util.Util.ReadMemory(addr, 20);
+            // The snow patch depends on a game-build specific pattern; fall back to the weather change only.
+            var original = addr != IntPtr.Zero ? Util.Util.ReadMemory(addr, 20) : new byte[0];
 
             if (!SnowState)
             {

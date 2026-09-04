@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using GTANetworkShared;
+using GTANetworkServer.Constant;
 
 namespace GTANetworkServer
 {
@@ -252,14 +253,18 @@ namespace GTANetworkServer
 
         public void InvokeResourceStop()
         {
-            _workerThread.Abort();
-            _blockingThread.Abort();
-
+            // Cooperative shutdown: Thread.Abort is not supported on .NET 5+.
+            // The worker loops check HasTerminated on every iteration.
             HasTerminated = true;
 
             lock (ActiveThreads)
             {
-                ActiveThreads.Where(t => t != null && t.IsAlive).ToList().ForEach(t => t.Abort());
+                var alive = ActiveThreads.Where(t => t != null && t.IsAlive).ToList();
+                if (alive.Count > 0)
+                {
+                    Program.Output("WARN: " + alive.Count + " thread(s) started by resource " + ResourceParent.DirectoryName +
+                                   " are still running; they keep running as background threads until they return.", LogCat.Warn);
+                }
                 ActiveThreads.Clear();
             }
 

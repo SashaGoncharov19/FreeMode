@@ -78,6 +78,11 @@ namespace GTANetworkServer
             return NetConnection.RemoteUniqueIdentifier == target.NetConnection.RemoteUniqueIdentifier;
         }
 
+        public override int GetHashCode()
+        {
+            return NetConnection != null ? NetConnection.RemoteUniqueIdentifier.GetHashCode() : handle.Value.GetHashCode();
+        }
+
         public static bool operator ==(Client left, Client right)
         {
             if ((object) left == null && (object) right == null) return true;

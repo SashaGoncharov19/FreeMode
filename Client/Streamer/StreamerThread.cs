@@ -53,9 +53,32 @@ namespace GTANetwork.Streamer
         private const float CloseRangeSquared = CloseRange * CloseRange;
 
 
+        internal static void ClearPending()
+        {
+            lock (_itemsToStreamIn) _itemsToStreamIn.Clear();
+            lock (_itemsToStreamOut) _itemsToStreamOut.Clear();
+        }
+
         private static void StreamerCalculationsThread()
         {
             while (true)
+            {
+                try
+                {
+                    StreamerCalculationsPass();
+                }
+                catch (Exception ex)
+                {
+                    // one bad entity must not end streaming for the rest of the session
+                    LogManager.LogException(ex, "STREAMER CALCULATIONS");
+                }
+
+                System.Threading.Thread.Sleep(500);
+            }
+        }
+
+        private static void StreamerCalculationsPass()
+        {
             {
                 if (!Main.IsOnServer() || !Main.HasFinishedDownloading) goto endTick;
                 var position = _playerPosition.ToLVector();
@@ -96,7 +119,7 @@ namespace GTANetwork.Streamer
                     _itemsToStreamIn.AddRange(StreamedInVehicles.Take(MAX_VEHICLES).Where(item => !item.StreamedIn));
                 }
 
-                var streamedOutVehicles = Vehicles.Where(item => (item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared) && item.StreamedIn);
+                var streamedOutVehicles = Vehicles.Where(item => ((item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared)) && item.StreamedIn);
                 lock (_itemsToStreamOut)
                 {
                     _itemsToStreamOut.AddRange(StreamedInVehicles.Skip(MAX_VEHICLES).Where(item => item.StreamedIn));
@@ -127,7 +150,7 @@ namespace GTANetwork.Streamer
                 var streamedInMarkers = Markers.Where(item => (item.Dimension == Main.LocalDimension || item.Dimension == 0) && IsInRangeSquared(position, item.Position, GlobalRangeSquared)).ToArray();
                 lock (_itemsToStreamIn) _itemsToStreamIn.AddRange(streamedInMarkers.Take(MAX_MARKERS).Where(item => !item.StreamedIn));
 
-                var streamedOutMarkers = Markers.Where(item => (item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared) && item.StreamedIn);
+                var streamedOutMarkers = Markers.Where(item => ((item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared)) && item.StreamedIn);
                 lock (_itemsToStreamOut)
                 {
                     _itemsToStreamOut.AddRange(streamedInMarkers.Skip(MAX_MARKERS).Where(item => item.StreamedIn));
@@ -164,7 +187,7 @@ namespace GTANetwork.Streamer
                 var streamedInParticles = Particles.Where(item => (item.Dimension == Main.LocalDimension || item.Dimension == 0) && IsInRangeSquared(position, item.Position, GlobalRangeSquared)).ToArray();
                 lock (_itemsToStreamIn) _itemsToStreamIn.AddRange(streamedInParticles.Take(MAX_PARTICLES).Where(item => !item.StreamedIn));
 
-                var streamedOutParticles = Particles.Where(item => (item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared) && item.StreamedIn);
+                var streamedOutParticles = Particles.Where(item => ((item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, GlobalRangeSquared)) && item.StreamedIn);
                 lock (_itemsToStreamOut)
                 {
                     _itemsToStreamOut.AddRange(streamedInParticles.Skip(MAX_PARTICLES).Where(item => item.StreamedIn));
@@ -176,7 +199,7 @@ namespace GTANetwork.Streamer
                 var streamedInPickups = Pickups.Where(item => (item.Dimension == Main.LocalDimension || item.Dimension == 0) && IsInRangeSquared(position, item.Position, MediumRangeSquared)).ToArray();
                 lock (_itemsToStreamIn) _itemsToStreamIn.AddRange(streamedInPickups.Take(MAX_PICKUPS).Where(item => !item.StreamedIn));
 
-                var streamedOutPickups = Pickups.Where(item => (item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, MediumRangeSquared) && item.StreamedIn);
+                var streamedOutPickups = Pickups.Where(item => ((item.Dimension != Main.LocalDimension && item.Dimension != 0) || !IsInRangeSquared(position, item.Position, MediumRangeSquared)) && item.StreamedIn);
                 lock (_itemsToStreamOut)
                 {
                     _itemsToStreamOut.AddRange(streamedInPickups.Skip(MAX_PICKUPS).Where(item => item.StreamedIn));
@@ -197,7 +220,7 @@ namespace GTANetwork.Streamer
                 #endregion
 
                 endTick:
-                System.Threading.Thread.Sleep(500);
+                return;
             }
         }
 
@@ -205,31 +228,54 @@ namespace GTANetwork.Streamer
         {
             _playerPosition = Game.Player.Character.Position;
             if (Util.Util.ModelRequest) return;
-            sw = new Stopwatch();
 
-            if (DebugInfo.StreamerDebug) sw.Start();
-
-            lock (_itemsToStreamOut)
+            if (DebugInfo.StreamerDebug)
             {
-                var count = _itemsToStreamOut.Count;
-                for (var i = 0; i < count; i++)
-                {
-                    Main.NetEntityHandler.StreamOut(_itemsToStreamOut[i]);
-                }
-                _itemsToStreamOut.Clear();
+                sw = new Stopwatch();
+                sw.Start();
             }
 
+            // Take the pending lists and release the locks before touching the game: StreamIn may load models
+            // and yield for up to a second, which used to stall the calculation thread behind the lock.
+            IStreamedItem[] toStreamOut, toStreamIn;
+            lock (_itemsToStreamOut)
+            {
+                toStreamOut = _itemsToStreamOut.ToArray();
+                _itemsToStreamOut.Clear();
+            }
             lock (_itemsToStreamIn)
             {
-                var count = _itemsToStreamIn.Count;
-                for (var i = 0; i < count; i++)
-                {
-                    Main.NetEntityHandler.StreamIn(_itemsToStreamIn[i]);
-                }
+                toStreamIn = _itemsToStreamIn.ToArray();
                 _itemsToStreamIn.Clear();
             }
 
-            if (DebugInfo.StreamerDebug) sw.Stop();
+            foreach (var item in toStreamOut)
+            {
+                try
+                {
+                    Main.NetEntityHandler.StreamOut(item);
+                }
+                catch (Exception ex)
+                {
+                    LogManager.LogException(ex, "STREAM OUT " + item?.EntityType);
+                }
+            }
+
+            foreach (var item in toStreamIn)
+            {
+                try
+                {
+                    // deleted since the calculation thread picked it: never spawn an orphan
+                    if (!Main.NetEntityHandler.ContainsNethandle(item.RemoteHandle)) continue;
+                    Main.NetEntityHandler.StreamIn(item);
+                }
+                catch (Exception ex)
+                {
+                    LogManager.LogException(ex, "STREAM IN " + item?.EntityType);
+                }
+            }
+
+            if (DebugInfo.StreamerDebug) sw?.Stop();
         }
 
         private static bool IsInRange(GTANetworkShared.Vector3 center, GTANetworkShared.Vector3 dest, float range)

@@ -228,11 +228,11 @@ namespace GTANetwork.Sync
                 var vdir = PedVelocity - _lastPedVel;
                 var target = Util.Util.LinearVectorLerp(PedVelocity, PedVelocity + vdir,
                     TicksSinceLastUpdate,
-                    (int)AverageLatency);
+                    (int)SafeAverageLatency);
 
                 var posTarget = Util.Util.LinearVectorLerp(Position, Position + dir,
                     TicksSinceLastUpdate,
-                    (int)AverageLatency);
+                    (int)SafeAverageLatency);
 
                 const int PED_INTERPOLATION_WARP_THRESHOLD = 15;
                 const int PED_INTERPOLATION_WARP_THRESHOLD_FOR_SPEED = 5;
@@ -696,6 +696,7 @@ namespace GTANetwork.Sync
                     }
                     else
                     {
+                        if (AimPlayer == null) return;   // AimedAtPlayer can be set without a target
                         dir = (AimPlayer.Position - start);
                     }
                 }
@@ -765,7 +766,7 @@ namespace GTANetwork.Sync
 
             var target = Util.Util.LinearVectorLerp(_lastPosition ?? Position,
                 _position,
-                TicksSinceLastUpdate, (int)AverageLatency);
+                TicksSinceLastUpdate, (int)SafeAverageLatency);
 
             Function.Call(Hash.SET_ENTITY_COORDS_NO_OFFSET, Character, target.X, target.Y, target.Z, 0, 0, 0,
                 0);
@@ -804,7 +805,7 @@ namespace GTANetwork.Sync
             }
 
 
-            var target = Util.Util.LinearVectorLerp(_lastPosition ?? Position, _position, TicksSinceLastUpdate, (int)AverageLatency);
+            var target = Util.Util.LinearVectorLerp(_lastPosition ?? Position, _position, TicksSinceLastUpdate, (int)SafeAverageLatency);
 
             thisCall.Call(Hash.SET_ENTITY_COORDS_NO_OFFSET, Character, target.X, target.Y, target.Z, 0, 0, 0, 0);
 

@@ -34,22 +34,31 @@ namespace GTANetwork.Streamer
             _playerInventory.Add(WeaponHash.Unarmed);
         }
 
-        private static DateTime LastDateTime = DateTime.Now;
+        private static readonly WeaponHash[] AllWeapons =
+            Enum.GetValues(typeof(WeaponHash)).Cast<WeaponHash>().Where(h => h != WeaponHash.Unarmed).ToArray();
+
+        // Removing every weapon hash in one go costs ~100 native calls (25-30 ms of game thread every 500 ms, a
+        // visible stutter). Sweep a slice per frame instead: the whole list is still covered several times a second.
+        private const int HashesPerUpdate = 8;
+        private static int _sweepIndex;
+
         internal static void Update()
         {
-            if (DateTime.Now.Subtract(LastDateTime).TotalMilliseconds >= 500)
+            if (AllWeapons.Length == 0) return;
+
+            var player = Game.Player.Character;
+            var end = Math.Min(_sweepIndex + HashesPerUpdate, AllWeapons.Length);
+
+            for (var i = _sweepIndex; i < end; i++)
             {
-                LastDateTime = DateTime.Now;
-                var weapons = Enum.GetValues(typeof(WeaponHash)).Cast<WeaponHash>();
-                foreach (var hash in weapons)
+                var hash = AllWeapons[i];
+                if (!_playerInventory.Contains(hash))
                 {
-                    if (!_playerInventory.Contains(hash) && hash != WeaponHash.Unarmed)
-                    {
-                        Game.Player.Character.Weapons.Remove((GTA.WeaponHash)(int)hash);
-                    }
+                    player.Weapons.Remove((GTA.WeaponHash)(int)hash);
                 }
             }
 
+            _sweepIndex = end >= AllWeapons.Length ? 0 : end;
         }
 
         public void Allow(WeaponHash hash)

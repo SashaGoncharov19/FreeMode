@@ -530,6 +530,12 @@ namespace GTANetwork.Sync
                 _entityToAimAt = null;
             }
 
+            if (_entityToWalkTo != null)
+            {
+                _entityToWalkTo.Delete();
+                _entityToWalkTo = null;
+            }
+
             LogManager.DebugLog("CLEAR FOR " + Name);
             if (Character != null)
             {

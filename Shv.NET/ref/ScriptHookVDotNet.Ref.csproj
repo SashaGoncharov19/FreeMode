@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Managed *reference stub* of ScriptHookVDotNet (the GTA Network fork of crosire's SHVDN v3).
+
+    The real ScriptHookVDotNet.dll is a mixed C++/CLI assembly that can only be produced with MSVC on
+    Windows (and needs the ScriptHookV SDK). This project compiles the exact same C# scripting files
+    (../source/scripting/*.cs) together with C# declarations that mirror the public surface of the
+    C++/CLI core (Script, Native.Function, MemoryAccess, GTA.Math ...). The result has the same
+    assembly name/version and lets GTANetwork.dll and NativeUI.dll compile on any OS.
+
+    It must NEVER be shipped: every native entry point throws PlatformNotSupportedException.
+    The Windows CI job builds the real DLL and the client stack is linked against it there.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>ScriptHookVDotNet</AssemblyName>
+    <RootNamespace>GTA</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>3.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
+    <InformationalVersion>3.0.0-reference-stub</InformationalVersion>
+    <AssemblyTitle>Community Script Hook V .NET (reference stub, not for use in game)</AssemblyTitle>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0660;CS0661;CS8500;CS0169;CS0414</NoWarn>
+    <IsPackable>false</IsPackable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="$(NetFrameworkReferenceAssembliesVersion)" PrivateAssets="all" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Core\**\*.cs" />
+    <Compile Include="..\source\scripting\**\*.cs" Link="scripting\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

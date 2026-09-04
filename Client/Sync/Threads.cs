@@ -22,14 +22,17 @@ namespace GTANetwork.Sync
         {
             if (!Main.IsConnected() || !Main.IsOnServer()) return;
             
-            sw = new Stopwatch();
-            if (DebugInfo.StreamerDebug) sw.Start();
+            if (DebugInfo.StreamerDebug)
+            {
+                sw = new Stopwatch();
+                sw.Start();
+            }
 
             SyncPed[] myBubble;
             lock (StreamerThread.StreamedInPlayers) { myBubble = StreamerThread.StreamedInPlayers.ToArray(); }
             for (var i = myBubble.Length - 1; i >= 0; i--) { myBubble[i]?.Render(); }
 
-            if (DebugInfo.StreamerDebug) sw.Stop();
+            if (DebugInfo.StreamerDebug) sw?.Stop();
         }
     }
 

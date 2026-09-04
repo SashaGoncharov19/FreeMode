@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless GTA Network client. Speaks the real wire protocol (Lidgren UDP + protobuf packets from
+    GTANetworkShared) without the game: it joins a server, downloads the map and client scripts, chats,
+    runs commands, keeps a position synced and prints everything the server pushes (entities, native
+    calls, events). Used by eng/integration-test.sh in CI and handy for poking at a server by hand.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>GTANetwork.Bot</AssemblyName>
+    <RootNamespace>GTANetwork.Bot</RootNamespace>
+    <AssemblyTitle>GTA Network headless bot client</AssemblyTitle>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RollForward>LatestMajor</RollForward>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
+    <Reference Include="Lidgren.Network">
+      <HintPath>$(GtanLibsDir)Lidgren.Network.dll</HintPath>
+    </Reference>
+    <ProjectReference Include="..\..\Shared\GTANetworkShared.csproj" />
+    <!-- Native hash names, to print server->client native calls readably. -->
+    <Compile Include="..\..\Shv.NET\ref\Core\NativeHashes.g.cs" Link="NativeHashes.g.cs" />
+  </ItemGroup>
+
+</Project>

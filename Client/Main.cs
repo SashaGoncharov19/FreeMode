@@ -1,4 +1,4 @@
-﻿#define ATTACHSERVER
+#define ATTACHSERVER
 //#define INTEGRITYCHECK
 
 using GTA;
@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -169,7 +170,60 @@ namespace GTANetwork
 
         public static Camera MainMenuCamera;
 
-        public static readonly string GTANInstallDir = ((string)Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "GTANetworkInstallDir", null));
+        public static readonly string GTANInstallDir = ResolveInstallDir();
+
+        /// <summary>
+        /// Locates the GTA Network installation folder (the one containing bin\, cef\, images\ and settings.xml).
+        /// 1. Registry value written by the classic Windows launcher (GTANLauncher.exe).
+        /// 2. GTAN_INSTALL_DIR environment variable.
+        /// 3. Derived from this assembly's location: &lt;install&gt;\bin\scripts\GTANetwork.dll.
+        /// The last two make the client work when the game runs through Proton/Wine, where nothing
+        /// touches the (prefix) registry. The result always ends with a directory separator, because
+        /// the rest of the code base concatenates relative paths to it.
+        /// </summary>
+        private static string ResolveInstallDir()
+        {
+            string dir = null;
+
+            try
+            {
+                dir = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "GTANetworkInstallDir", null) as string;
+            }
+            catch
+            {
+                // ignored (no registry access)
+            }
+
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                dir = Environment.GetEnvironmentVariable("GTAN_INSTALL_DIR");
+            }
+
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
+                try
+                {
+                    var location = new Uri(Assembly.GetExecutingAssembly().CodeBase).LocalPath;
+                    var scriptsDir = Path.GetDirectoryName(location);          // <install>\bin\scripts
+                    var binDir = scriptsDir == null ? null : Path.GetDirectoryName(scriptsDir); // <install>\bin
+                    var root = binDir == null ? null : Path.GetDirectoryName(binDir);           // <install>
+                    if (root != null && Directory.Exists(root)) dir = root;
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(dir)) return string.Empty;
+
+            if (!dir.EndsWith(Path.DirectorySeparatorChar.ToString()) && !dir.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+            {
+                dir += Path.DirectorySeparatorChar;
+            }
+
+            return dir;
+        }
 
         private static int _debugStep;
         private bool _lastSpectating;
@@ -211,6 +265,14 @@ namespace GTANetwork
 
         public Main()
         {
+            // Last line of defence: an unhandled exception on any thread ends GTA5.exe. We cannot stop that here,
+            // but at least logs/Error.log then says which thread and why.
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            {
+                var ex = args.ExceptionObject as Exception ?? new Exception(args.ExceptionObject?.ToString() ?? "unknown");
+                LogManager.LogException(ex, "UNHANDLED EXCEPTION (terminating=" + args.IsTerminating + ")");
+            };
+
             res = UIMenu.GetScreenResolutionMantainRatio();
             screen = GTA.UI.Screen.Resolution;
 
@@ -307,15 +369,26 @@ namespace GTANetwork
             // disable fire dep dispatch service
             Function.Call((Hash)0xDC0F817884CDD856, 4, false); // ENABLE_DISPATCH_SERVICE
 
-            GlobalVariable.Get(2576573).Write(1); //Enable MP cars?
+            // Script global 2576573 enabled MP-only vehicles in 2016 builds. Global indices change with every game
+            // update, so a blind write there corrupts memory on current builds; opt in through settings.xml.
+            if (PlayerSettings.EnableMpVehiclesGlobal)
+            {
+                try { GlobalVariable.Get(2576573).Write(1); }
+                catch (Exception ex) { LogManager.LogException(ex, "MP VEHICLES GLOBAL"); }
+            }
 
             LogManager.RuntimeLog("Reading whitelists.");
             ThreadPool.QueueUserWorkItem(delegate
             {
-                NativeWhitelist.Init();
-                SoundWhitelist.Init();
-
-
+                try
+                {
+                    NativeWhitelist.Init();
+                    SoundWhitelist.Init();
+                }
+                catch (Exception ex)
+                {
+                    LogManager.LogException(ex, "WHITELIST INIT");
+                }
             });
 
             //var fetchThread = new Thread((ThreadStart) delegate

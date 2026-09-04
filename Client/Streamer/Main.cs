@@ -1697,16 +1697,15 @@ namespace GTANetwork.Streamer
                     {
                         var data = (ILocalHandleable)item;
                         JavascriptHook.InvokeStreamOutEvent(new LocalHandle(data.LocalHandle), (int)EntityType.Vehicle);
-                        var obj = new Prop(data.LocalHandle);
-                        if (obj.Exists()) obj.Delete();
+                        // Prop.Exists() tests the entity type (object), so a vehicle wrapped in Prop was never deleted.
+                        if (Function.Call<bool>(Hash.DOES_ENTITY_EXIST, data.LocalHandle)) new Vehicle(data.LocalHandle).Delete();
                     }
                     break;
                 case EntityType.Ped:
                     {
                         var data = (ILocalHandleable)item;
                         JavascriptHook.InvokeStreamOutEvent(new LocalHandle(data.LocalHandle), (int)EntityType.Ped);
-                        var obj = new Prop(data.LocalHandle);
-                        if (obj.Exists()) obj.Delete();
+                        if (Function.Call<bool>(Hash.DOES_ENTITY_EXIST, data.LocalHandle)) new Ped(data.LocalHandle).Delete();
                     }
                     break;
                 case EntityType.Blip:
@@ -2330,7 +2329,10 @@ namespace GTANetwork.Streamer
 
         public int Count(Type type)
         {
-            return ClientMap.Count(item => item.GetType() == type);
+            lock (ClientMap)
+            {
+                return ClientMap.Values.Count(item => item.GetType() == type);
+            }
         }
 
         public void ClearAll()
@@ -2347,6 +2349,7 @@ namespace GTANetwork.Streamer
                 _localHandleCounter = 0;
             }
 
+            StreamerThread.ClearPending();
         }
         #endregion
 

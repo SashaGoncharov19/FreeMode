@@ -1,5 +1,4 @@
 ﻿using System;
-using System.CodeDom.Compiler;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +16,6 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.CSharp;
-using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using ProtoBuf;
 
@@ -229,44 +226,7 @@ namespace GTANetworkServer
                                 case NetConnectionStatus.Disconnected:
                                 {
                                     var reason = msg.ReadString();
-                                    if (Clients.Contains(client))
-                                    {
-                                        lock (RunningResources)
-                                        {
-                                            RunningResources.ForEach(fs => fs.Engines.ForEach(en =>
-                                            {
-                                                en.InvokePlayerDisconnected(client, reason);
-                                            }));
-                                        }
-
-                                        UnoccupiedVehicleManager.UnsyncAllFrom(client);
-
-                                        lock (Clients)
-                                        {
-                                            var dcObj = new PlayerDisconnect() { Id = client.handle.Value };
-
-                                            SendToAll(dcObj, PacketType.PlayerDisconnect, true, ConnectionChannel.SyncEvent);
-
-                                            Program.Output("Player disconnected: " + client.SocialClubName + " (" +
-                                                           client.Name + ") [" +
-                                                           client.NetConnection.RemoteEndPoint.Address + "], reason: " +
-                                                           reason);
-
-                                            int vehValue = client.CurrentVehicle.Value;
-
-                                            if (vehValue != 0 &&
-                                                VehicleOccupants.ContainsKey(vehValue) &&
-                                                VehicleOccupants[vehValue].Contains(client))
-                                                VehicleOccupants[vehValue].Remove(client);
-
-                                            Clients.Remove(client);
-                                            Server.Configuration.CurrentPlayers = Clients.Count;
-                                            NetEntityHandler.DeleteEntityQuiet(client.handle.Value);
-                                            if (ACLEnabled) ACL.LogOutClient(client);
-
-                                            Downloads.RemoveAll(d => d.Parent == client);
-                                        }
-                                    }
+                                    HandleDisconnect(client, reason);
                                     break;
                                 }
                             }
@@ -1071,7 +1031,9 @@ namespace GTANetworkServer
 
                                         for (int i = 0; i < bin[0]; i++)
                                         {
-                                            var cVehBin = bin.Skip(1 + 46 * i).Take(46).ToArray();
+                                            if (bin.Length < 1 + 46 * (i + 1)) break;   // truncated packet
+                                            var cVehBin = new byte[46];
+                                            Buffer.BlockCopy(bin, 1 + 46 * i, cVehBin, 0, 46);
 
                                             var fullPacket = PacketOptimization.ReadUnoccupiedVehicleSync(cVehBin);
 

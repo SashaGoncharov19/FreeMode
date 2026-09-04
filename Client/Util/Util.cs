@@ -195,15 +195,21 @@ namespace GTANetwork.Util
             if (!model.IsValid) return;
             LogManager.DebugLog("REQUESTING MODEL " + model.Hash);
             ModelRequest = true;
-            DateTime start = DateTime.Now;
-            while (!model.IsLoaded)
+            try
             {
-                model.Request();
-                //Function.Call(Hash.REQUEST_COLLISION_FOR_MODEL, model.Hash);
-                Script.Yield();
-                if (DateTime.Now.Subtract(start).TotalMilliseconds > 1000) break;
+                DateTime start = DateTime.Now;
+                while (!model.IsLoaded)
+                {
+                    model.Request();
+                    //Function.Call(Hash.REQUEST_COLLISION_FOR_MODEL, model.Hash);
+                    Script.Yield();
+                    if (DateTime.Now.Subtract(start).TotalMilliseconds > 1000) break;
+                }
             }
-            ModelRequest = false;
+            finally
+            {
+                ModelRequest = false;
+            }
             LogManager.DebugLog("MODEL REQUESTED: " + model.IsLoaded);
         }
 
@@ -456,31 +462,43 @@ namespace GTANetwork.Util
 
 
 
+        /// <summary>
+        /// Scans GTA5.exe for a byte pattern. <paramref name="bytes"/> holds the bytes (as "\x48\x8B" style chars,
+        /// NUL bytes allowed), <paramref name="mask"/> has an 'x' for every byte that must match and '?' for wildcards.
+        /// Returns IntPtr.Zero when the pattern does not exist in this game build; callers must check for that.
+        /// </summary>
         public static unsafe IntPtr FindPattern(string bytes, string mask)
         {
-            var patternPtr = Marshal.StringToHGlobalAnsi(bytes);
-            var maskPtr = Marshal.StringToHGlobalAnsi(bytes);
+            if (string.IsNullOrEmpty(bytes) || string.IsNullOrEmpty(mask) || mask.Length > bytes.Length)
+            {
+                LogManager.DebugLog("FINDPATTERN: invalid pattern/mask");
+                return IntPtr.Zero;
+            }
 
-            IntPtr output;
+            // Marshal the pattern byte by byte: StringToHGlobalAnsi would stop at the first \0.
+            var patternPtr = Marshal.AllocHGlobal(mask.Length + 1);
+            var maskPtr = Marshal.StringToHGlobalAnsi(mask);
 
             try
             {
-                output =
-                    new IntPtr(
-                        unchecked(
-                            (long)
-                                MemoryAccess.FindPattern(
-                                    (sbyte*)patternPtr.ToPointer(),
-                                    (sbyte*)patternPtr.ToPointer()
-                                    )));
+                var patternBytes = (byte*)patternPtr.ToPointer();
+                for (int i = 0; i < mask.Length; i++) patternBytes[i] = unchecked((byte)bytes[i]);
+                patternBytes[mask.Length] = 0;
+
+                var result = new IntPtr(unchecked((long)MemoryAccess.FindPattern((sbyte*)patternPtr.ToPointer(), (sbyte*)maskPtr.ToPointer())));
+
+                if (result == IntPtr.Zero)
+                {
+                    LogManager.DebugLog("FINDPATTERN: pattern not found in this game build (mask " + mask + ")");
+                }
+
+                return result;
             }
             finally
             {
                 Marshal.FreeHGlobal(patternPtr);
                 Marshal.FreeHGlobal(maskPtr);
             }
-
-            return output;
         }
 
         private static int _idX;
@@ -798,9 +816,10 @@ namespace GTANetwork.Util
         {
             return new Vector3()
             {
-                X = LinearFloatLerp(start.X, end.X, currentTime, duration),
-                Y = LinearFloatLerp(start.Y, end.Y, currentTime, duration),
-                Z = LinearFloatLerp(start.Z, end.Z, currentTime, duration),
+                // Bounded extrapolation: without packets "elapsed / window" grew without limit and the ped flew off.
+                X = LinearFloatLerp(start.X, end.X, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
+                Y = LinearFloatLerp(start.Y, end.Y, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
+                Z = LinearFloatLerp(start.Z, end.Z, Math.Min(currentTime, duration * 3 / 2), Math.Max(duration, 1)),
             };
         }
 

@@ -15,24 +15,48 @@
  */
 
 #include "ScriptDomain.hpp"
+#include "Settings.hpp"
 
 using namespace System;
 using namespace System::Threading;
 using namespace System::Reflection;
 using namespace System::Collections::Generic;
+
+extern long long g_nativeCallCount; // Native.cpp
 namespace WinForms = System::Windows::Forms;
 
 namespace
 {
+	// Every native call and every script tick is a hand-off between the game thread and a script thread.
+	// The other side usually answers within microseconds, while waking a sleeping thread costs tens of
+	// microseconds (more under wine/Proton), so poll for a short while before really blocking.
+	inline bool SpinThenWait(AutoResetEvent ^toWaitOn, int timeout)
+	{
+		static const long long spinTicks = System::Diagnostics::Stopwatch::Frequency / 10000; // 100 us
+		const long long deadline = System::Diagnostics::Stopwatch::GetTimestamp() + spinTicks;
+
+		do
+		{
+			if (toWaitOn->WaitOne(0))
+			{
+				return true;
+			}
+
+			Thread::SpinWait(64);
+		}
+		while (System::Diagnostics::Stopwatch::GetTimestamp() < deadline);
+
+		return toWaitOn->WaitOne(timeout);
+	}
 	inline void SignalAndWait(AutoResetEvent ^toSignal, AutoResetEvent ^toWaitOn)
 	{
 		toSignal->Set();
-		toWaitOn->WaitOne();
+		SpinThenWait(toWaitOn, Timeout::Infinite);
 	}
 	inline bool SignalAndWait(AutoResetEvent ^toSignal, AutoResetEvent ^toWaitOn, int timeout)
 	{
 		toSignal->Set();
-		return toWaitOn->WaitOne(timeout);
+		return SpinThenWait(toWaitOn, timeout);
 	}
 }
 
@@ -51,11 +75,68 @@ namespace GTA
 		return nullptr;
 	}
 
+	// GTA Network root folder (the one with bin\, cef\, images\, logs\).
+	// Classic layout: <root>\bin\ScriptHookVDotNet.dll (injected by the Windows launcher).
+	// ASI-loader / Proton layout: ScriptHookVDotNet.asi sits in the game folder and the .ini next to it
+	// points ScriptsLocation at <root>\bin\scripts, so the root is derived from that setting.
+	String ^GetRootDirectory()
+	{
+		String ^location = Assembly::GetExecutingAssembly()->Location;
+		String ^directory = IO::Path::GetDirectoryName(location);
+
+		try
+		{
+			auto settings = ScriptSettings::Load(IO::Path::ChangeExtension(location, ".ini"));
+			String ^scripts = settings->GetValue(String::Empty, "ScriptsLocation", String::Empty);
+
+			if (!String::IsNullOrEmpty(scripts) && IO::Path::IsPathRooted(scripts))
+			{
+				String ^binDirectory = IO::Path::GetDirectoryName(IO::Path::GetFullPath(scripts));
+
+				if (!String::IsNullOrEmpty(binDirectory))
+				{
+					String ^root = IO::Path::GetDirectoryName(binDirectory);
+
+					if (!String::IsNullOrEmpty(root) && IO::Directory::Exists(root))
+					{
+						return root;
+					}
+				}
+			}
+		}
+		catch (Exception ^)
+		{
+		}
+
+		String ^parent = IO::Path::GetDirectoryName(directory);
+
+		if (String::IsNullOrEmpty(parent))
+		{
+			return directory;
+		}
+
+		return parent;
+	}
+
 	void Log(String ^logLevel, ... array<String ^> ^message)
 	{
 		DateTime now = DateTime::Now;
 
-		String ^logpath = IO::Path::Combine(IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location), "..\\logs\\ScriptHookVDotNet.log");
+		String ^logDirectory = IO::Path::Combine(GetRootDirectory(), "logs");
+
+		try
+		{
+			if (!IO::Directory::Exists(logDirectory))
+			{
+				IO::Directory::CreateDirectory(logDirectory);
+			}
+		}
+		catch (Exception ^)
+		{
+			return;
+		}
+
+		String ^logpath = IO::Path::Combine(logDirectory, "ScriptHookVDotNet.log");
 		logpath = logpath->Insert(logpath->IndexOf(".log"), "-" + now.ToString("yyyy-MM-dd"));
 
 		try
@@ -484,19 +565,34 @@ namespace GTA
 			return;
 		}
 
-		String ^assemblyPath = IO::Path::Combine(IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location), "..\\bin\\scripts");
-		String ^assemblyFilename = IO::Path::GetFileNameWithoutExtension(assemblyPath);
+		String ^logDirectory = IO::Path::Combine(GetRootDirectory(), "logs");
+		String ^assemblyFilename = "ScriptHookVDotNet";
 
-		for each (String ^path in IO::Directory::GetFiles(IO::Path::GetDirectoryName(assemblyPath), "*.log"))
+		array<String ^> ^oldLogs = gcnew array<String ^>(0);
+
+		try
 		{
-			if (!path->StartsWith(assemblyFilename))
+			if (IO::Directory::Exists(logDirectory))
+			{
+				oldLogs = IO::Directory::GetFiles(logDirectory, "*.log");
+			}
+		}
+		catch (Exception ^)
+		{
+		}
+
+		for each (String ^path in oldLogs)
+		{
+			String ^fileName = IO::Path::GetFileNameWithoutExtension(path);
+
+			if (!fileName->StartsWith(assemblyFilename) || fileName->IndexOf('-') < 0)
 			{
 				continue;
 			}
 
 			try
 			{
-				TimeSpan logAge = DateTime::Now - DateTime::Parse(IO::Path::GetFileNameWithoutExtension(path)->Substring(path->IndexOf('-') + 1));
+				TimeSpan logAge = DateTime::Now - DateTime::Parse(fileName->Substring(fileName->IndexOf('-') + 1));
 
 				// Delete logs older than 5 days
 				if (logAge.Days >= 5)
@@ -584,6 +680,9 @@ namespace GTA
 
 			_executingScript = script;
 
+			long long nativesBefore = g_nativeCallCount;
+			System::Diagnostics::Stopwatch ^stopwatch = System::Diagnostics::Stopwatch::StartNew();
+
 			while ((script->_running = SignalAndWait(script->_continueEvent, script->_waitEvent, 5000)) && _taskQueue->Count > 0)
 			//while ((script->_running = SignalAndWait(script->_continueEvent, script->_waitEvent, 30000)) && _taskQueue->Count > 0)
 			{
@@ -591,6 +690,33 @@ namespace GTA
 			}
 
 			_executingScript = nullptr;
+
+			// Profile window totals (flushed every 10 s as one [PROFILE] line)
+			array<long long> ^profile;
+			if (!_profile->TryGetValue(script->Name, profile))
+			{
+				profile = gcnew array<long long>(4);
+				_profile[script->Name] = profile;
+			}
+			long long elapsedTicks = stopwatch->ElapsedTicks;
+			profile[0] += elapsedTicks;
+			if (elapsedTicks > profile[1]) profile[1] = elapsedTicks;
+			profile[2]++;
+			profile[3] += g_nativeCallCount - nativesBefore;
+			_profileTotalTicks += elapsedTicks;
+
+			// A script that keeps the game thread for long is a visible stutter: name it, at most once every 5 s per script.
+			long long elapsed = stopwatch->ElapsedMilliseconds;
+			if (elapsed >= 20)
+			{
+				long long now = System::DateTime::UtcNow.Ticks / 10000;
+				long long last = 0;
+				if (!_slowTickLastLog->TryGetValue(script->Name, last) || now - last >= 5000)
+				{
+					_slowTickLastLog[script->Name] = now;
+					Log("[WARN]", "Script '", script->Name, "' held the game thread for ", Convert::ToString(elapsed), " ms in one tick");
+				}
+			}
 
 			if (!script->_running)
 			{
@@ -603,6 +729,54 @@ namespace GTA
 
 		// Clean up pinned strings
 		CleanupStrings();
+
+		_profileFrames++;
+		long long nowMs = System::DateTime::UtcNow.Ticks / 10000;
+		if (_profileWindowStart == 0)
+		{
+			_profileWindowStart = nowMs;
+		}
+		else if (nowMs - _profileWindowStart >= 10000)
+		{
+			FlushProfile(nowMs - _profileWindowStart);
+			_profileWindowStart = nowMs;
+		}
+	}
+
+	int ScriptDomain::CompareProfileEntries(KeyValuePair<String ^, array<long long> ^> a, KeyValuePair<String ^, array<long long> ^> b)
+	{
+		double avgA = a.Value[2] > 0 ? static_cast<double>(a.Value[0]) / a.Value[2] : 0.0;
+		double avgB = b.Value[2] > 0 ? static_cast<double>(b.Value[0]) / b.Value[2] : 0.0;
+		return avgA > avgB ? -1 : (avgA < avgB ? 1 : 0);
+	}
+
+	// One line per 10 s window: frame count, script time per frame and the ten most expensive scripts
+	// (average and worst tick, native calls per tick). This is what a performance report should quote.
+	void ScriptDomain::FlushProfile(long long windowMs)
+	{
+		double msPerTick = 1000.0 / static_cast<double>(System::Diagnostics::Stopwatch::Frequency);
+		auto entries = gcnew List<KeyValuePair<String ^, array<long long> ^>>(_profile);
+		entries->Sort(gcnew Comparison<KeyValuePair<String ^, array<long long> ^>>(&ScriptDomain::CompareProfileEntries));
+
+		auto text = gcnew System::Text::StringBuilder();
+		text->AppendFormat("{0} frames in {1} ms ({2:F1} fps), scripts used {3:F2} ms per frame",
+			_profileFrames, windowMs, windowMs > 0 ? _profileFrames * 1000.0 / windowMs : 0.0,
+			_profileFrames > 0 ? _profileTotalTicks * msPerTick / _profileFrames : 0.0);
+
+		int shown = 0;
+		for each (KeyValuePair<String ^, array<long long> ^> entry in entries)
+		{
+			array<long long> ^p = entry.Value;
+			if (p[2] == 0 || shown++ >= 10) continue;
+			text->Append(" | ")->Append(entry.Key)->AppendFormat(" avg {0:F2} ms, max {1:F1} ms, {2} natives/tick",
+				p[0] * msPerTick / p[2], p[1] * msPerTick, p[3] / p[2]);
+		}
+
+		Log("[PROFILE]", text->ToString());
+
+		_profile->Clear();
+		_profileFrames = 0;
+		_profileTotalTicks = 0;
 	}
 
 	void ScriptDomain::DoKeyboardMessage(WinForms::Keys key, bool status, bool statusCtrl, bool statusShift, bool statusAlt)

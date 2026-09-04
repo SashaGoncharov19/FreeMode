@@ -1,0 +1,8 @@
+<meta>
+  <info name="auth" author="GTA Network" version="1.0" type="script" description="Accounts: registration and login through a CEF form or /register and /login; chat and commands are blocked until the player logged in." />
+  <script src="auth.cs" type="server" lang="csharp" />
+  <script src="client.js" type="client" lang="javascript" />
+  <file src="ui/index.html" />
+  <file src="ui/style.css" />
+  <file src="ui/app.js" />
+</meta>

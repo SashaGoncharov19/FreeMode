@@ -1,95 +1,180 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
-using System.Reflection;
+using System.Text;
+using System.Threading;
+using GTANetworkServer.Constant;
 using GTANetworkShared;
-using Microsoft.Owin.Extensions;
-using Microsoft.Owin.Hosting;
-using Nancy;
 using Newtonsoft.Json;
-using Owin;
 
 namespace GTANetworkServer.Managers
 {
+    /// <summary>
+    /// Serves resource files over HTTP (same URL layout the client expects, previously hosted with Nancy/OWIN):
+    ///   GET /manifest.json        -> { "exportedFiles": { "&lt;resource&gt;": [ { path, hash, type } ] } }
+    ///   GET /&lt;resource&gt;/&lt;path&gt;  -> the file, but only when the resource declares it in meta.xml
+    /// </summary>
     public class FileServer : IDisposable
     {
-        private IDisposable _server;
+        private HttpListener _listener;
+        private Thread _thread;
+        private volatile bool _stopping;
 
         public void Start(int port)
         {
-            var url = "http://+:" + port;
-
             try
             {
-                _server = WebApp.Start<Startup>(url);
+                _listener = new HttpListener();
+                _listener.Prefixes.Add("http://*:" + port + "/");
+                _listener.Start();
             }
-            catch (TargetInvocationException ex)
+            catch (Exception ex)
             {
-                if (ex.InnerException is HttpListenerException)
-                {
-                    Program.Output("File server error: " + ex.InnerException.Message);
-                }
-                else
-                {
-                    Program.Output("File server error: ");
-                    Program.Output(ex.ToString());
-                }
-
+                Program.Output("File server error: " + ex.Message, LogCat.Error);
                 Program.Output("Reverting to UDP file server.");
                 Program.ServerInstance.UseHTTPFileServer = false;
+                _listener = null;
+                return;
             }
+
+            _thread = new Thread(AcceptLoop) { IsBackground = true, Name = "GTAN HTTP file server" };
+            _thread.Start();
+
+            Program.Output("File server listening on http://*:" + port + "/");
+        }
+
+        private void AcceptLoop()
+        {
+            while (!_stopping)
+            {
+                HttpListenerContext context;
+
+                try
+                {
+                    context = _listener.GetContext();
+                }
+                catch (Exception)
+                {
+                    if (_stopping) return;
+                    Thread.Sleep(50);
+                    continue;
+                }
+
+                ThreadPool.QueueUserWorkItem(_ => Handle(context));
+            }
+        }
+
+        private static void Handle(HttpListenerContext context)
+        {
+            try
+            {
+                var request = context.Request;
+                var response = context.Response;
+                var path = request.Url?.AbsolutePath ?? "/";
+
+                if (request.HttpMethod != "GET" && request.HttpMethod != "HEAD")
+                {
+                    response.StatusCode = 405;
+                    response.Close();
+                    return;
+                }
+
+                if (string.Equals(path, "/manifest.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    Dictionary<string, List<FileDeclaration>> snapshot;
+                    lock (FileModule.ExportedFiles)
+                    {
+                        snapshot = FileModule.ExportedFiles.ToDictionary(kv => kv.Key, kv => new List<FileDeclaration>(kv.Value));
+                    }
+
+                    var json = JsonConvert.SerializeObject(new FileManifest { exportedFiles = snapshot });
+                    Write(response, Encoding.UTF8.GetBytes(json), "application/json", request.HttpMethod == "HEAD");
+                    return;
+                }
+
+                var file = FileModule.Resolve(path);
+                if (file == null)
+                {
+                    response.StatusCode = 404;
+                    response.Close();
+                    return;
+                }
+
+                var bytes = File.ReadAllBytes(file);
+                Write(response, bytes, MimeType.GetMimeType(Path.GetExtension(file)), request.HttpMethod == "HEAD");
+            }
+            catch (Exception ex)
+            {
+                Program.Output("File server request failed: " + ex.Message, LogCat.Warn);
+                try { context.Response.Abort(); } catch { /* ignored */ }
+            }
+        }
+
+        private static void Write(HttpListenerResponse response, byte[] body, string contentType, bool headOnly)
+        {
+            response.StatusCode = 200;
+            response.ContentType = contentType ?? "application/octet-stream";
+            response.ContentLength64 = body.Length;
+
+            if (!headOnly)
+            {
+                using (var output = response.OutputStream)
+                {
+                    output.Write(body, 0, body.Length);
+                }
+            }
+
+            response.Close();
         }
 
         public void Dispose()
         {
-            _server?.Dispose();
+            _stopping = true;
+
+            try
+            {
+                _listener?.Stop();
+                _listener?.Close();
+            }
+            catch
+            {
+                // ignored
+            }
         }
     }
 
-    public class FileModule : NancyModule
+    public static class FileModule
     {
+        /// <summary>Files (path + hash) every running resource exposes to clients, keyed by resource name.</summary>
         public static Dictionary<string, List<FileDeclaration>> ExportedFiles = new Dictionary<string, List<FileDeclaration>>();
 
-        public FileModule()
+        /// <summary>Maps "/{resource}/{path}" to a file on disk, only when the resource exports that path.</summary>
+        internal static string Resolve(string urlPath)
         {
-            Get["/{resource}/{path*}"] = parameters =>
+            var decoded = Uri.UnescapeDataString(urlPath ?? string.Empty).TrimStart('/');
+            var slash = decoded.IndexOf('/');
+            if (slash <= 0 || slash == decoded.Length - 1) return null;
+
+            var resource = decoded.Substring(0, slash);
+            var relative = decoded.Substring(slash + 1).Replace('\\', '/');
+
+            List<FileDeclaration> files;
+            lock (ExportedFiles)
             {
-                if (!ExportedFiles.ContainsKey((string) parameters.resource) ||
-                    !ExportedFiles[(string) parameters.resource].Contains(parameters.path))
-                    return 404;
+                if (!ExportedFiles.TryGetValue(resource, out files)) return null;
+                files = new List<FileDeclaration>(files);
+            }
 
-                string fullFile = Path.Combine("resources" + Path.DirectorySeparatorChar + parameters.resource, parameters.path);
+            if (!files.Any(f => f.path != null && f.path.Replace('\\', '/') == relative)) return null;
 
-                if (File.Exists(fullFile))
-                {
-                    return
-                        Response.AsFile(fullFile);
-                }
+            var root = Path.GetFullPath(Path.Combine("resources", resource));
+            var full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
 
-                return 404;
-            };
+            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null; // path traversal
 
-            Get["/manifest.json"] = _ =>
-            {
-                var resp = (Response) JsonConvert.SerializeObject(new FileManifest()
-                {
-                    exportedFiles = new Dictionary<string, List<FileDeclaration>>(ExportedFiles)
-                });
-
-                resp.ContentType = "application/json";
-
-                return resp;
-            };
-        }
-    }
-
-    public class Startup
-    {
-        public void Configuration(IAppBuilder app)
-        {
-            app.UseNancy();
-            app.UseStageMarker(PipelineStage.MapHandler);
+            return File.Exists(full) ? full : null;
         }
     }
 }

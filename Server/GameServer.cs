@@ -1,5 +1,4 @@
-﻿using System;
-using System.CodeDom.Compiler;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +16,6 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.CSharp;
-using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using ProtoBuf;
 
@@ -485,28 +482,13 @@ namespace GTANetworkServer
 
         private IEnumerable<Script> CompileScript(string[] script, string[] references, bool vbBasic = false)
         {
-            var provide = new CSharpCodeProvider();
-            var vBasicProvider = new VBCodeProvider();
+            var referencePaths = new List<string>();
 
-            var compParams = new CompilerParameters();
-
-            compParams.ReferencedAssemblies.Add("System.Drawing.dll");
-            compParams.ReferencedAssemblies.Add("System.Windows.Forms.dll");
-            compParams.ReferencedAssemblies.Add("System.IO.dll");
-            compParams.ReferencedAssemblies.Add("System.Linq.dll");
-            compParams.ReferencedAssemblies.Add("System.Core.dll");
-            compParams.ReferencedAssemblies.Add("System.dll");
-            compParams.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
-            compParams.ReferencedAssemblies.Add("GTANetworkServer.exe");
-            compParams.ReferencedAssemblies.Add("GTANetworkShared.dll");
-
-            foreach (var s in references)
+            foreach (var s in references ?? new string[0])
             {
-                compParams.ReferencedAssemblies.Add(File.Exists(AssemblyReferences[s]) ? AssemblyReferences[s] : s);
+                if (string.IsNullOrWhiteSpace(s)) continue;
+                referencePaths.Add(AssemblyReferences.ContainsKey(s) && File.Exists(AssemblyReferences[s]) ? AssemblyReferences[s] : s);
             }
-
-            compParams.GenerateInMemory = true;
-            compParams.GenerateExecutable = false;
 
             for (int s = 0; s < script.Length; s++)
                 if (!vbBasic && script[s].TrimStart().StartsWith("public Constructor"))
@@ -532,38 +514,10 @@ namespace GTANResource
 
             try
             {
-                var results = !vbBasic
-                    ? provide.CompileAssemblyFromSource(compParams, script)
-                    : vBasicProvider.CompileAssemblyFromSource(compParams, script);
+                var asm = ScriptCompiler.Compile(script, referencePaths, vbBasic, Program.Output);
 
-                if (results.Errors.HasErrors)
-                {
-                    var basePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                    bool allWarns = true;
-                    Program.Output("Error/warning while compiling script!", LogCat.Warn);
-                    foreach (CompilerError error in results.Errors)
-                    {
-                        if (basePath != null)
-                        {
-                            Program.Output(
-                                string.Format("{3} ({0}) at {4}:{2}: {1}",
-                                    error.ErrorNumber,
-                                    error.ErrorText,
-                                    error.Line,
-                                    error.IsWarning ? "Warning" : "Error",
-                                    error.FileName), error.IsWarning ? LogCat.Warn : LogCat.Error);
-                        }
-                        Program.Output(String.Format("{3} ({0}) at {2}: {1}", error.ErrorNumber, error.ErrorText, error.Line, error.IsWarning ? "Warning" : "Error"));
+                if (asm == null) return null;
 
-                        allWarns = allWarns && error.IsWarning;
-                    }
-
-
-                    if (!allWarns)
-                        return null;
-                }
-
-                var asm = results.CompiledAssembly;
                 return InstantiateScripts(asm);
             }
             catch (Exception ex)
@@ -737,14 +691,73 @@ namespace GTANResource
 
                     if (time > 70)
                     {
-                        Clients.Remove(Clients[i]);
+                        // Lidgren never delivered the disconnect: tear the player down like a real disconnect,
+                        // otherwise the entity, the ped on every other client and the connection leak.
+                        var stale = Clients[i];
+                        if (stale.NetConnection != null && stale.NetConnection.Status != NetConnectionStatus.Disconnected)
+                            stale.NetConnection.Disconnect("Timed out.");
+                        HandleDisconnect(stale, "Timed out.");
                     }
                     else if (time > 10)
                     {
-                        Clients[i].NetConnection.Disconnect("Timed out.");
-                        //DisconnectClient(Clients[i], "Timeout");
+                        if (Clients[i].NetConnection != null) Clients[i].NetConnection.Disconnect("Timed out.");
                     }
 
+                }
+            }
+        }
+
+        // Everything that has to happen when a player leaves, whatever the reason (Lidgren status change,
+        // AFK timeout). Safe to call twice: the second call finds the client already removed.
+        internal void HandleDisconnect(Client client, string reason)
+        {
+            lock (Clients)
+            {
+                if (!Clients.Contains(client)) return;
+            }
+
+            lock (RunningResources)
+            {
+                RunningResources.ForEach(fs => fs.Engines.ForEach(en =>
+                {
+                    en.InvokePlayerDisconnected(client, reason);
+                }));
+            }
+
+            UnoccupiedVehicleManager.UnsyncAllFrom(client);
+
+            lock (Clients)
+            {
+                if (!Clients.Contains(client)) return;
+
+                var dcObj = new PlayerDisconnect() { Id = client.handle.Value };
+
+                SendToAll(dcObj, PacketType.PlayerDisconnect, true, ConnectionChannel.SyncEvent);
+
+                var address = client.NetConnection != null && client.NetConnection.RemoteEndPoint != null ? client.NetConnection.RemoteEndPoint.Address.ToString() : "?";
+                Program.Output("Player disconnected: " + client.SocialClubName + " (" + client.Name + ") [" + address + "], reason: " + reason);
+
+                int vehValue = client.CurrentVehicle.Value;
+
+                if (vehValue != 0 &&
+                    VehicleOccupants.ContainsKey(vehValue) &&
+                    VehicleOccupants[vehValue].Contains(client))
+                    VehicleOccupants[vehValue].Remove(client);
+
+                Clients.Remove(client);
+                Server.Configuration.CurrentPlayers = Clients.Count;
+                NetEntityHandler.DeleteEntityQuiet(client.handle.Value);
+                if (ACLEnabled) ACL.LogOutClient(client);
+
+                Downloads.RemoveAll(d => d.Parent == client);
+
+                // the far-sync throttle keyed by this player's handle on every other client
+                foreach (var other in Clients)
+                {
+                    lock (other.LastPacketReceived)
+                    {
+                        other.LastPacketReceived.Remove(client.handle.Value);
+                    }
                 }
             }
         }
