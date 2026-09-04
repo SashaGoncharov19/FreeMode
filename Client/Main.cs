@@ -272,6 +272,9 @@ namespace GTANetwork
                 var ex = args.ExceptionObject as Exception ?? new Exception(args.ExceptionObject?.ToString() ?? "unknown");
                 LogManager.LogException(ex, "UNHANDLED EXCEPTION (terminating=" + args.IsTerminating + ")");
             };
+            // A clean ExitProcess (as opposed to a crash or a kill) shows up here; helps telling the two apart in the logs.
+            AppDomain.CurrentDomain.ProcessExit += (sender, args) => LogManager.RuntimeLog("ProcessExit: GTA5.exe is exiting normally");
+            AppDomain.CurrentDomain.DomainUnload += (sender, args) => LogManager.RuntimeLog("DomainUnload: the script domain is being unloaded");
 
             res = UIMenu.GetScreenResolutionMantainRatio();
             screen = GTA.UI.Screen.Resolution;

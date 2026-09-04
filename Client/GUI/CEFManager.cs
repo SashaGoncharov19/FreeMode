@@ -299,6 +299,47 @@ namespace GTANetwork.GUI
             return CefReady.WaitOne(timeoutMs) && _cefInitialised;
         }
 
+        private static readonly List<Action> WhenReady = new List<Action>();
+
+        /// <summary>
+        /// Runs <paramref name="action"/> once Cef.Initialize has returned: right away on the calling thread when it
+        /// already has, otherwise on the CEF thread when it does. Nothing blocks the script (and with it the game)
+        /// while Chromium starts.
+        /// </summary>
+        internal static void RunWhenReady(Action action)
+        {
+            InitializeCef();
+
+            lock (InitLock)
+            {
+                if (!CefReady.WaitOne(0))
+                {
+                    WhenReady.Add(action);
+                    return;
+                }
+            }
+
+            RunReadyAction(action);
+        }
+
+        private static void RunReadyAction(Action action)
+        {
+            if (!_cefInitialised)
+            {
+                LogManager.CefLog("--> CEF is not available; the browser is not created");
+                return;
+            }
+
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "CEF READY ACTION");
+            }
+        }
+
         private static void CefThread()
         {
             try
@@ -325,7 +366,15 @@ namespace GTANetwork.GUI
             }
             finally
             {
-                CefReady.Set();
+                Action[] pending;
+                lock (InitLock)
+                {
+                    CefReady.Set();
+                    pending = WhenReady.ToArray();
+                    WhenReady.Clear();
+                }
+
+                foreach (var action in pending) RunReadyAction(action);
             }
 
             // Shutdown must run on the thread that called Initialize.
@@ -394,10 +443,24 @@ namespace GTANetwork.GUI
             settings.CefCommandLineArgs.Add("disable-direct-composition");
             settings.CefCommandLineArgs.Add("disable-features", "CalculateNativeWinOcclusion,RendererCodeIntegrity,WinUseBrowserSpellChecker");
             settings.CefCommandLineArgs.Add("enable-features", "NetworkServiceInProcess");
+            // Chrome-layer services a game overlay has no use for.
+            settings.CefCommandLineArgs.Add("disable-extensions");
+            settings.CefCommandLineArgs.Add("disable-background-networking");
+            settings.CefCommandLineArgs.Add("disable-component-update");
+            settings.CefCommandLineArgs.Add("disable-default-apps");
+            settings.CefCommandLineArgs.Add("no-first-run");
+            settings.CefCommandLineArgs.Add("no-pings");
+            // The GPU service (software compositor with the default settings) runs inside the game process instead
+            // of one more subprocess; <CefInProcessGpu>false</CefInProcessGpu> restores the separate GPU process.
+            var inProcessGpu = playerSettings == null || playerSettings.CefInProcessGpu;
+            if (inProcessGpu) settings.CefCommandLineArgs.Add("in-process-gpu");
             if (Main.EnableMediaStream) settings.CefCommandLineArgs.Add("enable-media-stream");
 
-            LogManager.CefLog("--> Cef.Initialize (" + (gpu ? "GPU process" : "software rendering") + ", cache " + settings.CachePath + ")");
+            LogManager.CefLog("--> Cef.Initialize (" + (gpu ? "GPU rendering" : "software rendering") + ", " + (inProcessGpu ? "GPU service in-process" : "GPU process") +
+                              ", cache " + settings.CachePath + ")");
+            var started = System.Diagnostics.Stopwatch.StartNew();
             var ok = Cef.Initialize(settings, false, (IBrowserProcessHandler)null);
+            LogManager.CefLog("--> Cef.Initialize returned " + ok + " after " + started.ElapsedMilliseconds + " ms");
             _cefInitialised = ok;
 
             if (ok)
@@ -671,25 +734,27 @@ namespace GTANetwork.GUI
 
             LogManager.CefLog("--> Browser: Start (" + browserSize.Width + "x" + browserSize.Height + ", " + (localMode ? "local" : "remote") + ")");
 
-            if (!CEFManager.WaitUntilReady(15000))
-            {
-                LogManager.CefLog("--> Browser: CEF is not initialised, no browser created");
-                return;
-            }
-
             _callback = new BrowserJavascriptCallback(father, this);
             _render = new OverlayRenderHandler(browserSize.Width, browserSize.Height);
 
-            try
+            // Chromium may still be starting (first browser of the session): the CefSharp control is created once
+            // Cef.Initialize returned, on whatever thread that happens. Until then IsInitialized() is false and
+            // API.waitUntilCefBrowserInit yields; a page requested meanwhile is loaded as soon as the browser exists.
+            CEFManager.RunWhenReady(() =>
             {
-                CreateBrowser(browserSize, localMode);
-                LogManager.CefLog("--> Browser: End");
-            }
-            catch (Exception e)
-            {
-                LogManager.CefLog(e, "CreateBrowser");
-            }
+                try
+                {
+                    CreateBrowser(_size, localMode);
+                    LogManager.CefLog("--> Browser: End");
+                }
+                catch (Exception e)
+                {
+                    LogManager.CefLog(e, "CreateBrowser");
+                }
+            });
         }
+
+        private string _pendingUrl;
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void CreateBrowser(Size browserSize, bool localMode)
@@ -713,7 +778,13 @@ namespace GTANetwork.GUI
                 RenderProcessMessageHandler = new ResourceBridgeInjector(),
             };
 
-            _browser.BrowserInitialized += (sender, args) => LogManager.CefLog("-> Browser created!");
+            _browser.BrowserInitialized += (sender, args) =>
+            {
+                LogManager.CefLog("-> Browser created!");
+                var pending = _pendingUrl;
+                _pendingUrl = null;
+                if (pending != null) GoToPage(pending);
+            };
             _browser.FrameLoadStart += (sender, args) =>
             {
                 if (args.Frame != null && args.Frame.IsMain) LogManager.CefLog("-> Start: " + args.Url);
@@ -814,7 +885,12 @@ namespace GTANetwork.GUI
             if (CefUtil.DISABLE_CEF) return;
 
             var b = _browser;
-            if (b == null || b.IsDisposed) return;
+            if (b == null || b.IsDisposed || !b.IsBrowserInitialized)
+            {
+                _pendingUrl = page;
+                LogManager.CefLog("Page " + page + " queued until the browser exists");
+                return;
+            }
 
             LogManager.CefLog("Trying to load page " + page + "...");
             b.Load(page);

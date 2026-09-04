@@ -30,10 +30,14 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   Chromium starts with the first browser a resource creates, not at game start (`<CefPreload>true</CefPreload>`
   restores the old behaviour), so servers without browser UIs never run it. Settings: `<CefGpu>` (GPU process,
   default off = software rendering), `<CefFrameRate>` (default 30), `<CEFDevtool>` (remote debugger on port
-  9222). Chromium runs with the Alloy runtime style, without DirectComposition, window occlusion tracking and
-  renderer code integrity, and with the network service in-process (fewer Windows-only subsystems under Wine);
-  its own log `logs/CEF-chromium.log` is kept at Info level while the port is being verified. Details, mapping
-  and the performance plan (dirty rectangles, shared textures): `docs/CEF-UPGRADE.md`.
+  9222), `<CefInProcessGpu>` (GPU service inside the game process, default true; false = separate GPU process).
+  Chromium runs with the Alloy runtime style, without DirectComposition, window occlusion tracking, renderer
+  code integrity, extensions, background networking and component updates, and with the network service
+  in-process (fewer Windows-only subsystems and subprocess launches under Wine); its own log
+  `logs/CEF-chromium.log` is kept at Info level while the port is being verified. Creating a browser never
+  blocks the script (and with it the game) while Chromium starts: the browser appears when Chromium is up, a
+  page requested before that is loaded then. `Runtime.log` records a clean `ProcessExit` to tell an exit from a
+  crash. Details, mapping and the performance plan (dirty rectangles, shared textures): `docs/CEF-UPGRADE.md`.
 * **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page
   (also as `gtan.call`/`gtan.eval`) but are one-way now: the page runs in another process, so there is no return
   value. `browser.call()`/`browser.eval()` from client scripts are unchanged. Local browsers only see

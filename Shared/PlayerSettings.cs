@@ -31,6 +31,8 @@ namespace GTANetworkShared
         public int CefFrameRate { get; set; }
         /// <summary>Start Chromium at game start instead of with the first browser a resource creates (default false).</summary>
         public bool CefPreload { get; set; }
+        /// <summary>Run Chromium's GPU service inside the game process instead of a separate process (default true).</summary>
+        public bool CefInProcessGpu { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -78,6 +80,7 @@ namespace GTANetworkShared
             CefGpu = false;
             CefFrameRate = 30;
             CefPreload = false;
+            CefInProcessGpu = true;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";
