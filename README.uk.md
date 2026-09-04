@@ -9,7 +9,7 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
 Це відроджена версія коду. Порівняно з оригіналом (Visual Studio 2017, .NET Framework, тільки Windows) тут є:
 
 * **один `dotnet build` для всього** — SDK-style проєкти, NuGet-пакети, одна `GTANetwork.sln`;
-* **сервер працює нативно на Linux** (а також Windows/macOS) на .NET 8 — скрипти компілюються Roslyn'ом,
+* **сервер працює нативно на Linux** (а також Windows/macOS) на .NET 10 — скрипти компілюються Roslyn'ом,
   Unix-сигнали зупиняють його коректно, HTTP-файлсервер більше не потребує Nancy/OWIN;
 * **кросплатформний лаунчер** (`GTANetwork.Launcher`), який запускає гру через Steam/Proton на Linux
   стандартним ASI-лоадером ScriptHookV замість DLL-інжекції;
@@ -29,15 +29,15 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
 | Шлях | Проєкт | Ціль | Що це |
 | --- | --- | --- | --- |
 | `Shared/` | `GTANetworkShared` | net48 + netstandard2.0 | Пакети, властивості сутностей, математика, налаштування, protobuf-контракти — спільне для клієнта й сервера. |
-| `Server/` | `GTANetworkServer` | **net8.0** | Виділений сервер: Lidgren UDP, стрімер, ресурси, скриптовий API (`API.cs`), HTTP-файлсервер. Працює на Linux. |
-| `Launcher/` | `GTANetwork.Launcher` | **net8.0** | Кросплатформний лаунчер (Steam / Proton / Windows). |
+| `Server/` | `GTANetworkServer` | **net10.0** | Виділений сервер: Lidgren UDP, стрімер, ресурси, скриптовий API (`API.cs`), HTTP-файлсервер. Працює на Linux. |
+| `Launcher/` | `GTANetwork.Launcher` | **net10.0** | Кросплатформний лаунчер (Steam / Proton / Windows). |
 | `Client/` | `GTANetwork` (клієнт) | net48 | Внутрішньоігровий клієнт, який ScriptHookVDotNet завантажує всередину `GTA5.exe`. Синхронізація, стрімінг, CEF-інтерфейс, JS-движок, DirectX-хук. |
 | `NativeUI/` | `NativeUI` | net48 | Бібліотека меню в стилі Rockstar (GPL-3.0). |
 | `Shv.NET/` | `ScriptHookVDotNet` | C++/CLI, net48 | Форк ScriptHookVDotNet v3 від crosire. **Тільки Windows + MSVC**, потрібен ScriptHookV SDK. |
 | `Shv.NET/ref/` | `ScriptHookVDotNet.Ref` | net48 | Керована *заглушка* з тим самим публічним API, щоб клієнт компілювався на Linux. Ніколи не постачається. |
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, лаунчерний `GTANetwork.dll` | net48 | Класичний триступеневий Windows-лаунчер (реєстр, оновлення, інжекція DLL). Збирається і працює на Windows як і раніше. |
-| `Map2Resource/` | `Map2Resource` | net8.0 | Конвертує XML з Map Editor у серверні map-ресурси. |
-| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless-клієнт, що говорить справжнім протоколом: підключається до сервера, завантажує карту і скрипти, чатиться, виконує команди. Використовується інтеграційним тестом у CI. |
+| `Map2Resource/` | `Map2Resource` | net10.0 | Конвертує XML з Map Editor у серверні map-ресурси. |
+| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net10.0** | Headless-клієнт, що говорить справжнім протоколом: підключається до сервера, завантажує карту і скрипти, чатиться, виконує команди. Використовується інтеграційним тестом у CI. |
 | `libs/` | — | — | Бінарні залежності без NuGet-аналога: кастомний форк Lidgren, набір SharpDX, NAudio, EasyHook. Браузер (CefSharp + Chromium) і JavaScript-рушій (ClearScript 7 + V8) беруться з NuGet. |
 | `eng/`, `.github/workflows/` | — | — | Скрипти версіонування, smoke-тест сервера, пакування клієнта; CI. |
 
@@ -84,7 +84,7 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
 
 ## Збірка
 
-* [.NET 8 SDK](https://dotnet.microsoft.com/download) на будь-якій ОС — збирає **все кероване**, включно з
+* [.NET 10 SDK](https://dotnet.microsoft.com/download) на будь-якій ОС — збирає **все кероване**, включно з
   .NET Framework-клієнтом (через `Microsoft.NETFramework.ReferenceAssemblies`).
 * Windows + Visual Studio 2022 з *C++/CLI support* і *Windows SDK* — тільки для справжнього
   `ScriptHookVDotNet.dll`. [ScriptHookV SDK](http://www.dev-c.com/gtav/scripthookv/) (`inc/`, `lib/`) кладеться в
@@ -112,7 +112,7 @@ msbuild Shv.NET/ScriptHookVDotNet.sln /p:Configuration=Release /p:Platform=x64
 ### Швидкий локальний цикл (dev-контейнер)
 
 Щоб змінювати клієнт без очікування CI, використовуй dev-контейнер (`.devcontainer/`, або
-`docker-compose.yml` з CLI): у ньому вже є .NET 8 SDK, і він перезбирає `GTANetwork.dll` за секунди.
+`docker-compose.yml` з CLI): у ньому вже є .NET 10 SDK, і він перезбирає `GTANetwork.dll` за секунди.
 
 ```bash
 eng/dev-build-client.sh --sync     # зібрати клієнт і покласти його в ~/GTANetwork

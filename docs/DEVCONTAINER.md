@@ -2,7 +2,7 @@
 
 The slow part of iterating on the client used to be the round trip **edit → push → wait for CI →
 download release → install → test**. The managed client (`GTANetwork.dll`) compiles on Linux, so a
-container with the .NET 8 SDK rebuilds it in seconds and drops it straight into your existing
+container with the .NET 10 SDK rebuilds it in seconds and drops it straight into your existing
 `~/GTANetwork` install. Only the real C++/CLI `ScriptHookVDotNet.dll` needs Windows + MSVC, and that
 almost never changes — you already have it in `~/GTANetwork/bin` from an installed release.
 
@@ -10,7 +10,7 @@ almost never changes — you already have it in `~/GTANetwork/bin` from an insta
 
 | Part | Builds in the container? |
 | --- | --- |
-| Server, launcher, bot (net8.0) | yes |
+| Server, launcher, bot (net10.0) | yes |
 | In-game client `GTANetwork.dll` (net48) + the ClearScript runtime | yes — **against the real `ScriptHookVDotNet.dll`** (`eng/dev-build-client.sh` copies it from your install into `Shv.NET/bin/`, git-ignored). The managed stub in `Shv.NET/ref` only proves the code compiles: it is not binary-compatible (other `InputArgument` conversions → `MissingMethodException`, the client never initialises in game) |
 | Browser host `GTANetwork.CefHost.exe` (net48) + the Chromium runtime | yes (Windows binaries from NuGet) |
 | CEF harness `CefHarness.exe` (net48) | yes; it runs under Proton on the host machine (`eng/cef-harness.sh`) |
