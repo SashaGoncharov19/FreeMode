@@ -32,6 +32,7 @@ namespace GTANetwork.CefHost
         private static string _chromiumLog;
         private static string _cachePath;
         private static string _resourceRoot;
+        private static string _uiRoot;
         private static bool _gpu;
         private static bool _inProcessGpu = true;
         private static bool _mediaStream;
@@ -64,6 +65,7 @@ namespace GTANetwork.CefHost
                     case "--chromium-log": _chromiumLog = Next(); break;
                     case "--cache": _cachePath = Next(); break;
                     case "--resource-root": _resourceRoot = Next(); break;
+                    case "--ui-root": _uiRoot = Next(); break; // pages shipped with the client (<install>\ui), served as https://gtan/<path>
                     case "--gpu": _gpu = true; break;
                     case "--gpu-process": _inProcessGpu = false; break;
                     case "--media-stream": _mediaStream = true; break;
@@ -338,6 +340,7 @@ namespace GTANetwork.CefHost
         }
 
         internal static string ResourceRoot => _resourceRoot;
+        internal static string UiRoot => _uiRoot;
         internal static bool Verbose => _verbose;
         internal static int ParentPid => _parentPid;
 
@@ -737,12 +740,25 @@ namespace GTANetwork.CefHost
                     return ResourceHandler.ForErrorMessage("Only https://<resource>/<file> is allowed here", HttpStatusCode.Forbidden);
                 }
 
-                var root = Program.ResourceRoot;
                 string file;
-                if (string.IsNullOrEmpty(root) || !ResourceFileDownloader.TryGetLocalPath(root, uri.Host, Uri.UnescapeDataString(uri.AbsolutePath), out file))
+                if (uri.Host.Equals("gtan", StringComparison.OrdinalIgnoreCase))
                 {
-                    Program.Log("refused (bad path): " + url);
-                    return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
+                    // https://gtan/<path>: the client's own pages (loader, menu) from --ui-root, never from a resource
+                    var ui = Program.UiRoot;
+                    if (string.IsNullOrEmpty(ui) || !TryGetUiPath(ui, Uri.UnescapeDataString(uri.AbsolutePath), out file))
+                    {
+                        Program.Log("refused (no ui root or bad path): " + url);
+                        return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
+                    }
+                }
+                else
+                {
+                    var root = Program.ResourceRoot;
+                    if (string.IsNullOrEmpty(root) || !ResourceFileDownloader.TryGetLocalPath(root, uri.Host, Uri.UnescapeDataString(uri.AbsolutePath), out file))
+                    {
+                        Program.Log("refused (bad path): " + url);
+                        return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
+                    }
                 }
 
                 if (!File.Exists(file))
@@ -768,6 +784,19 @@ namespace GTANetwork.CefHost
                 Program.Log("resource handler failed: " + ex);
                 return ResourceHandler.ForErrorMessage("error", HttpStatusCode.InternalServerError);
             }
+        }
+
+        /// <summary>A file under the ui root for an absolute URL path; false when the path escapes the root.</summary>
+        private static bool TryGetUiPath(string uiRoot, string absolutePath, out string file)
+        {
+            file = null;
+            var relative = absolutePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            if (relative.Length == 0 || relative.Contains("..") || relative.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || Path.IsPathRooted(relative)) return false;
+            var rootFull = Path.GetFullPath(uiRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var full = Path.GetFullPath(Path.Combine(rootFull, relative));
+            if (!full.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase)) return false;
+            file = full;
+            return true;
         }
     }
 

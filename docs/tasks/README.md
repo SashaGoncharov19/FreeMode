@@ -29,7 +29,7 @@ done
 | [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | ready | E-05 RPC and protocol security | T-008 |
 | [T-010-launcher-gui-avalonia-skeleton](T-010-launcher-gui-avalonia-skeleton.md) | Launcher GUI (Avalonia 12): Play, settings, log viewer; the CLI becomes a thin front end | ready | E-06 Launcher | T-001 |
 | [T-011-master-list-service-and-server-browser](T-011-master-list-service-and-server-browser.md) | Master list service, server announce, server list in the client menu | ready | E-07 Master list | T-001 |
-| [T-012-cef-loader-from-connect-to-spawn](T-012-cef-loader-from-connect-to-spawn.md) | CEF loading screen from "connect" until spawn | ready | E-12 CEF UI | none |
+| [T-012-cef-loader-from-connect-to-spawn](T-012-cef-loader-from-connect-to-spawn.md) | CEF loading screen from "connect" until spawn | needs owner | E-12 CEF UI | none |
 | [T-013-cef-main-menu-server-browser](T-013-cef-main-menu-server-browser.md) | In-game CEF main menu: server list, favourites, direct connect, settings (replaces the NativeUI server browser) | ready | E-12 CEF UI | T-011, T-012 |
 | [T-014-dlc-packs-manifest-and-launcher-install](T-014-dlc-packs-manifest-and-launcher-install.md) | Custom DLC packs: server manifest, launcher download and install-time overlay (design + first implementation) | ready | E-08 DLC packs | T-010 (launcher core) |
 | [T-015-voice-protocol-and-bot-test](T-015-voice-protocol-and-bot-test.md) | Voice chat protocol: Opus frames over Lidgren, server relay by range, bot test | ready | E-09 Voice | T-003 (range sets) preferred; none required |

@@ -309,7 +309,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 | Script engine bridge | `Client/Javascript/JavascriptHook.cs` (ClearScript, `createCefBrowser`, `waitUntilCefBrowserInit`, `loadPageCefBrowser`) |
 | Harness | `Tools/CefHarness/Program.cs` (in-process modes), `Tools/CefHarness/HostTest.cs` (host protocol test), `eng/cef-harness.sh` |
 | Resource file download | `Shared/ResourceFiles.cs` (`TryGetLocalPath`, used by the host too), `Client/Main/Network/Download.cs` |
-| Settings | `Shared/PlayerSettings.cs` (`CefGpu`, `CefSharedTexture`, `CefInProcessGpu`, `CefFrameRate`, `CefPreload`, `CefIdleExitSeconds`, `CEFDevtool`, `DebugMode`) |
+| Settings | `Shared/PlayerSettings.cs` (`CefGpu`, `CefSharedTexture`, `CefInProcessGpu`, `CefFrameRate`, `CefPreload`, `CefIdleExitSeconds`, `CefLoader`, `CEFDevtool`, `DebugMode`) |
 | Hitch diagnostics | `Client/GUI/DirectXHook/Hook/DXHookD3D11.cs` (`RecordPresentCost`: `[HITCH]` lines), `Launcher/HitchMonitor.cs` (`--debug` system monitor) |
 | Build / packaging | `Directory.Build.props` (`CefSharpVersion`, `ClearScriptVersion`), `eng/package-client.ps1`, `eng/setup-linux.sh`, `Launcher/Deployment.cs` |
 | Dev loop | `.devcontainer/`, `docker-compose.yml`, `eng/dev-build-client.sh`, `eng/dev-sync-client.sh`, `eng/dev-test.sh`, `eng/cef-harness.sh` |

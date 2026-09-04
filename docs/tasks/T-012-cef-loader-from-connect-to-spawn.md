@@ -1,6 +1,6 @@
 # T-012 — CEF loading screen from "connect" until spawn
 
-Status: in progress
+Status: needs owner
 Epic: E-12 CEF UI
 Size: M
 Branch: task/T-012-cef-loader from the integration branch
@@ -39,16 +39,40 @@ brand it (logo/background URL from `SharedSettings`).
 
 ## Acceptance criteria
 
-- [ ] Harness: `eng/cef-harness.sh --ui-root <repo>/ui` loads `https://gtan/loader/index.html` (a new harness option) and
-      `gtanLoader.update` changes the page (pixel check).
-- [ ] Owner check: join the local server: the loader appears within 1.5 s of "connect", shows download progress and disappears at spawn;
-      `Runtime.log` has `loader: shown at …, hidden at … (N ms)`; join time recorded.
+- [x] Harness: `eng/cef-harness.sh` (default `--ui-root <repo>/ui`) loads `https://gtan/loader/index.html` in a third browser,
+      sends a state through `gtanLoader.update`, and the page paints: `loader page OK … 230400 opaque pixels of 230400`.
+- [ ] Owner check: join the local server: the loader appears about a second after "connect", shows the phases and the file
+      progress and fades out when the scripts start (the `auth` form appears after it); `Runtime.log` has `loader: shown for …`
+      and `loader: hidden after N ms (resources ready, …)`; the N is the join time to record.
 
 ## Log
 
 * 2026-09-04 22:10 agent — created.
 * 2026-09-05 00:20 agent — started on task/T-012-cef-loader (worktree).
+* 2026-09-05 00:40 agent — decided: the loader hides when the resources are downloaded and the scripts start (`InvokeFinishedDownload`), not at "spawn" — on login-gated servers the player is not spawned until the auth page, which must be visible; server branding deferred (files arrive during the loader phase). Harness passes; synced into ~/GTANetwork; PR opened.
 
 ## Result
 
-(empty)
+* **Changed**: new `Client/GUI/ConnectLoader.cs` (the client-owned full-screen browser and its state pushes), new `ui/loader/`
+  (`index.html`, `style.css`, `loader.js`: `gtanLoader.update/hide`), `Subprocess/GTANetwork.CefHost/Program.cs` (`--ui-root`,
+  `https://gtan/<path>` served from it with a path guard), `Client/GUI/CEFManager.cs` (`--ui-root <install>\ui` passed to the host;
+  `Browser.PageMessage`/`PageLoaded` hooks for browsers without a script engine), `Client/Main/Network/ProcessMessages.cs`
+  (show on `InitiatedConnect`, phases on `Connected`/download start, hide on `Disconnected`), `Client/Main/Network/Download.cs`
+  (HTTP progress → loader; hide in `InvokeFinishedDownload`), `Client/Main/Misc.cs` (`LoadingPromptText` → detail line),
+  `Client/Main/Network/MainNetwork.cs` (hide on local disconnect), `Shared/PlayerSettings.cs` (`CefLoader`, default true),
+  `Tools/CefHarness` (`--ui-root`, loader page check), `eng/cef-harness.sh` (default ui root), `eng/package-client.ps1` and
+  `eng/dev-sync-client.sh` (ship/sync `ui/`), `docs/CEF-UPGRADE.md`, `docs/CODEMAP.md`, `docs/HANDOFF.md`, `CHANGELOG.md`.
+* **Verified**: `eng/cef-harness.sh` → `loader page OK: https://gtan/loader/index.html painted (230400 opaque pixels of 230400, 1 frame(s))`,
+  `RESULT: OK … (22 events); latency eval -> frame: median 3.1 ms`; `harness-host.log` shows `[local] https://gtan/loader/index.html`,
+  `style.css`, `loader.js` served. Client and host built against the real ScriptHookVDotNet and synced into `~/GTANetwork` (with `ui/`).
+* **Not done / follow-ups**: server branding of the page (logo/background) — needs a URL source outside the resource files;
+  a Retry/Back button (the existing warning dialogs handle failures); the in-game menu (T-013) reuses `https://gtan/` and `PageMessage`.
+* **Owner check**: `~/GTANetwork/play.sh --debug`, join the local server. Expect: about a second after "connect" a dark full-screen page
+  "GTA Network" with the server address, "Connecting" → "Connected" → "Downloading files" with a progress bar, then it fades and the
+  `auth` login form appears. Then:
+  ```bash
+  grep -n "loader:" ~/GTANetwork/logs/Runtime.log | tail -5
+  grep -n "gtan/" ~/GTANetwork/logs/CEF-host.log | tail -5
+  ```
+  Bad: no page (check `CEF.log` for the browser creation and `CEF-host.log` for `refused`), or the page stays after the login
+  form appears (send the two log excerpts).

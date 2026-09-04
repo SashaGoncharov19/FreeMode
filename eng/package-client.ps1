@@ -12,6 +12,7 @@
     cef\                        GTANetwork.CefHost.exe (the browser process) + Chromium Embedded Framework runtime +
                                 CefSharp (the output folder of Subprocess\GTANetwork.CefHost)
     images\                     HUD / map / CEF assets
+    ui\                         the client's own CEF pages (ui/loader), served as https://gtan/<path>
 
   ScriptHookV.dll and dinput8.dll are NOT included (not redistributable): users download them from
   http://www.dev-c.com/gtav/scripthookv/ and drop them into bin\.
@@ -30,7 +31,7 @@ function Require-File([string]$path) {
 }
 
 if (Test-Path $Out) { Remove-Item $Out -Recurse -Force }
-foreach ($d in "bin/scripts", "launcher", "cef", "images", "logs", "resources") {
+foreach ($d in "bin/scripts", "launcher", "cef", "images", "ui", "logs", "resources") {
     New-Item -ItemType Directory -Force -Path (Join-Path $Out $d) | Out-Null
 }
 
@@ -95,6 +96,7 @@ if ($python) { & $python.Source "$Root/eng/pe-realign.py" "$Out/cef" | Select-Ob
 $keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "tr", "it", "nl", "cs", "ro", "hu"
 Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force
+Copy-Item "$Root/ui/*" "$Out/ui" -Recurse -Force   # the client's own pages (connect loader), served by the browser host as https://gtan/
 Copy-Item "$Root/vehicleData.json", "$Root/whitelist.txt", "$Root/LICENSE" $Out
 
 # 6. Version stamp (read from the in-game client)

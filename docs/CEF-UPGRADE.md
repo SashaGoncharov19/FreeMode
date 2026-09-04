@@ -163,6 +163,23 @@ is 117 MB, so the ~390 MB delta is Blink/V8 start-up plus this region. `eng/cef-
 extra Chromium switches to the host for further experiments; Wine's `+virtual` channel (`GTAN_CEF_WINEDEBUG`) shows
 no single large commit, so it is written in small pieces, or from the Unix side.
 
+## Client UI pages (`ui/`) and the connect loader
+
+Pages the client itself owns (not a resource) live in `ui/` in the repository and `<install>/ui` on disk; the browser
+host gets the folder as `--ui-root` and serves it as `https://gtan/<path>` (`LocalResourceHandlerFactory`, with the
+bridge shim injected like resource pages; the path is confined to the folder). The first page is the **connect loader**
+(`ui/loader/index.html`, `loader.js`, `style.css`): `Client/GUI/ConnectLoader.cs` creates a full-screen `Browser` with no
+script engine on `InitiatedConnect` (the host is starting at the same moment; the page shows about a second later),
+loads the page and pushes its state with `gtanLoader.update({server, stage, detail, label, index, total, elapsed})` on
+every change — the connection phases from `ProcessMessages.cs`, the HTTP download progress from `Download.cs`, the
+loading-prompt texts from `Main.LoadingPromptText` — and hides it (`gtanLoader.hide()` fade, `Close()` 350 ms later) in
+`InvokeFinishedDownload` or when the connection ends. Page → client messages (`resourceCall("loader:ready")`) reach
+`Browser.PageMessage` instead of a script engine. `<CefLoader>false</CefLoader>` turns it off. The harness checks the
+page with `--ui-root` (default: the repository's `ui/`): browser 3 loads it, receives a state, must paint.
+
+Not done yet: server branding (logo/background) — resource files arrive during the loader phase, so a server-provided
+image needs the master list entry or a URL allowed in local mode; the in-game main menu (T-013) reuses the same mechanism.
+
 ## Input
 
 The game gets key events from ScriptHookVDotNet as key codes; `CefController` sends CEF a `RawKeyDown` (WM_KEYDOWN)

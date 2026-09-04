@@ -22,6 +22,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 `claude/modernize-deps-4d8uyn` is being tested in game.
 
 ### Changed
+* **Loading screen from "connect" until the server's resources are in** (`<CefLoader>`, default true): a CEF page shipped
+  with the client (`ui/loader/`, served by the browser host as `https://gtan/loader/index.html`) covers the game from the
+  connection attempt through the handshake and the file download (with the file index and the current file) until the
+  client scripts start, then fades out; the browser host is starting at the same moment, so the page appears about a
+  second after "connect". Errors keep the existing warning dialogs. `Runtime.log` notes `loader: shown …` / `loader: hidden after N ms`.
 * **Browser: CEF 3.2987 (Chromium 57, 2017, single-process inside the game) → CefSharp.OffScreen 151 (Chromium 151,
   2026) in its own process, `cef\GTANetwork.CefHost.exe`.** The game starts the host with the first browser a
   resource creates (`<CefPreload>true</CefPreload>` starts it at game start), sends it commands over its stdin and

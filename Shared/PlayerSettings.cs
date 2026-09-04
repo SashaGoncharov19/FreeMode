@@ -39,6 +39,9 @@ namespace GTANetworkShared
         /// <summary>Stop the browser host (Chromium, ~0.9 GB) when no browser has existed for this many seconds; it starts again
         /// with the next browser a resource creates (a second or so). 0 keeps it for the whole session (default 60).</summary>
         public int CefIdleExitSeconds { get; set; }
+        /// <summary>Show the CEF loading screen (ui/loader) from "connect" until the server's resources are downloaded and
+        /// the client scripts start (default true; false = only the game's loading prompt, as before).</summary>
+        public bool CefLoader { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -89,6 +92,7 @@ namespace GTANetworkShared
             CefInProcessGpu = true;
             CefSharedTexture = true;
             CefIdleExitSeconds = 60;
+            CefLoader = true;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";
