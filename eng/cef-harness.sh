@@ -65,9 +65,12 @@ in_process=0
 for a in "${args[@]}"; do case "$a" in --in-process|--appdomain) in_process=1 ;; esac; done
 if [ "$install_cef" = 1 ]; then
   args=(--cef-dir "$(winpath "$install/cef")" --host "$(winpath "$install/cef/GTANetwork.CefHost.exe")" "${args[@]}")
+  case " ${args[*]} " in *" --ui-root "*) ;; *) [ -d "$install/ui" ] && args=(--ui-root "$(winpath "$install/ui")" "${args[@]}") ;; esac
 elif [ "$in_process" = 0 ]; then
   [ -f "$host_out/GTANetwork.CefHost.exe" ] || { echo "No host build at $host_out. Run: eng/cef-harness.sh --build" >&2; exit 1; }
   args=(--host "$(winpath "$host_out/GTANetwork.CefHost.exe")" "${args[@]}")
+  # the client's pages (ui/loader): the harness checks that https://gtan/loader/index.html renders
+  case " ${args[*]} " in *" --ui-root "*) ;; *) [ -d "$root/ui" ] && args=(--ui-root "$(winpath "$root/ui")" "${args[@]}") ;; esac
 fi
 if [ "$alone" = 1 ]; then
   # The exe alone in a folder, as GTA5.exe is: the default AppDomain can resolve none of our assemblies; the

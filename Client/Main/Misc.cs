@@ -1,6 +1,7 @@
 ﻿using GTA;
 using GTA.Math;
 using GTA.Native;
+using GTANetwork.GUI;
 using GTANetwork.Javascript;
 using GTANetwork.Misc;
 using GTANetwork.Streamer;
@@ -437,6 +438,7 @@ namespace GTANetwork
 
         public static void LoadingPromptText(string text)
         {
+            ConnectLoader.Detail(text);
             Function.Call((Hash)0xABA17D7CE615ADBF, "STRING"); //_SET_LOADING_PROMPT_TEXT_ENTRY
             Function.Call((Hash)0x6C188BE134E074AA, text); //ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME
             Function.Call((Hash)0x10D373323E5B9C0D); //_REMOVE_LOADING_PROMPT

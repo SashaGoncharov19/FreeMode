@@ -1,3 +1,4 @@
+using GTANetwork.GUI;
 using System;
 using System.IO;
 using System.Net;
@@ -61,7 +62,11 @@ namespace GTANetwork
                     {
                         Accept = DownloadManager.IsAllowedFile,
                         Cancelled = () => _cancelDownload || generation != _httpDownloadGeneration,
-                        Progress = (label, index, total) => _threadsafeSubtitle = "Downloading " + label + " (" + index + "/" + total + ")",
+                        Progress = (label, index, total) =>
+                        {
+                            _threadsafeSubtitle = "Downloading " + label + " (" + index + "/" + total + ")";
+                            ConnectLoader.Progress(label, index, total);
+                        },
                         Log = text => LogManager.RuntimeLog("Resource files: " + text),
                     };
 
@@ -102,6 +107,7 @@ namespace GTANetwork
             Client.SendMessage(confirmObj, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
 
             HasFinishedDownloading = true;
+            ConnectLoader.Hide("resources ready, " + resources.Count + " resource(s)");
             Function.Call((Hash)0x10D373323E5B9C0D); //_REMOVE_LOADING_PROMPT
             Function.Call(Hash.DISPLAY_RADAR, true);
         }

@@ -123,6 +123,7 @@ local `PedData`/`VehicleData`; a background thread `MainLoop` :15 sends pure syn
 | `Javascript/JavascriptHook.cs` (4632; `ScriptContext` 403 public members) | Client scripting: `ConfigureClearScript` :348, `StartScripts` :366, `StartScript` :408 (one `V8ScriptEngine` per script file, host object `API` = `ScriptContext` :586, `resource`, `exported`; `AllowReflection=false`), CEF API :1102–:1325, `triggerServerEvent` :3839, events from :3878. `CameraManager.cs`, `JavascriptChat.cs`, `JavascriptXmlParser.cs`, `Attach.cs`, `LoopAudioStream.cs` support it. |
 | `GUI/CEFManager.cs` (1277) | Browser host client: `CefController` :63, `CEFManager` :273 (`InitializeCef` :326, `StartHost` :347, `ReadEvents` :410, `Dispatch` :455, `Send` :573, idle exit :617–:648, frame pump :731, `DisposeCef` :765), `BrowserJavascriptCallback` :842, `Browser` :948, `BrowserInput` :1232. |
 | `GUI/CefClient.cs` (348) | `OverlayRenderHandler` (shared-memory frames or shared textures → overlay), `CefFrameStager`. |
+| `GUI/ConnectLoader.cs` | The connect loading screen: a client-owned full-screen browser showing `ui/loader/index.html` (`https://gtan/…`) from `InitiatedConnect` until the resources are downloaded. |
 | `GUI/DirectXHook/**` | EasyHook + SharpDX D3D11 overlay: `SwapchainHooker.cs`, `Hook/DXHookD3D11.cs` (Present hook, `[PROFILE]`/`[HITCH]`), `Hook/DX11/DXOverlayEngine.cs` (draw, shared-texture copy), `DXImage.cs`, `Hook/Common/*` (elements, `SharedTextureSurface.cs`, `IDynamicSurface.cs`). D3D10 hooks are excluded from the build. |
 | `GUI/Chat.cs`, `ClassicChat.cs`, `Warning.cs`, `Tab*.cs`, `Extern/*` | Chat, warnings, pause-menu tabs, image helpers. |
 | `Misc/GameSettings.cs`, `GameScript.cs`, `WeaponDataProvider.cs`, `ChatData.cs` | GTA V settings patching, SP script disabling, weapon metadata, chat contract. |
@@ -132,7 +133,7 @@ local `PedData`/`VehicleData`; a background thread `MainLoop` :15 sends pure syn
 
 | File | Content |
 | --- | --- |
-| `Subprocess/GTANetwork.CefHost/Program.cs` (~890) | Options (`--parent`, `--log`, `--chromium-log`, `--cache`, `--resource-root`, `--gpu`, `--gpu-process`, `--media-stream`, `--verbose`, `--devtools`, `--chromium-switch`), `Cef.Initialize`, command loop, `HostedBrowser` (:366), `FrameWriter` (`OnPaint` → `CefFrameBuffer`; `OnAcceleratedPaint` → `TextureRelay`), local `https://<resource>/` serving (`LocalResourceRequestHandler`), the bridge shim (`resourceCall`, `resourceEval`, `gtan`) injected into served HTML, pop-up/menu handlers, parent watchdog. |
+| `Subprocess/GTANetwork.CefHost/Program.cs` (~900) | Options (`--parent`, `--log`, `--chromium-log`, `--cache`, `--resource-root`, `--ui-root` (client pages as `https://gtan/<path>`), `--gpu`, `--gpu-process`, `--media-stream`, `--verbose`, `--devtools`, `--chromium-switch`), `Cef.Initialize`, command loop, `HostedBrowser` (:366), `FrameWriter` (`OnPaint` → `CefFrameBuffer`; `OnAcceleratedPaint` → `TextureRelay`), local `https://<resource>/` serving (`LocalResourceRequestHandler`), the bridge shim (`resourceCall`, `resourceEval`, `gtan`) injected into served HTML, pop-up/menu handlers, parent watchdog. |
 | `Subprocess/GTANetwork.CefHost/TextureRelay.cs` | The per-browser ring of 4 D3D11 shared textures on the host's own device, GPU-completion wait, `textures`/`texture` events. |
 | `Tools/CefHarness/Program.cs`, `HostTest.cs`, `SharedTextureReader.cs` | The acceptance test (`eng/cef-harness.sh`): protocol run, pixels, bridge, eval→frame latency, shared-texture read-back, benchmarks; in-process modes for the AppDomain diagnosis. |
 
@@ -230,6 +231,7 @@ CEF harness (`docs/agents/testing.md`). Dev container: `.devcontainer/`, `docker
   `EasyLoad64.dll`, `sharpdx_direct3d11*_x64.dll`; **unused leftovers** — `EasyHook.dll`, `Interop.WMPLib.dll`,
   `Ionic.Zip.dll`, `Microsoft.Owin*.dll`, `Nancy*.dll`, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `Owin.dll`,
   `protobuf-net.dll` (NuGet versions are used).
+* `ui/loader/` — the connect loading screen (HTML/CSS/JS), shipped as `<install>/ui`.
 * `natives.txt` (root) = `Client/natives.txt` (embedded, 4281 hashes); `Client/soundlist.txt`; `vehicleData.json`
   (read by `Server/Constant/ConstantVehicleData.cs`); `whitelist.txt` (1-byte placeholder); `images/**` (HUD, blips,
   radio art, `cef/cursor.png`).

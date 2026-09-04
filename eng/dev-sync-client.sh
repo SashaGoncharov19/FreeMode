@@ -80,6 +80,13 @@ realign() { # Wine maps PE images from disk only with page-aligned sections (eng
 }
 [ -d "$install/cef" ] && realign "$install/cef"
 
+# The client's own CEF pages (ui/loader, ...): copied whole, they are plain files.
+if [ -d "$root/ui" ]; then
+  mkdir -p "$install/ui"
+  if command -v rsync >/dev/null 2>&1; then rsync -a --delete "$root/ui/" "$install/ui/"; else rm -rf "$install/ui"; cp -a "$root/ui" "$install/ui"; fi
+  echo "Synced ui/ -> $install/ui"
+fi
+
 if [ "$cef" = 1 ]; then
   [ -f "$host_out/libcef.dll" ] || { echo "No Chromium runtime in $host_out (build Subprocess/GTANetwork.CefHost)." >&2; exit 1; }
   mkdir -p "$install/cef"

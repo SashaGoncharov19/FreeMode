@@ -830,6 +830,7 @@ namespace GTANetwork
                                 // Start the browser host now, while the connection and the resource download take
                                 // their seconds, so a page a resource opens on join is drawn at once.
                                 CEFManager.InitializeCef();
+                                ConnectLoader.Show(_currentServerIp + ":" + _currentServerPort);
                                 StringCache?.Dispose();
 
                                 StringCache = new StringCache();
@@ -842,6 +843,7 @@ namespace GTANetwork
                                 }
                                 AddServerToRecent(_currentServerIp + ":" + _currentServerPort);
                                 Util.Util.SafeNotify("Connection established!");
+                                ConnectLoader.Stage("connected", "Connection established");
                                 var respLen = msg.SenderConnection.RemoteHailMessage.ReadInt32();
                                 var respObj = DeserializeBinary<ConnectionResponse>(msg.SenderConnection.RemoteHailMessage.ReadBytes(respLen)) as ConnectionResponse;
 
@@ -899,6 +901,7 @@ namespace GTANetwork
 
                                 }
 
+                                ConnectLoader.Stage("downloading", HTTPFileServer ? "Downloading the server's files" : "Receiving the server's files");
                                 if (HTTPFileServer)
                                 {
                                     StartFileDownload($"http://{_currentServerIp}:{_currentServerPort}");
@@ -915,6 +918,7 @@ namespace GTANetwork
                             case NetConnectionStatus.Disconnected:
                                 var reason = msg.ReadString();
 
+                                ConnectLoader.Hide("disconnected: " + reason);
                                 OnLocalDisconnect();
                                 if (!string.IsNullOrEmpty(reason) && reason != "Quit" && reason != "Switching servers")
                                 {
