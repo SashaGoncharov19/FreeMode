@@ -51,9 +51,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   With the browser in its own process `<CefGpu>true</CefGpu>` works under Proton (ANGLE on D3D11 through DXVK):
   the harness delivers 60 frames/s of an animated 1280x720 page either way, with accelerated canvas and steadier
   frame pacing on the GPU. With the GPU on, frames travel as **D3D11 shared textures** (`<CefSharedTexture>`, default
-  on): Chromium renders into textures the host hands to the game by handle, and the overlay copies them GPU-side into
-  its own texture — no CPU work per frame (0.03 ms of GPU copy instead of a 0.4 ms memcpy per 720p frame). If a
-  texture cannot be opened on the game's device the browser silently falls back to CPU frames.
+  on): the host copies each of Chromium's paints into a ring of four textures it owns (Chromium's own texture
+  handles are only valid inside its paint callback), announces a slot once the copy has executed on the GPU, and the
+  overlay copies that slot GPU-side into its own texture — no CPU work per frame (0.02 ms of GPU copy instead of a
+  0.4 ms memcpy per 720p frame; the harness measures 8 ms from a page change to the frame showing it, 3 ms over
+  shared memory). If the host has no D3D11 device or a texture cannot be opened on the game's device the browser
+  silently falls back to CPU frames.
 * **Memory under Wine**: the PE files of the browser host are page-aligned (`eng/pe-realign.py`, at packaging and on
   Linux installs). Wine maps a DLL from disk only with page-aligned sections; Chromium's are linked with a 512-byte
   file alignment, so Wine used to read `libcef.dll` (272 MB) into every process separately. Chromium's resident memory

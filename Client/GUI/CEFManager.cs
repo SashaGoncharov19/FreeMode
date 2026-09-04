@@ -946,6 +946,9 @@ namespace GTANetwork.GUI
                 case CefHostProtocol.Frame:
                     _render?.AttachFrame(m.FrameName, m.W, m.H, m.Stride);
                     break;
+                case CefHostProtocol.Textures:
+                    _render?.AttachTextures(m.Handles, m.W, m.H, m.Text);
+                    break;
                 case CefHostProtocol.Texture:
                     _render?.AttachTexture(m.Handle, m.W, m.H);
                     break;

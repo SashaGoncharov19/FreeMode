@@ -32,4 +32,12 @@
     <Reference Include="System.Drawing" />
   </ItemGroup>
 
+  <!-- The shared-texture relay (TextureRelay.cs) needs a D3D11 device of its own: the same SharpDX build the game's
+       DirectX hook uses, from ../../libs. -->
+  <ItemGroup>
+    <Reference Include="SharpDX"><HintPath>$(GtanLibsDir)SharpDX.dll</HintPath></Reference>
+    <Reference Include="SharpDX.DXGI"><HintPath>$(GtanLibsDir)SharpDX.DXGI.dll</HintPath></Reference>
+    <Reference Include="SharpDX.Direct3D11"><HintPath>$(GtanLibsDir)SharpDX.Direct3D11.dll</HintPath></Reference>
+  </ItemGroup>
+
 </Project>

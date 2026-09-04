@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
 using GTANetwork.Util;
@@ -13,10 +15,12 @@ namespace GTANetwork.GUI
     }
 
     /// <summary>
-    /// The picture of one browser in the DirectX overlay. The browser host paints into a shared-memory
-    /// <see cref="CefFrameBuffer"/>; the CEF frame pump thread copies each new frame's changed rectangle into a
+    /// The picture of one browser in the DirectX overlay. Two ways in: the browser host paints into a shared-memory
+    /// <see cref="CefFrameBuffer"/>, the CEF frame pump thread copies each new frame's changed rectangle into a
     /// <see cref="CefFrameStager"/>, and the overlay uploads that rectangle into a persistent texture on the render
-    /// thread. No bitmaps, no texture re-creation: one copy on the pump thread, one upload in Present.
+    /// thread (one copy on the pump thread, one upload in Present); or, with the GPU on, the host copies each frame
+    /// into a ring of D3D11 shared textures (<see cref="SharedTextureSurface"/>) and the overlay copies the announced
+    /// slot GPU-side, no CPU work per frame.
     /// </summary>
     internal class OverlayRenderHandler : IDisposable
     {
@@ -28,6 +32,7 @@ namespace GTANetwork.GUI
         private SharedTextureSurface _shared;
         private int _framesLogged;
         private int _texturesLogged;
+        private int _staleLogged;
 
         /// <summary>Called (once) when the overlay could not open a shared texture: the browser falls back to CPU frames.</summary>
         internal Action<string> SharedTextureFailed;
@@ -88,13 +93,18 @@ namespace GTANetwork.GUI
             LogManager.VerboseCefLog("-> Frame buffer " + name + " (" + width + "x" + height + ", stride " + stride + ")");
         }
 
-        /// <summary>The host painted into a shared D3D11 texture: the overlay copies it on the render thread.</summary>
-        internal void AttachTexture(long handle, int width, int height)
+        /// <summary>
+        /// The host (re)created its ring of shared textures for this browser: these handles are ours to open, the
+        /// previous ring's are closed. Without handles the host cannot relay textures at all: CPU frames instead.
+        /// </summary>
+        internal void AttachTextures(long[] handles, int width, int height, string error)
         {
-            if (handle == 0) return;
+            if (handles == null || handles.Length == 0)
+            {
+                SharedTextureFailed?.Invoke(error ?? "the host announced no textures");
+                return;
+            }
             SharedTextureSurface shared;
-            var failed = false;
-            string error = null;
             lock (_lock)
             {
                 var element = _imageElement;
@@ -111,13 +121,42 @@ namespace GTANetwork.GUI
                 }
                 shared = _shared;
             }
+            var fresh = new List<IntPtr>(handles.Length);
+            foreach (var h in handles) if (h != 0) fresh.Add(new IntPtr(h));
+            IntPtr[] retired;
+            lock (shared.SyncRoot)
+            {
+                retired = shared.Handles.Where(h => !fresh.Contains(h)).ToArray();
+                shared.Handles.Clear();
+                shared.Handles.AddRange(fresh);
+                if (!fresh.Contains(shared.Pending)) shared.Pending = IntPtr.Zero;
+            }
+            if (retired.Length > 0) Retire(retired);
+            if (LogManager.Verbose)
+                LogManager.CefLog("-> Texture ring " + width + "x" + height + ": " + string.Join(", ", fresh.Select(h => "0x" + h.ToInt64().ToString("X")).ToArray()) + (retired.Length > 0 ? "; " + retired.Length + " previous texture(s) retired" : ""));
+        }
+
+        /// <summary>The host copied a frame into one of the ring's textures: the overlay copies it on the render thread.</summary>
+        internal void AttachTexture(long handle, int width, int height)
+        {
+            if (handle == 0) return;
+            SharedTextureSurface shared;
+            lock (_lock) shared = _shared;
+            if (shared == null) return; // no ring announced: a late event of a browser already switched or closed
+            bool failed, known;
+            string error;
             lock (shared.SyncRoot)
             {
                 var h = new IntPtr(handle);
-                if (!shared.Handles.Contains(h)) shared.Handles.Add(h);
-                shared.Pending = h;
+                known = shared.Handles.Contains(h);
+                if (known) shared.Pending = h;
                 failed = shared.Failed;
                 error = shared.LastError;
+            }
+            if (!known)
+            {
+                if (_staleLogged++ < 3) LogManager.CefLog("-> Texture frame in 0x" + handle.ToString("X") + ", which is not in the current ring; ignored");
+                return;
             }
             if (_texturesLogged < 3 && LogManager.Verbose)
             {
@@ -151,6 +190,13 @@ namespace GTANetwork.GUI
                 shared.Handles.Clear();
                 shared.Pending = IntPtr.Zero;
             }
+            Retire(handles);
+        }
+
+        /// <summary>Close these handles (and the textures opened from them) on the render thread; any thread.</summary>
+        private static void Retire(IntPtr[] handles)
+        {
+            if (handles.Length == 0) return;
             var engine = CEFManager.DirectXHook?.OverlayEngine;
             if (engine != null) engine.RetireSharedTextures(handles);
             else foreach (var h in handles) NativeMethods.CloseHandle(h);

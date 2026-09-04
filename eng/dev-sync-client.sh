@@ -66,7 +66,7 @@ if [ -f "$host_out/GTANetwork.CefHost.exe" ]; then
   mkdir -p "$install/cef"
   hcopied=0
   for b in GTANetwork.CefHost.exe GTANetwork.CefHost.exe.config GTANetwork.CefHost.pdb GTANetworkShared.dll Newtonsoft.Json.dll protobuf-net.dll \
-           CefSharp.dll CefSharp.Core.dll CefSharp.OffScreen.dll; do
+           CefSharp.dll CefSharp.Core.dll CefSharp.OffScreen.dll SharpDX.dll SharpDX.DXGI.dll SharpDX.Direct3D11.dll; do
     [ -f "$host_out/$b" ] && put "$host_out/$b" "$install/cef/$b" && hcopied=$((hcopied + 1))
   done
   echo "Synced $hcopied browser host files -> $install/cef"

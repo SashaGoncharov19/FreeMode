@@ -102,18 +102,36 @@ executables) and the VC++ 2022 x64 runtime (C++/CLI parts) — both already inst
    subprocesses 8 %, longest gap 230 ms; `--gpu` 60.1 frames/s, same CPU, longest gap 20 ms, ANGLE on D3D11 (DXVK)
    initialised, canvas accelerated. `<CefGpu>true</CefGpu>` is therefore worth using; in-game verification by the owner
    decides whether it becomes the default.
-3. **Shared textures — done (4 Sept)**: with `<CefGpu>true</CefGpu>` (and `<CefSharedTexture>true</CefSharedTexture>`,
-   the default) browsers are created with `WindowInfo.SharedTextureEnabled`; Chromium renders into D3D11 textures and
-   `IRenderHandler.OnAcceleratedPaint` gives the host their NT handles. The host duplicates each handle into the game
-   process (`DuplicateHandle`, once per texture of Chromium's pool) and sends a `texture` event per frame; the overlay
-   opens each handle once on the game's device (`Device1.OpenSharedResource1`), copies the texture GPU-side into the
-   element's persistent texture (`CopyResource`, 0.027 ms measured) and draws that. **No CPU work per frame at all.**
-   Handles Chromium stops using are released after a few seconds (it re-creates its pool now and then: 14 textures in
-   a 15 s benchmark); on a browser's close all its handles are closed. If a handle cannot be opened, the browser is
-   created again with CPU frames and no later browser asks for shared textures (`CEF.log`: "shared textures
-   unavailable"). Measured with `eng/cef-harness.sh --shared-texture --bench 15 --size 1280x720` on Proton
-   Experimental / DXVK / RTX 4050: 60 texture events/s, 60 GPU copies/s, host 4 % CPU, Chromium 9 % — the textures
-   are `B8G8R8A8_UNorm`, `Shared | SharedNthandle`, no keyed mutex, and open fine across processes (both sides DXVK).
+3. **Shared textures — done (4 Sept), texture lifetime fixed the same night**: with `<CefGpu>true</CefGpu>` (and
+   `<CefSharedTexture>true</CefSharedTexture>`, the default) browsers are created with `WindowInfo.SharedTextureEnabled`;
+   Chromium renders into D3D11 textures and `IRenderHandler.OnAcceleratedPaint` gives the host their NT handles.
+   **Those handles are only valid inside the callback**: the texture is one of a pool Chromium recycles, the handle is
+   a fresh duplicate every paint, and the buffer is rewritten with a later frame as soon as the callback returns
+   (CefSharp's documentation says exactly this). The first version forwarded them to the game and cached them by
+   handle value on both sides. In game that meant stale frames — a recycled handle value pointed at another pool
+   texture, so a keystroke only showed up with some later paint ("the inputs lag") — and after 45 s an `E_INVALIDARG`
+   when the game tried to open a handle it had itself closed as unused, then the fallback to CPU frames
+   (`CEF-host.log` of 4 Sept, 20:48: eleven "shared texture … -> game handle" lines for one login page). Now the
+   host owns the textures: `TextureRelay` (`Subprocess/GTANetwork.CefHost/TextureRelay.cs`, a D3D11 device of its own
+   in the host — DXVK under Proton, SharpDX from `libs/`) keeps a **ring of 4 shared textures per browser**, copies
+   each paint into the next slot inside the callback (`OpenSharedResource1` of Chromium's handle, `CopyResource`,
+   `Flush`, an event query) and a publisher thread announces the slot (`texture` event) only once the query says the
+   copy has executed on the GPU. The ring's handles are duplicated into the game once and announced by a `textures`
+   event (again after a resize, when the ring is re-created for the new size); the overlay opens each slot once
+   (`Device1.OpenSharedResource1`), copies the announced slot GPU-side into the element's persistent texture
+   (`CopyResource`, 0.02 ms) and draws that; it closes handles only when a `textures` event replaces them or the
+   browser goes — never on its own clock. No keyed mutex (DXVK stubs it): the game copies the newest slot when it
+   presents, and the host writes the same slot again three paints later at the earliest. If the host has no D3D11
+   device or cannot duplicate a handle, the game gets a `textures` event without handles and re-creates the browser
+   with CPU frames (same for a slot the game cannot open); no later browser asks for shared textures (`CEF.log`:
+   "shared textures unavailable"). Measured with `eng/cef-harness.sh --shared-texture --bench 8 --size 1280x720`
+   (Proton Experimental / DXVK / RTX 4050): 60 texture events/s, 60 GPU copies/s, 0.020 ms per `CopyResource`, host
+   5 % CPU, Chromium 10 %; the host process is 210 MB PSS with the extra device. The harness also measures
+   **latency** now (an `eval` changes the page's background, the time until a frame shows it, 6 rounds): 8.2–8.7 ms
+   median over shared textures, 3.1 ms median over shared memory (software rendering) for a 420x480 page — both well
+   inside one game frame; in game one Present is added on top. The GPU path costs a few milliseconds more on a small
+   static page (Chromium's compositor, the capture into the pool, two GPU copies) and wins on big or animated pages
+   where software rasterising costs CPU.
 4. `WindowlessFrameRate` per browser (`API.setCefFramerate`), 60 default.
 5. Next: what is left is Chromium's own cost (renderer ~9 % CPU for an animated 720p page) and, for 3D browsers,
    drawing the texture with a world transform (below).
@@ -173,9 +191,12 @@ placed and scaled there each frame by the client script (`setCefBrowserPosition/
 
 * **Harness** (`Tools/CefHarness`, `eng/cef-harness.sh`): starts the host under Proton in the game's prefix (or
   on Windows directly), creates a local-mode browser, serves `https://harness/ui/index.html` from a resources
-  folder, reads the pixels from the shared frame buffer, waits for the page's `resourceCall`, resizes, closes.
-  `--install-cef` tests the host of an installed game. `--in-process`, `--appdomain` and `--alone --appdomain`
-  reproduce the in-game failure of the in-process design.
+  folder, reads the pixels from the shared frame buffer, waits for the page's `resourceCall`, measures the latency
+  from an `eval` to the frame that shows it, resizes, closes. `--shared-texture` does the same through the host's
+  texture ring on a D3D11 device of its own (opens the announced slot, reads it back, drops slots of a replaced
+  ring); `--bench N --size WxH` measures throughput and CPU on an animated page in either mode. `--install-cef`
+  tests the host of an installed game. `--in-process`, `--appdomain` and `--alone --appdomain` reproduce the
+  in-game failure of the in-process design.
 * CI: the Linux job compiles everything; the Windows job builds the package and fails if
   `cef\GTANetwork.CefHost.exe`, `cef\libcef.dll`, `CefSharp.BrowserSubprocess.exe` or `CefSharp.Core.Runtime.dll`
   are missing. Running the harness against the assembled package on the Windows job is the next step.

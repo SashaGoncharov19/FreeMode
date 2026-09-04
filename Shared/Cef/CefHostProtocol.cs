@@ -15,7 +15,7 @@ namespace GTANetworkShared.Cef
     /// </summary>
     public static class CefHostProtocol
     {
-        public const int Version = 1;
+        public const int Version = 2;
 
         // ---- commands, game -> host ----
         /// <summary>Create a browser: Id, W, H, Local (only https://&lt;resource&gt;/ files), Fps, Shared (frames as
@@ -55,8 +55,12 @@ namespace GTANetworkShared.Cef
         public const string Created = "created";
         /// <summary>Browser Id paints into shared memory FrameName (W x H, Stride bytes per row, generation Gen).</summary>
         public const string Frame = "frame";
-        /// <summary>Browser Id painted a new frame into the D3D11 texture behind Handle (an NT handle duplicated into the
-        /// game process; open once with OpenSharedResource1 and keep), W x H, dirty rectangle X, Y, Dx, Dy (width, height).</summary>
+        /// <summary>Browser Id renders into a ring of D3D11 textures the host owns: Handles (NT handles duplicated into the
+        /// game process; open each once with OpenSharedResource1, close them when the next "textures" replaces them), W x H,
+        /// generation Gen. Without Handles, Text says why the host cannot relay textures: use CPU frames for this browser.</summary>
+        public const string Textures = "textures";
+        /// <summary>Browser Id painted a new frame: it is in the ring texture behind Handle (one of the last "textures"),
+        /// complete on the GPU; W x H, dirty rectangle X, Y, Dx, Dy (width, height), Gen = the ring slot.</summary>
         public const string Texture = "texture";
         public const string LoadStart = "loadStart";
         /// <summary>Main frame of browser Id finished loading Url with HTTP Status.</summary>
@@ -119,6 +123,7 @@ namespace GTANetworkShared.Cef
         public int Line;
         public object[] Args;
         public long Handle;
+        public long[] Handles;
         public string Chromium;
         public string CefVersion;
         public string CefSharp;

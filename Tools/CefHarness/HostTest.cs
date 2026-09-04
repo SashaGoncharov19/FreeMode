@@ -44,6 +44,10 @@ namespace GTANetwork.CefHarness
         private static string _jsCall;
         private static long _textureEvents;
         private static long _textureHandle;
+        private static long[] _ring;
+        private static int _ringVersion;
+        private static string _textureFailure;
+        private static readonly ManualResetEvent TextureFailed = new ManualResetEvent(false);
         private static int _textureW, _textureH;
         private static readonly ManualResetEvent TextureAnnounced = new ManualResetEvent(false);
         private static string _jsEval;
@@ -141,11 +145,16 @@ namespace GTANetwork.CefHarness
                 {
                     // The zero-copy path: Chromium's frames arrive as D3D11 shared textures; open them on our own device
                     // (DXVK under Proton, like the game's) and read pixels back once to prove the content is there.
-                    if (WaitHandle.WaitAny(new WaitHandle[] { TextureAnnounced, FrameAnnounced, Exited }, deadline) != 0)
-                        return Finish(channel, host, TextureAnnounced.WaitOne(0) ? "?" : FrameAnnounced.WaitOne(0) ? "Chromium fell back to CPU frames (no shared textures; is the GPU on?)" : "no texture announced", 3, clock);
+                    var announced = WaitHandle.WaitAny(new WaitHandle[] { TextureAnnounced, FrameAnnounced, TextureFailed, Exited }, deadline);
+                    if (announced != 0)
+                        return Finish(channel, host, announced == 2 ? "the host cannot relay shared textures: " + _textureFailure : FrameAnnounced.WaitOne(0) ? "Chromium fell back to CPU frames (no shared textures; is the GPU on?)" : "no texture announced", 3, clock);
                     var verdict = SharedTextureCheck(deadline);
                     if (verdict.StartsWith("OK")) log(verdict);
                     else return Finish(channel, host, verdict, 3, clock);
+                    var textureLatency = LatencyProbe(channel, 1, true, 6);
+                    log(textureLatency);
+                    if (!textureLatency.StartsWith("latency")) return Finish(channel, host, textureLatency, 3, clock);
+                    verdict += "; " + textureLatency;
                     if (benchSec > 0)
                     {
                         channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
@@ -194,6 +203,10 @@ namespace GTANetwork.CefHarness
                 if (!gotJs) return Finish(channel, host, "pixels OK, but no resourceCall/resourceEval from the page within 10 s", 7, clock);
                 log("page -> game: resourceCall " + call + (evalCode != null ? "; resourceEval " + evalCode : ""));
 
+                var latency = LatencyProbe(channel, 1, false, 6);
+                log(latency);
+                if (!latency.StartsWith("latency")) return Finish(channel, host, latency, 3, clock);
+
                 if (holdSec > 0)
                 {
                     log("holding the browser open for " + holdSec + " s (--hold)");
@@ -212,7 +225,7 @@ namespace GTANetwork.CefHarness
                 channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
                 WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));
 
-                return Finish(channel, host, "OK: ready, browser, local page, pixels, resourceCall, resize, close (" + _events + " events)", 0, clock);
+                return Finish(channel, host, "OK: ready, browser, local page, pixels, resourceCall, resize, close (" + _events + " events); " + latency, 0, clock);
             }
             catch (Exception ex)
             {
@@ -255,8 +268,10 @@ namespace GTANetwork.CefHarness
                 {
                     long copies = 0, gpuTicks = 0, lastHandle = 0;
                     var opened = 0;
+                    var ringSeen = 0;
                     while (clock0.Elapsed.TotalSeconds < seconds)
                     {
+                        RetainRing(reader, ref ringSeen);
                         var handle = Interlocked.Read(ref _textureHandle);
                         var evts = Interlocked.Read(ref _textureEvents);
                         if (handle != 0 && evts != copies + events0)
@@ -271,7 +286,7 @@ namespace GTANetwork.CefHarness
                     var cpu1 = ProcessorTimes(host);
                     var stResult = "bench " + w + "x" + h + " shared textures: " + ((Interlocked.Read(ref _textureEvents) - events0) / el).ToString("0.0", CultureInfo.InvariantCulture) + " texture events/s, " +
                                  (copies / el).ToString("0.0", CultureInfo.InvariantCulture) + " GPU copies/s (" + (copies > 0 ? gpuTicks * 1000.0 / Stopwatch.Frequency / copies : 0).ToString("0.000", CultureInfo.InvariantCulture) +
-                                 " ms per CopyResource, " + opened + " texture(s) in Chromium's pool); CPU: host " + Percent(cpu1.Item1 - cpu0.Item1, el) + ", Chromium subprocesses " + Percent(cpu1.Item2 - cpu0.Item2, el) + ", this harness " + Percent(cpu1.Item3 - cpu0.Item3, el);
+                                 " ms per CopyResource, " + opened + " ring texture(s) opened); CPU: host " + Percent(cpu1.Item1 - cpu0.Item1, el) + ", Chromium subprocesses " + Percent(cpu1.Item2 - cpu0.Item2, el) + ", this harness " + Percent(cpu1.Item3 - cpu0.Item3, el);
                     log(stResult);
                     channel.Send(new CefHostMessage(CefHostProtocol.Close, id));
                     return stResult;
@@ -394,12 +409,23 @@ namespace GTANetwork.CefHarness
                             Program.Log("event created #" + m.Id);
                             Created.Set();
                             break;
+                        case CefHostProtocol.Textures:
+                            if (m.Handles == null || m.Handles.Length == 0)
+                            {
+                                Program.Log("event textures #" + m.Id + ": the host cannot relay textures: " + m.Text);
+                                lock (StateLock) _textureFailure = m.Text ?? "no textures";
+                                TextureFailed.Set();
+                                break;
+                            }
+                            Program.Log("event textures #" + m.Id + ": ring " + m.W + "x" + m.H + " generation " + m.Gen + ": " + string.Join(" ", m.Handles.Select(h => "0x" + h.ToString("X"))));
+                            lock (StateLock) { _ring = m.Handles; _ringVersion++; }
+                            break;
                         case CefHostProtocol.Texture:
                         {
                             var n = Interlocked.Increment(ref _textureEvents);
                             Interlocked.Exchange(ref _textureHandle, m.Handle);
                             lock (StateLock) { _textureW = m.W; _textureH = m.H; }
-                            if (n <= 3 || (verbose && n % 60 == 0)) Program.Log("event texture #" + m.Id + ": handle 0x" + m.Handle.ToString("X") + " " + m.W + "x" + m.H + " dirty " + m.Dx + "x" + m.Dy + " at " + m.X + "," + m.Y + " (pool " + m.Gen + ")");
+                            if (n <= 3 || (verbose && n % 60 == 0)) Program.Log("event texture #" + m.Id + ": handle 0x" + m.Handle.ToString("X") + " " + m.W + "x" + m.H + " dirty " + m.Dx + "x" + m.Dy + " at " + m.X + "," + m.Y + " (slot " + m.Gen + ")");
                             TextureAnnounced.Set();
                             break;
                         }
@@ -461,8 +487,10 @@ namespace GTANetwork.CefHarness
                 {
                     var clock = Stopwatch.StartNew();
                     var attempts = 0;
+                    var ringSeen = 0;
                     while (clock.Elapsed < deadline)
                     {
+                        RetainRing(reader, ref ringSeen);
                         var handle = Interlocked.Read(ref _textureHandle);
                         if (handle == 0) { Thread.Sleep(20); continue; }
                         attempts++;
@@ -480,6 +508,109 @@ namespace GTANetwork.CefHarness
             catch (Exception ex)
             {
                 return "shared texture check failed: " + ex.GetType().Name + ": " + ex.Message;
+            }
+        }
+
+        /// <summary>Drop textures of a ring the host has replaced (what the game does on a "textures" event).</summary>
+        private static void RetainRing(SharedTextureReader reader, ref int ringSeen)
+        {
+            long[] ring;
+            int version;
+            lock (StateLock) { ring = _ring; version = _ringVersion; }
+            if (version == ringSeen || ring == null) return;
+            ringSeen = version;
+            reader.Retain(ring.Select(h => new IntPtr(h)).ToList());
+        }
+
+        private static bool Near(byte value, byte target)
+        {
+            return Math.Abs(value - target) <= 24;
+        }
+
+        /// <summary>
+        /// What a keystroke costs before the game can even draw it: an eval changes the page's background, and we time
+        /// until a frame showing the new colour has arrived (a shared-memory frame, or a ring texture read back).
+        /// </summary>
+        private static string LatencyProbe(CefHostChannel channel, int id, bool sharedTexture, int rounds)
+        {
+            var times = new List<double>();
+            var colours = new[] { new byte[] { 0xff, 0x20, 0x20 }, new byte[] { 0x20, 0x20, 0xff }, new byte[] { 0x20, 0xc0, 0x20 } }; // r, g, b
+            SharedTextureReader reader = null;
+            CefFrameBuffer frame = null;
+            var buffer = IntPtr.Zero;
+            try
+            {
+                if (sharedTexture) reader = new SharedTextureReader();
+                else
+                {
+                    string name;
+                    lock (StateLock) name = _frameName;
+                    frame = CefFrameBuffer.Open(name);
+                    buffer = Marshal.AllocHGlobal(frame.Stride * frame.Height);
+                }
+                var ringSeen = 0;
+                for (var round = 0; round < rounds; round++)
+                {
+                    var c = colours[round % colours.Length];
+                    var css = "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+                    var events = Interlocked.Read(ref _textureEvents);
+                    long last = -1;
+                    var t0 = Stopwatch.StartNew();
+                    channel.Send(new CefHostMessage(CefHostProtocol.Eval, id) { Code = "document.body.style.background='" + css + "'" });
+                    var seen = false;
+                    while (t0.ElapsedMilliseconds < 3000)
+                    {
+                        int matched, total;
+                        if (sharedTexture)
+                        {
+                            var now = Interlocked.Read(ref _textureEvents);
+                            if (now == events) { Thread.Sleep(1); continue; }
+                            events = now;
+                            RetainRing(reader, ref ringSeen);
+                            var handle = Interlocked.Read(ref _textureHandle);
+                            var error = reader.ReadBackCount(new IntPtr(handle), (b, g, r, a) => Near(r, c[0]) && Near(g, c[1]) && Near(b, c[2]), out matched, out var w, out var h);
+                            if (error != null) return "latency probe: " + error;
+                            total = w * h;
+                        }
+                        else
+                        {
+                            int dx, dy, dw, dh;
+                            if (!frame.TryCopyTo(buffer, frame.Stride, ref last, out dx, out dy, out dw, out dh)) { Thread.Sleep(1); continue; }
+                            matched = 0;
+                            total = frame.Width * frame.Height;
+                            unsafe
+                            {
+                                var p = (byte*)buffer;
+                                for (var y = 0; y < frame.Height; y++)
+                                {
+                                    var row = p + (long)y * frame.Stride;
+                                    for (var x = 0; x < frame.Width; x++)
+                                    {
+                                        var px = row + x * 4;
+                                        if (Near(px[2], c[0]) && Near(px[1], c[1]) && Near(px[0], c[2])) matched++;
+                                    }
+                                }
+                            }
+                        }
+                        if (matched > total / 2) { seen = true; break; }
+                    }
+                    if (!seen) return "latency probe: the page never showed " + css + " within 3 s (round " + (round + 1) + ")";
+                    times.Add(t0.Elapsed.TotalMilliseconds);
+                    Thread.Sleep(150);
+                }
+                times.Sort();
+                return "latency eval -> frame: median " + times[times.Count / 2].ToString("0.0", CultureInfo.InvariantCulture) + " ms, min " + times[0].ToString("0.0", CultureInfo.InvariantCulture) +
+                       " ms, max " + times[times.Count - 1].ToString("0.0", CultureInfo.InvariantCulture) + " ms over " + rounds + " rounds";
+            }
+            catch (Exception ex)
+            {
+                return "latency probe failed: " + ex.GetType().Name + ": " + ex.Message;
+            }
+            finally
+            {
+                reader?.Dispose();
+                frame?.Dispose();
+                if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
             }
         }
 

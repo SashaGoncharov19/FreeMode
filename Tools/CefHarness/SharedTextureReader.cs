@@ -11,9 +11,10 @@ using MapFlags = SharpDX.Direct3D11.MapFlags;
 namespace GTANetwork.CefHarness
 {
     /// <summary>
-    /// What the game's overlay will do with the browser host's shared textures: its own D3D11 device opens a texture by
-    /// the duplicated NT handle (once per handle; Chromium cycles through a small pool), copies it GPU-side into a
-    /// texture of its own, and draws that. Here the copy goes to a staging texture and is read back to prove it.
+    /// What the game's overlay does with the browser host's shared textures: its own D3D11 device opens each slot of
+    /// the host's ring by the duplicated NT handle (once; the handles are stable until the host announces a new ring),
+    /// copies the announced slot GPU-side into a texture of its own, and draws that. Here the copy goes to a staging
+    /// texture and is read back to prove the content is there.
     /// </summary>
     internal sealed class SharedTextureReader : IDisposable
     {
@@ -57,6 +58,26 @@ namespace GTANetwork.CefHarness
             return texture;
         }
 
+        /// <summary>The host announced a new ring: drop the textures of the old one (and close their handles, as the game does).</summary>
+        public void Retain(ICollection<IntPtr> ring)
+        {
+            if (ring == null) return;
+            var gone = new List<IntPtr>();
+            foreach (var h in _opened.Keys) if (!ring.Contains(h)) gone.Add(h);
+            foreach (var h in gone)
+            {
+                _opened[h].Dispose();
+                _opened.Remove(h);
+                CloseHandle(h);
+                Program.Log("closed shared texture 0x" + h.ToInt64().ToString("X") + " (no longer in the host's ring)");
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        public int OpenedCount => _opened.Count;
+
         /// <summary>GPU copy of the shared texture into our own texture (the overlay's per-frame work).</summary>
         public bool CopyFrom(IntPtr handle, out bool freshlyOpened)
         {
@@ -87,10 +108,16 @@ namespace GTANetwork.CefHarness
             catch { return null; }
         }
 
-        /// <summary>Copy, then read the pixels back on the CPU; null on success, else the error.</summary>
+        /// <summary>Copy, then read the pixels back on the CPU and count the opaque ones; null on success, else the error.</summary>
         public string ReadBack(IntPtr handle, out int opaque, out int width, out int height)
         {
-            opaque = width = height = 0;
+            return ReadBackCount(handle, (b, g, r, a) => a != 0, out opaque, out width, out height);
+        }
+
+        /// <summary>Copy, then read the pixels back on the CPU and count those matching (BGRA); null on success, else the error.</summary>
+        public string ReadBackCount(IntPtr handle, Func<byte, byte, byte, byte, bool> match, out int count, out int width, out int height)
+        {
+            count = width = height = 0;
             try
             {
                 bool fresh;
@@ -117,7 +144,11 @@ namespace GTANetwork.CefHarness
                         for (var y = 0; y < height; y++)
                         {
                             var row = p + (long)y * box.RowPitch;
-                            for (var x = 0; x < width; x++) if (row[x * 4 + 3] != 0) opaque++;
+                            for (var x = 0; x < width; x++)
+                            {
+                                var px = row + x * 4;
+                                if (match(px[0], px[1], px[2], px[3])) count++;
+                            }
                         }
                     }
                 }

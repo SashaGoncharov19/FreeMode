@@ -33,18 +33,22 @@ rendering can only be verified in game by the owner.
   ClearScript native), `bin/scripts/` (managed client DLLs), `cef/` (browser host + Chromium runtime),
   `server/`, `logs/`, `resources/` (downloaded resource files), and `play.sh` / `setup-linux.sh`.
 
-## Current state (4 September 2026, evening)
+## Current state (4 September 2026, night)
 
 * **`master`**: `v0.1.1` — the **old** browser stack (CefGlue, Chromium 57, single-process). Last
-  configuration verified working in game (auth login form, account registered).
-* **`claude/modernize-deps-4d8uyn`** (working branch, all new commits go here): the modernisation —
-  CefSharp 151, ClearScript 7.5, debug mode, dev container, and now **the browser in its own process**.
-  Pre-releases `v0.2.0-alpha.1 … alpha.5` ran Chromium *inside* the game and crashed (below); the
-  separate-process fix is **in the working tree, uncommitted, not yet tried in game**. No PR open.
-* **The blocker is understood and fixed in code** (root cause below). It is verified outside the game:
-  the harness passes under Proton against both the freshly built and the installed browser host (Chromium
-  ready in ~0.9 s, first frame ~1.6 s, the page's `resourceCall` reaches the game side). **What is missing
-  is the in-game run by the owner.**
+  release verified working in game (auth login form, account registered).
+* **`claude/modernize-deps-4d8uyn`** (working branch, all new commits go here, **not pushed** since the
+  browser-host work started — six commits ahead of origin): CefSharp 151 **in its own process**, ClearScript
+  7.5, debug mode, dev container. Pre-releases `v0.2.0-alpha.1 … alpha.5` ran Chromium *inside* the game and
+  crashed (below). No PR open, no alpha.6 yet.
+* **Verified in game by the owner (4 Sept)**: the browser host starts on connect, the `auth` login form
+  appears, typing/clicking work, the account registers ("все ідеально працює"). The GPU path with shared
+  textures also drew the form, but the inputs lagged — root cause and fix in the seventh step below; **that fix
+  is synced into `~/GTANetwork` and awaits the owner's next in-game run.** Memory: the page-alignment fix
+  (sixth step) is in the same install.
+* Everything else is verified outside the game: `eng/cef-harness.sh` passes in both frame modes
+  (shared memory and the shared-texture ring, with latency numbers), `eng/dev-test.sh` (the Linux CI checks)
+  passes.
 
 ## THE FINDING — why Chromium 151 died inside the game, and the fix
 
@@ -156,9 +160,29 @@ with the GPU on, browsers are created with shared textures; the host duplicates 
 the game process and sends `texture` events; the overlay opens each handle once (`OpenSharedResource1` on the game's
 DXVK device), `CopyResource`s into its persistent texture and draws it; stale handles are released; a failure to open
 falls back to CPU frames for the session. Verified with the harness (`--shared-texture`: open + read-back across
-processes OK; `--shared-texture --bench 15`: 60 GPU copies/s at 0.027 ms, no CPU). **Not yet run in game** — the
-owner's settings have `CefGpu=true`, so the next game start uses it; `CEF.log` shows "Creating Browser (shared
-textures)" and, in debug mode, "Texture frame …"; a fallback logs "shared textures unavailable".
+processes OK; `--shared-texture --bench 15`: 60 GPU copies/s at 0.027 ms, no CPU). **Ran in game** — see the seventh step.
+
+**Seventh step (4 Sept, night): "the inputs lag" — the shared-texture lifetime.** The owner's in-game run with the
+shared textures worked but typing and hovering reacted late, "as if CEF lags". `CEF-host.log` (20:48) showed eleven
+"shared texture … -> game handle" lines for one static login page and, 45 s in, the game failing to open handle
+`0x2418` with `E_INVALIDARG` and falling back to CPU frames. Cause: CefSharp documents that the handle
+`OnAcceleratedPaint` passes is **only valid inside the callback** — it is a fresh duplicate per paint of one texture
+of a pool Chromium recycles, and the buffer is rewritten after the callback returns. The fifth step cached those
+handles by value on both sides: a recycled handle value pointed at another pool texture (stale frame → a keystroke
+appeared with some later paint), and the game closed handles it thought unused while the host still mapped them
+(→ `E_INVALIDARG`). Fix (`Subprocess/GTANetwork.CefHost/TextureRelay.cs`): the host owns a **ring of 4 shared
+textures per browser** on a D3D11 device of its own (SharpDX, DXVK under Proton), copies each paint into the next
+slot inside the callback, and a publisher thread announces the slot (`texture` event) only once an event query says
+the GPU copy has executed; the ring's handles are duplicated into the game once and announced by a new `textures`
+event (protocol version 2; re-announced after a resize, and sent without handles when the host cannot relay — then
+the game re-creates the browser with CPU frames). The game (`SharedTextureSurface`, `OverlayRenderHandler`,
+`DXOverlayEngine`) opens each slot once and closes handles only when a `textures` event replaces them or the browser
+goes; the time-based eviction is gone. Harness: `--shared-texture` passes (4 stable handles, read-back OK),
+`--shared-texture --bench 8 --size 1280x720`: 60 texture events/s, 60 copies/s at 0.020 ms, host 5 % CPU; the
+harness now measures **latency** from an `eval` to the frame showing it: 8.2–8.7 ms median over the ring, 3.1 ms
+over shared memory (software) for a 420x480 page. Host process: 210 MB PSS with the extra device. **Awaiting the
+owner's in-game run** (`CEF.log` in debug mode: "Texture ring 420x480: 0x…", then "Texture frame …"; `CEF-host.log`:
+"texture relay: D3D11 …", "shared texture ring …"; no "shared textures unavailable").
 
 ## How to test in game (what to ask the owner for)
 
@@ -205,16 +229,18 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-1. **In-game verification** of the browser host by the owner (above). Then cut `v0.2.0-alpha.6` via the
-   `build.yml` workflow_dispatch **only when the owner asks**.
+1. **In-game verification of the shared-texture ring** by the owner (seventh step): typing in the login form must
+   react at once, no "shared textures unavailable" in `CEF.log`. If the GPU path still misbehaves,
+   `<CefGpu>false</CefGpu>` is the safe setting (software frames, 3 ms latency in the harness). Then cut
+   `v0.2.0-alpha.6` via the `build.yml` workflow_dispatch **only when the owner asks**.
 2. **Make the harness a CI gate**: the Windows job can run `CefHarness.exe --host <package>\cef\GTANetwork.CefHost.exe`
    against the assembled package — the acceptance test for the browser without a game.
-3. **Performance** (the owner's stated goal): memory first — the renderer is 750 MB RSS under Wine and the storage
-   service 390 MB; look at `--js-flags`, V8 heap limits, whether the storage service can be avoided (no cookies/DOM
-   storage → `CefSettings.CachePath` empty?), and Chromium's idle CPU (host ~7 %, renderer ~4 % while showing a static
-   page). Then `<CefGpu>true</CefGpu>` (GL/D3D now live in the host, not next to DXVK), dirty-rectangle uploads and
-   reusing bitmaps/textures in the overlay instead of a new `Bitmap` per frame, then `OnAcceleratedPaint` with a shared
-   D3D11 texture (zero copies). `docs/CEF-UPGRADE.md` has the plan.
+3. **Performance** (the owner's stated goal) — done so far: dirty-rectangle frames, 60 fps, GPU in the host, the
+   shared-texture ring (zero CPU per frame), page-aligned PE files (Chromium 2.9 GB → 0.86/1.12 GB). Open: the
+   renderer's ~300 MB zero-filled region (`docs/CEF-UPGRADE.md`, "Memory under Wine"), the storage-service process
+   (117 MB; Chromium 151 has no in-process option), and whether `<CefGpu>true</CefGpu>` should become the default
+   (decided by the owner's in-game runs: it costs ~270 MB and a few ms of latency on small static pages, wins on
+   big/animated ones).
 4. **Privacy switches**: Chromium 151 still contacts Google at start-up (the harness's Chromium log shows
    `clients2.google.com/time`, `accounts.google.com/ListAccounts`, `www.google.com/async/…`). Add the usual
    set (`--disable-sync --metrics-recording-only --disable-domain-reliability
@@ -242,10 +268,10 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 | Area | Files |
 | --- | --- |
-| Browser host (Chromium process) | `Subprocess/GTANetwork.CefHost/Program.cs` |
+| Browser host (Chromium process) | `Subprocess/GTANetwork.CefHost/Program.cs`, `TextureRelay.cs` (the shared-texture ring) |
 | Protocol & frames | `Shared/Cef/CefHostProtocol.cs`, `Shared/Cef/CefFrameBuffer.cs`, `Shared/CefLaunch.cs` |
 | Game side of the browser | `Client/GUI/CEFManager.cs` (host process, events, frame pump, `Browser`, `BrowserInput`, `CefController`), `Client/GUI/CefClient.cs` (`OverlayRenderHandler`) |
-| Overlay (DirectX) | `Client/GUI/DirectXHook/Hook/DXHookD3D11.cs`, `DirectXHook/DX11/DXOverlayEngine.cs`, `SwapchainHooker.cs` |
+| Overlay (DirectX) | `Client/GUI/DirectXHook/Hook/DXHookD3D11.cs`, `DirectXHook/DX11/DXOverlayEngine.cs` (incl. the shared-texture copy), `DirectXHook/Hook/Common/SharedTextureSurface.cs`, `SwapchainHooker.cs` |
 | Script engine bridge | `Client/Javascript/JavascriptHook.cs` (ClearScript, `createCefBrowser`, `waitUntilCefBrowserInit`, `loadPageCefBrowser`) |
 | Harness | `Tools/CefHarness/Program.cs` (in-process modes), `Tools/CefHarness/HostTest.cs` (host protocol test), `eng/cef-harness.sh` |
 | Resource file download | `Shared/ResourceFiles.cs` (`TryGetLocalPath`, used by the host too), `Client/Main/Network/Download.cs` |

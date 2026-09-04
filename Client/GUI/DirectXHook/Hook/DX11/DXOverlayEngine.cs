@@ -40,8 +40,8 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         Dictionary<Element, DXImage> _imageCache = new Dictionary<Element, DXImage>();
         DXHookD3D11 _hook;
 
-        // Shared textures of the browser host, opened on the game's device: one entry per handle, released when the
-        // host's Chromium stops using them (RetireSharedTextures, or unused for a few seconds).
+        // Shared textures of the browser host (its per-browser ring), opened on the game's device: one entry per handle,
+        // kept until the host replaces the ring or the browser goes (RetireSharedTextures).
         Device1 _device1;
         readonly Dictionary<IntPtr, SharedTextureEntry> _sharedTextures = new Dictionary<IntPtr, SharedTextureEntry>();
         readonly List<IntPtr> _retire = new List<IntPtr>();
@@ -51,7 +51,6 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         sealed class SharedTextureEntry
         {
             public Texture2D Texture;
-            public long LastUsed;
         }
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -385,8 +384,10 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         }
 
         /// <summary>
-        /// The newest frame of a browser is in a D3D11 texture of the browser host: open it on the game's device (once per
-        /// handle), copy it GPU-side into the element's own texture and draw that. Zero CPU work per frame.
+        /// The newest frame of a browser is in one of the browser host's ring textures: open it on the game's device
+        /// (once per handle; the ring's handles are stable), copy it GPU-side into the element's own texture and draw
+        /// that. Zero CPU work per frame. The host announces a slot only after its copy into it has executed, and
+        /// writes the same slot again three paints later at the earliest, so the copy here reads a complete frame.
         /// </summary>
         DXImage GetImageForSharedTexture(ImageElement element, SharedTextureSurface shared)
         {
@@ -418,7 +419,6 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
                         return element.Image;
                     }
                 }
-                entry.LastUsed = _frame;
 
                 var desc = entry.Texture.Description;
                 if (element.Image == null || element.Image.Width != desc.Width || element.Image.Height != desc.Height)
@@ -433,24 +433,9 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
                     }
                 }
 
-                // A full GPU copy (a few microseconds): the host's texture may be rendered into again at any moment,
-                // our copy is stable for the draw and for the frames until the next one.
+                // A full GPU copy (a few microseconds): the slot is written again a few paints later, our copy is
+                // stable for this draw and for the frames until the next announcement.
                 _device.ImmediateContext.CopyResource(entry.Texture, element.Image.Texture);
-
-                // Chromium cycles through a small pool and re-creates it now and then; a texture it has not handed us
-                // for a few seconds is gone on its side, and our duplicated handle would pin its memory.
-                if (shared.Handles.Count > 4)
-                {
-                    for (var i = shared.Handles.Count - 1; i >= 0; i--)
-                    {
-                        var h = shared.Handles[i];
-                        SharedTextureEntry e;
-                        var stale = _sharedTextures.TryGetValue(h, out e) ? _frame - e.LastUsed > 240 : h != handle;
-                        if (!stale) continue;
-                        shared.Handles.RemoveAt(i);
-                        ReleaseSharedTexture(h);
-                    }
-                }
             }
             return element.Image;
         }
