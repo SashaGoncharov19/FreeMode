@@ -78,6 +78,7 @@ namespace GTANetwork.CefHarness
             if (gpu) args.Add("--gpu");
             if (!inProcessGpu) args.Add("--gpu-process");
             if (verbose) args.Add("--verbose");
+            foreach (var sw in Program.HostSwitches) { args.Add("--chromium-switch"); args.Add(sw); }
 
             var psi = new ProcessStartInfo(hostExe)
             {
@@ -150,6 +151,11 @@ namespace GTANetwork.CefHarness
                         channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
                         WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));
                         return Finish(channel, host, Benchmark(channel, host, benchW, benchH, benchSec, deadline, true), 0, clock);
+                    }
+                    if (holdSec > 0)
+                    {
+                        log("holding the browser open for " + holdSec + " s (--hold)");
+                        for (var i = 0; i < holdSec * 10 && !Exited.WaitOne(0); i++) { Thread.Sleep(100); channel.Send(new CefHostMessage(CefHostProtocol.MouseMove, 1) { X = 60 + i % 50, Y = 60 }); }
                     }
                     channel.Send(new CefHostMessage(CefHostProtocol.Close, 1));
                     WaitHandle.WaitAny(new WaitHandle[] { Closed, Exited }, TimeSpan.FromSeconds(10));

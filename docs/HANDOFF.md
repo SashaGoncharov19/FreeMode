@@ -142,6 +142,15 @@ with ANGLE/D3D11 (DXVK) up in the host and a longest gap of 20 ms instead of 230
 process. The owner's `settings.xml` has `<CefGpu>true</CefGpu>` for the in-game test; if it misbehaves, set it back to
 false. 3D browsers: design in `docs/CEF-UPGRADE.md`, roadmap item 5.
 
+**Sixth step (4 Sept, night): memory.** The in-game run with shared textures worked but the machine swapped again
+(4 GB more swapped out during the session; `full avg60=12`). Measured with the harness: Chromium was 1.5 GB PSS
+(software) / 1.77 GB (GPU) for three processes because **Wine read every 512-byte-aligned DLL into anonymous memory
+per process** (`libcef.dll` alone: 272 MB × 3, resident, unshared). `eng/pe-realign.py` page-aligns the PE files;
+now **0.86 GB / 1.12 GB**; wired into build, sync, packaging and the Linux installer. The renderer's remaining ~300 MB
+zero-filled region is an open question (details and everything ruled out: `docs/CEF-UPGRADE.md`, "Memory under Wine").
+On this 15 GB machine with Firefox and Claude Desktop open, GTA V + Chromium is still close to the edge: if it swaps
+again, `<CefGpu>false</CefGpu>` saves ~270 MB.
+
 **Fifth step (4 Sept, night): shared textures.** Committed the above (three commits), then built the zero-copy path:
 with the GPU on, browsers are created with shared textures; the host duplicates Chromium's D3D11 texture handles into
 the game process and sends `texture` events; the overlay opens each handle once (`OpenSharedResource1` on the game's

@@ -118,6 +118,33 @@ executables) and the VC++ 2022 x64 runtime (C++/CLI parts) — both already inst
 5. Next: what is left is Chromium's own cost (renderer ~9 % CPU for an animated 720p page) and, for 3D browsers,
    drawing the texture with a world transform (below).
 
+## Memory under Wine (measured 4 Sept, PSS of an idle 420x480 page, Proton Experimental)
+
+| Chromium processes | before | after |
+| --- | --- | --- |
+| 8 processes (two renderers, network, storage and metrics utilities) | 2.9 GB RSS | — |
+| 3 processes after the switch list (`Shared/CefLaunch.cs`) | 1.51 GB PSS (software), 1.77 GB (GPU) | — |
+| … and page-aligned PE files (`eng/pe-realign.py`) | — | **0.86 GB** (software), **1.12 GB** (GPU) |
+
+**Why the alignment matters.** Wine maps a PE image from disk only when its sections sit at page-aligned file
+offsets. Chromium's DLLs are linked with `FileAlignment 512`, so Wine read `libcef.dll` (272 MB) into anonymous memory
+in *every* process — fully resident, nothing shared, nothing paged on demand. `eng/pe-realign.py` rewrites the file
+layout to a 4096-byte alignment (sections keep their virtual addresses and bytes; the checksum is cleared and an
+Authenticode signature dropped); Windows loads such files just as well. It runs in `eng/package-client.ps1` (release
+packages), `eng/dev-build-client.sh` (the host's build output, so the harness measures what the game gets),
+`eng/dev-sync-client.sh` (the install) and, for installs of older packages, on update in `eng/setup-linux.sh`.
+
+**GPU mode** costs ~270 MB in the host (the DXVK/ANGLE device); the shared-texture path itself is free.
+
+**Open question.** The renderer is still ~500 MB PSS for `about:blank`, ~300 MB of which is one anonymous region of
+zero-filled, resident pages in the Unix mmap area (0x7f…), present 4 s after start and stable. Ruled out with the
+harness: transparent huge pages (`prctl(PR_SET_THP_DISABLE)` on the whole tree: same size, `AnonHugePages 0`), system
+fonts (a minimal fontconfig: same), the .NET GC (`COMPlus_GCgen0size`: same), V8 (`js-flags=--jitless`, small heaps:
+same), PartitionAlloc BRP/thread cache features (same). The utility process of the same exe (CLR + libcef, no Blink/V8)
+is 117 MB, so the ~390 MB delta is Blink/V8 start-up plus this region. `eng/cef-harness.sh --host-switch k=v` passes
+extra Chromium switches to the host for further experiments; Wine's `+virtual` channel (`GTAN_CEF_WINEDEBUG`) shows
+no single large commit, so it is written in small pieces, or from the Unix side.
+
 ## Input
 
 The game gets key events from ScriptHookVDotNet as key codes; `CefController` sends CEF a `RawKeyDown` (WM_KEYDOWN)

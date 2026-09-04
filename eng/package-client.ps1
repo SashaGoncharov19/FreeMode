@@ -88,6 +88,10 @@ Copy-Item "$cefSrc/*" "$Out/cef" -Recurse -Force
 Remove-Item "$Out/cef/cache" -Recurse -Force -ErrorAction SilentlyContinue
 # CefSharp's debug symbols and XML docs are not needed at runtime (31 MB); keep the locales players actually use (50 MB otherwise).
 Get-ChildItem "$Out/cef" -Include CefSharp.*.pdb, *.xml -Recurse | Remove-Item -Force
+# Page-align the PE files so that Wine maps them from disk instead of copying each into every process (eng/pe-realign.py:
+# 1.5 GB -> 0.86 GB resident for an idle page). Windows does not care either way.
+$python = (Get-Command python -ErrorAction SilentlyContinue) ?? (Get-Command python3 -ErrorAction SilentlyContinue)
+if ($python) { & $python.Source "$Root/eng/pe-realign.py" "$Out/cef" | Select-Object -Last 1 } else { Write-Warning "python not found: cef\ PE files stay 512-byte aligned (Wine copies them into every process)" }
 $keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "tr", "it", "nl", "cs", "ro", "hu"
 Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force

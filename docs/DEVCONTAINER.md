@@ -71,7 +71,8 @@ already wired to `$GTAN_INSTALL`. For VS Code, add to `.devcontainer/devcontaine
 ```bash
 eng/dev-build-client.sh              # just build (no sync)
 eng/dev-build-client.sh -c Debug --sync   # Debug build turns on verbose logging in game
-eng/dev-build-client.sh --sync --cef # also refresh cef/ (only when the CefSharp version changed)
+eng/dev-build-client.sh --sync --cef # also refresh cef/ (only when the CefSharp version changed); the PE files in
+                                     # cef/ are page-aligned by eng/pe-realign.py (Wine copies 512-byte-aligned DLLs per process)
 eng/dev-test.sh                      # the Linux CI checks: build the solution, run the server + bot tests
 dotnet build GTANetwork.sln -c Release    # plain full build
 ```

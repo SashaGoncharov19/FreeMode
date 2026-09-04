@@ -50,6 +50,8 @@ echo "Built $root/Client/bin/$config/net48/GTANetwork.dll"
 echo "Building the browser host ($config)…"
 dotnet build "$root/Subprocess/GTANetwork.CefHost/GTANetwork.CefHost.csproj" -c "$config" -nologo ${extra[@]+"${extra[@]}"}
 echo "Built $root/Subprocess/GTANetwork.CefHost/bin/$config/net48/GTANetwork.CefHost.exe"
+# Wine maps PE images from disk only with page-aligned sections; Chromium's are not (eng/pe-realign.py explains).
+python3 "$root/eng/pe-realign.py" "$root/Subprocess/GTANetwork.CefHost/bin/$config/net48" | tail -n 1
 
 if [ "$sync" = 1 ]; then
   syncargs=(--config "$config")

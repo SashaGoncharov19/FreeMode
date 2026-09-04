@@ -38,6 +38,7 @@ namespace GTANetwork.CefHost
         private static bool _verbose;
         private static int _devtoolsPort;
         private static int _parentPid;
+        private static readonly List<KeyValuePair<string, string>> ExtraSwitches = new List<KeyValuePair<string, string>>();
 
         private static CefHostChannel _channel;
         private static StreamWriter _log;
@@ -68,6 +69,13 @@ namespace GTANetwork.CefHost
                     case "--media-stream": _mediaStream = true; break;
                     case "--verbose": _verbose = true; break;
                     case "--devtools": _devtoolsPort = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                    case "--chromium-switch": // key[=value], repeatable; for experiments (eng/cef-harness.sh --host-switch)
+                    {
+                        var kv = Next();
+                        var eq = kv.IndexOf('=');
+                        ExtraSwitches.Add(eq < 0 ? new KeyValuePair<string, string>(kv.TrimStart('-'), "") : new KeyValuePair<string, string>(kv.Substring(0, eq).TrimStart('-'), kv.Substring(eq + 1)));
+                        break;
+                    }
                     default:
                         Console.Error.WriteLine("GTANetwork.CefHost: unknown option " + args[i]);
                         return 64;
@@ -145,6 +153,7 @@ namespace GTANetwork.CefHost
             };
             if (_devtoolsPort > 0) settings.RemoteDebuggingPort = _devtoolsPort;
             foreach (var kv in CefLaunch.Switches(_gpu, _inProcessGpu, _mediaStream)) settings.CefCommandLineArgs.Add(kv.Key, kv.Value);
+            foreach (var kv in ExtraSwitches) settings.CefCommandLineArgs[kv.Key] = kv.Value;
 
             var how = (_gpu ? "GPU rendering" : "software rendering, GL disabled") + ", " + (_inProcessGpu ? "GPU service in-process" : "GPU process");
             Log("Cef.Initialize (" + how + ", cache " + _cachePath + ")");

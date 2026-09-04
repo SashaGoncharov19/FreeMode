@@ -74,6 +74,12 @@ else
   echo "warning: no browser host build at $host_out (dotnet build Subprocess/GTANetwork.CefHost); cef/GTANetwork.CefHost.exe not updated" >&2
 fi
 
+realign() { # Wine maps PE images from disk only with page-aligned sections (eng/pe-realign.py); harmless elsewhere
+  command -v python3 >/dev/null 2>&1 || { echo "warning: python3 not found; cef/ DLLs stay 512-byte aligned (Wine copies them per process)" >&2; return 0; }
+  python3 "$root/eng/pe-realign.py" "$1" | tail -n 1
+}
+[ -d "$install/cef" ] && realign "$install/cef"
+
 if [ "$cef" = 1 ]; then
   [ -f "$host_out/libcef.dll" ] || { echo "No Chromium runtime in $host_out (build Subprocess/GTANetwork.CefHost)." >&2; exit 1; }
   mkdir -p "$install/cef"
@@ -87,4 +93,5 @@ if [ "$cef" = 1 ]; then
     rm -rf "$install/cef"; mv "$tmp" "$install/cef"
   fi
   echo "Synced cef/ (browser host + Chromium runtime) -> $install/cef (kept cef/cache)"
+  realign "$install/cef"
 fi
