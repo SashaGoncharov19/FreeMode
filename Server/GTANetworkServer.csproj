@@ -21,6 +21,8 @@
     <SelfContained>false</SelfContained>
     <UseAppHost>true</UseAppHost>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <!-- XML doc file next to the DLL: Tools/GTANetwork.TypeGen copies the summaries into the TypeScript typings. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

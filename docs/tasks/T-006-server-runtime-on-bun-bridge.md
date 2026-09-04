@@ -135,6 +135,8 @@ port and a token in the environment. Ordering between `state` and `event`: one c
 * 2026-09-05 06:45 agent — stage 1 (the spike) started on task/T-006-bun-bridge (worktree); standalone bench, no server changes yet.
 * 2026-09-05 07:40 agent — bench works after two protocol-level fixes (a ref struct passed by value lost the reply payload; a 1 ms flush on both sides put 1 ms on every round trip → flush on demand for calls with an id). Numbers met, except the Bun side of the state mirror at 3.4–3.6 % vs 3 %. Decision: stage 2 goes ahead (D-09). PR opened.
 
+* 2026-09-05 08:20 agent — PR #8 (stage 1) merged; stage 2 in progress on task/T-006-bun-bridge.
+
 ## Result (stage 1)
 
 * **Changed**: new `Tools/GTANetwork.BridgeBench/` (net10.0 + MessagePack 3.1.8: the engine side — frame protocol `u32 length +

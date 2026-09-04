@@ -22,6 +22,10 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 `claude/modernize-deps-4d8uyn` is being tested in game.
 
 ### Changed
+* **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
+  built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
+  `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the
+  coming Bun runtime. CI regenerates them and fails on stale typings; `samples/ts-resource/` is a resource type-checked against them.
 * **Loading screen from "connect" until the server's resources are in** (`<CefLoader>`, default true): a CEF page shipped
   with the client (`ui/loader/`, served by the browser host as `https://gtan/loader/index.html`) covers the game from the
   connection attempt through the handshake and the file download (with the file index and the current file) until the

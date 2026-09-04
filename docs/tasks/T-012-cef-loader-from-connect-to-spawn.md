@@ -51,6 +51,8 @@ brand it (logo/background URL from `SharedSettings`).
 * 2026-09-05 00:20 agent — started on task/T-012-cef-loader (worktree).
 * 2026-09-05 00:40 agent — decided: the loader hides when the resources are downloaded and the scripts start (`InvokeFinishedDownload`), not at "spawn" — on login-gated servers the player is not spawned until the auth page, which must be visible; server branding deferred (files arrive during the loader phase). Harness passes; synced into ~/GTANetwork; PR opened.
 
+* 2026-09-05 08:20 agent — PR #7 merged; the install has the merged build. Awaiting the owner's in-game check.
+
 ## Result
 
 * **Changed**: new `Client/GUI/ConnectLoader.cs` (the client-owned full-screen browser and its state pushes), new `ui/loader/`
