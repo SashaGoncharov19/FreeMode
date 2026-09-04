@@ -34,30 +34,24 @@ rendering can only be verified in game by the owner.
   ClearScript native), `bin/scripts/` (managed client DLLs), `cef/` (browser host + Chromium runtime),
   `server/`, `logs/`, `resources/` (downloaded resource files), and `play.sh` / `setup-linux.sh`.
 
-## Current state (4 September 2026, night)
+## Current state (5 September 2026, morning)
 
-* **`master`**: `v0.1.1` — the **old** browser stack (CefGlue, Chromium 57, single-process). Last
-  release verified working in game (auth login form, account registered).
-* **`claude/agent-framework`** (branched from `claude/modernize-deps-4d8uyn` on 4 Sept, night): the agent
-  operating framework — `AGENTS.md`, `docs/agents/`, `docs/tasks/` (T-000…T-020), `docs/PLAN.md`, `docs/DECISIONS.md`,
-  `docs/CODEMAP.md`, the code graph (`.mcp.json`, `.claude/`). The owner's decisions of 4 Sept (night) are recorded as
-  D-09…D-12 in `docs/DECISIONS.md`: Bun runtime for server gamemode scripts (bridge spike T-006 first), DLC packs
-  downloadable anywhere and applied at game start, M1 = platform then UI, one PR per task. To be merged into the
-  integration branch; agents then take tasks from `docs/tasks/` in the order of `docs/PLAN.md` §4. The **integration
-  branch** for tasks is `claude/modernize-deps-4d8uyn` until the owner merges it into `master`.
-* **`claude/modernize-deps-4d8uyn`** (working branch of the modernisation, **not pushed** since the
-  browser-host work started — seven commits ahead of origin): CefSharp 151 **in its own process**, ClearScript
-  7.5, debug mode, dev container. Pre-releases `v0.2.0-alpha.1 … alpha.5` ran Chromium *inside* the game and
-  crashed (below). No PR open, no alpha.6 yet.
-* **Verified in game by the owner (4 Sept)**: the browser host starts on connect, the `auth` login form
-  appears, typing/clicking work, the account registers ("все ідеально працює"). The GPU path with shared
-  textures also drew the form, but the inputs lagged — root cause and fix in the seventh step below; the fixed
-  build then ran in game: "works adequately", with occasional micro-freezes the owner wants attributed (eighth
-  step). **Synced into `~/GTANetwork` and awaiting the owner's next run**: the hitch diagnostics, the idle exit
-  of the browser host, and the launcher republished with the system monitor.
-* Everything else is verified outside the game: `eng/cef-harness.sh` passes in both frame modes
-  (shared memory and the shared-texture ring, with latency numbers), `eng/dev-test.sh` (the Linux CI checks)
-  passes.
+* **`master`**: `v0.1.1` — the **old** browser stack (CefGlue, Chromium 57, single-process). Last release verified working in game.
+* **`claude/modernize-deps-4d8uyn`** — the **integration branch**; pushed. Contains the modernisation (CefSharp 151 in its own
+  process, ClearScript 7.5, .NET 10), the agent framework (`AGENTS.md`, `docs/agents/`, `docs/tasks/`, `docs/PLAN.md`,
+  `docs/DECISIONS.md`, `docs/CODEMAP.md`, the code graph) and the first merged tasks: **T-001** .NET 10 (#5), **T-004**
+  TypeScript typings (#6), **T-012** CEF connect loader (#7), **T-006 stage 1** bridge benchmark (#8). Tasks run as
+  `task/T-NNN-*` branches with one PR each (D-11); the owner asked the agent to merge PRs whose CI is green (5 Sept).
+  No PR to `master` yet; no alpha.6 yet.
+* **The owner's install (`~/GTANetwork`)** holds the integration build: .NET 10 launcher and server (the local server runs on
+  it), the client + browser host with the texture ring, hitch diagnostics, idle exit and the connect loader, `ui/loader`.
+* **Awaiting the owner in game** (`play.sh --debug`): T-000 (texture ring: typing reacts at once; `[HITCH]` lines vs
+  `hitch-monitor.log`; the host stops 60 s after the last browser and returns for the next page) and T-012 (the loader shows
+  about a second after "connect" and fades before the `auth` form; `Runtime.log`: `loader: shown …` / `loader: hidden after N ms`).
+* **In progress**: T-006 stage 2 — the Bun runtime for TypeScript server resources (`task/T-006-bun-bridge`; design in the
+  task file). **Open decisions**: Q-07 hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
+* Everything except the game is verified by `eng/dev-test.sh` (CI checks) and `eng/cef-harness.sh` (browser host, both frame
+  modes, latency, loader page); the bridge numbers are in `docs/PLAN.md` E-04.
 
 ## THE FINDING — why Chromium 151 died inside the game, and the fix
 

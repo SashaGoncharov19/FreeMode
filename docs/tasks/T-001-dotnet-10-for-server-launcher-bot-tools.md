@@ -1,6 +1,6 @@
 # T-001 — .NET 10 for server, launcher, bot, Map2Resource and the dev container
 
-Status: in progress
+Status: done
 Epic: E-01 Platform upgrade
 Size: M
 Branch: task/T-001-dotnet-10 from the integration branch
@@ -64,6 +64,8 @@ If `Microsoft.CodeAnalysis.CSharp 5.9.0` changes `CSharpCompilation` defaults, `
 * 2026-09-04 23:20 agent — started on task/T-001-dotnet-10.
 * 2026-09-04 23:30 agent — the sdk:10.0 image is Ubuntu 24.04 with an existing UID 1000 user; the Dockerfile now renames it instead of failing in useradd; the PowerShell repo config follows /etc/os-release.
 * 2026-09-04 23:45 agent — tests green in the rebuilt container (SDK 10.0.400); launcher and server published into ~/GTANetwork; PR opened.
+
+* 2026-09-05 08:20 agent — PR #5 merged into claude/modernize-deps-4d8uyn (CI green: Linux + Windows). done.
 
 ## Result
 

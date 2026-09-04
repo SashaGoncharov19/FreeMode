@@ -1,6 +1,6 @@
 # T-004 — TypeScript typings generated from the C# APIs (server, client, CEF)
 
-Status: in progress
+Status: done
 Epic: E-04 TypeScript
 Size: M
 Branch: task/T-004-typegen from the integration branch
@@ -79,6 +79,8 @@ The client DLL is net48: load it with `MetadataLoadContext` and the reference as
 * 2026-09-04 22:10 agent — created.
 * 2026-09-04 23:35 agent — started on task/T-004-typegen (worktree).
 * 2026-09-05 00:10 agent — generator runs against the stub-built client DLL (SHVDN stub folder via --probe); name collisions across files (TS merges same-named `declare enum`s) solved with one name registry; `String` host type not redeclared (a JS global). PR opened.
+
+* 2026-09-05 08:20 agent — PR #6 merged (after making the output build-independent and merging the integration branch twice). done.
 
 ## Result
 
