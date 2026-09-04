@@ -1,9 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Imaging;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using CefSharp;
+using CefSharp.OffScreen;
 using GTA;
 using GTA.Native;
 using GTANetwork.GUI.DirectXHook.Hook;
@@ -11,12 +20,14 @@ using GTANetwork.GUI.DirectXHook.Hook.Common;
 using GTANetwork.Javascript;
 using GTANetwork.Util;
 using Microsoft.ClearScript.V8;
+using Newtonsoft.Json;
 using SharpDX;
-using Xilium.CefGlue;
 using Point = System.Drawing.Point;
+using Size = System.Drawing.Size;
 
 namespace GTANetwork.GUI
 {
+    /// <summary>Feeds mouse and keyboard input of the game to the browsers while the cursor is shown.</summary>
     public class CefController : Script
     {
         private static bool _showCursor;
@@ -52,6 +63,11 @@ namespace GTANetwork.GUI
             return mod;
         }
 
+        private static Browser[] SnapshotBrowsers()
+        {
+            lock (CEFManager.Browsers) return CEFManager.Browsers.ToArray();
+        }
+
         public CefController()
         {
             Tick += (sender, args) =>
@@ -82,14 +98,14 @@ namespace GTANetwork.GUI
                     var wumouseDown = Game.IsDisabledControlPressed(GTA.Control.CursorScrollUp);
                     var wdmouseDown = Game.IsDisabledControlPressed(GTA.Control.CursorScrollDown);
 
-                    foreach (var browser in CEFManager.Browsers)
+                    foreach (var browser in SnapshotBrowsers())
                     {
-                        if (!browser.IsInitialized()) continue;
+                        var host = browser.Host;
+                        if (host == null) continue;
 
                         if (!browser._hasFocused)
                         {
-                            browser._browser.GetHost().SetFocus(true);
-                            browser._browser.GetHost().SendFocusEvent(true);
+                            host.SetFocus(true);
                             browser._hasFocused = true;
                         }
 
@@ -97,42 +113,17 @@ namespace GTANetwork.GUI
                             mouseX < browser.Position.X + browser.Size.Width &&
                             mouseY < browser.Position.Y + browser.Size.Height)
                         {
-                            var ev = new CefMouseEvent((int)(mouseX - browser.Position.X), (int)(mouseY - browser.Position.Y),
-                                    GetMouseModifiers(mouseDownRN, rmouseDownRN));
+                            var ev = new MouseEvent((int)(mouseX - browser.Position.X), (int)(mouseY - browser.Position.Y),
+                                GetMouseModifiers(mouseDownRN, rmouseDownRN));
 
-                            browser._browser
-                                .GetHost()
-                                .SendMouseMoveEvent(ev, false);
+                            host.SendMouseMoveEvent(ev, false);
 
-                            if (mouseDown)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseClickEvent(ev, CefMouseButtonType.Left, false, 1);
-
-                            if (mouseUp)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseClickEvent(ev, CefMouseButtonType.Left, true, 1);
-
-                            if (rmouseDown)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseClickEvent(ev, CefMouseButtonType.Right, false, 1);
-
-                            if (rmouseUp)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseClickEvent(ev, CefMouseButtonType.Right, true, 1);
-
-                            if (wdmouseDown)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseWheelEvent(ev, 0, -30);
-
-                            if (wumouseDown)
-                                browser._browser
-                                    .GetHost()
-                                    .SendMouseWheelEvent(ev, 0, 30);
+                            if (mouseDown) host.SendMouseClickEvent(ev, MouseButtonType.Left, false, 1);
+                            if (mouseUp) host.SendMouseClickEvent(ev, MouseButtonType.Left, true, 1);
+                            if (rmouseDown) host.SendMouseClickEvent(ev, MouseButtonType.Right, false, 1);
+                            if (rmouseUp) host.SendMouseClickEvent(ev, MouseButtonType.Right, true, 1);
+                            if (wdmouseDown) host.SendMouseWheelEvent(ev, 0, -30);
+                            if (wumouseDown) host.SendMouseWheelEvent(ev, 0, 30);
                         }
                     }
                 }
@@ -152,151 +143,268 @@ namespace GTANetwork.GUI
                     return;
                 }
 
-                if (!CefUtil.DISABLE_CEF)
+                if (CefUtil.DISABLE_CEF) return;
+
+                foreach (var browser in SnapshotBrowsers())
                 {
-                    foreach (var browser in CEFManager.Browsers)
+                    var host = browser.Host;
+                    if (host == null) continue;
+
+                    CefEventFlags mod = CefEventFlags.None;
+                    if (args.Control) mod |= CefEventFlags.ControlDown;
+                    if (args.Shift) mod |= CefEventFlags.ShiftDown;
+                    if (args.Alt) mod |= CefEventFlags.AltDown;
+
+                    host.SendKeyEvent(new KeyEvent
                     {
-                        if (!browser.IsInitialized()) continue;
+                        Type = KeyEventType.KeyDown,
+                        Modifiers = mod,
+                        WindowsKeyCode = (int)args.KeyCode,
+                        NativeKeyCode = (int)args.KeyValue,
+                    });
 
-                        CefEventFlags mod = CefEventFlags.None;
-                        if (args.Control) mod |= CefEventFlags.ControlDown;
-                        if (args.Shift) mod |= CefEventFlags.ShiftDown;
-                        if (args.Alt) mod |= CefEventFlags.AltDown;
+                    var key = args.KeyCode;
 
-                        CefKeyEvent kEvent = new CefKeyEvent();
-                        kEvent.EventType = CefKeyEventType.KeyDown;
-                        kEvent.Modifiers = mod;
-                        kEvent.WindowsKeyCode = (int)args.KeyCode;
-                        kEvent.NativeKeyCode = (int)args.KeyValue;
-                        browser._browser.GetHost().SendKeyEvent(kEvent);
-
-                        CefKeyEvent charEvent = new CefKeyEvent();
-                        charEvent.EventType = CefKeyEventType.Char;
-
-                        var key = args.KeyCode;
-
-                        if ((key == Keys.ShiftKey && _lastKey == Keys.Menu) ||
-                            (key == Keys.Menu && _lastKey == Keys.ShiftKey))
-                        {
-                            ClassicChat.ActivateKeyboardLayout(1, 0);
-                            return;
-                        }
-
-                        _lastKey = key;
-
-                        if (key == Keys.Escape)
-                        {
-                            return;
-                        }
-
-                        var keyChar = ClassicChat.GetCharFromKey(key, Game.IsKeyPressed(Keys.ShiftKey), Game.IsKeyPressed(Keys.Menu) && Game.IsKeyPressed(Keys.ControlKey));
-
-                        if (keyChar.Length == 0 || keyChar[0] == 27) return;
-
-                        charEvent.WindowsKeyCode = keyChar[0];
-                        charEvent.Modifiers = mod;
-                        browser._browser.GetHost().SendKeyEvent(charEvent);
+                    if ((key == Keys.ShiftKey && _lastKey == Keys.Menu) ||
+                        (key == Keys.Menu && _lastKey == Keys.ShiftKey))
+                    {
+                        ClassicChat.ActivateKeyboardLayout(1, 0);
+                        return;
                     }
+
+                    _lastKey = key;
+
+                    if (key == Keys.Escape)
+                    {
+                        return;
+                    }
+
+                    var keyChar = ClassicChat.GetCharFromKey(key, Game.IsKeyPressed(Keys.ShiftKey), Game.IsKeyPressed(Keys.Menu) && Game.IsKeyPressed(Keys.ControlKey));
+
+                    if (keyChar.Length == 0 || keyChar[0] == 27) return;
+
+                    host.SendKeyEvent(new KeyEvent
+                    {
+                        Type = KeyEventType.Char,
+                        Modifiers = mod,
+                        WindowsKeyCode = keyChar[0],
+                    });
                 }
             };
 
             KeyUp += (sender, args) =>
             {
-                if (!CefUtil.DISABLE_CEF)
-                {
-                    if (!ShowCursor) return;
-                    foreach (var browser in CEFManager.Browsers)
-                    {
-                        if (!browser.IsInitialized()) continue;
+                if (CefUtil.DISABLE_CEF || !ShowCursor) return;
 
-                        CefKeyEvent kEvent = new CefKeyEvent();
-                        kEvent.EventType = CefKeyEventType.KeyUp;
-                        kEvent.WindowsKeyCode = (int)args.KeyCode;
-                        browser._browser.GetHost().SendKeyEvent(kEvent);
-                    }
+                foreach (var browser in SnapshotBrowsers())
+                {
+                    var host = browser.Host;
+                    if (host == null) continue;
+
+                    host.SendKeyEvent(new KeyEvent
+                    {
+                        Type = KeyEventType.KeyUp,
+                        WindowsKeyCode = (int)args.KeyCode,
+                    });
+                }
+            };
+        }
+    }
+
+    /// <summary>
+    /// Chromium Embedded Framework through CefSharp (off-screen rendering). The game is the browser process; page
+    /// rendering and the GPU run in CefSharp.BrowserSubprocess.exe processes. All CEF files live in
+    /// &lt;install dir&gt;\cef, which is why the assembly resolver and the DLL directory are set up before anything
+    /// from CefSharp is touched.
+    /// </summary>
+    internal static class CEFManager
+    {
+        private static Thread _cefThread;
+        private static readonly ManualResetEvent CefReady = new ManualResetEvent(false);
+        private static readonly ManualResetEvent CefShutdown = new ManualResetEvent(false);
+        private static bool _cefInitialised;
+        private static bool _resolverRegistered;
+        private static string _cefDirectory;
+        private static object _libcefHandle; // CefLibraryHandle, kept alive for the life of the process
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool SetDllDirectory(string lpPathName);
+
+        internal static string CefDirectory
+        {
+            get
+            {
+                if (_cefDirectory == null)
+                {
+                    _cefDirectory = Path.Combine(Main.GTANInstallDir.TrimEnd('\\', '/'), "cef");
+                }
+                return _cefDirectory;
+            }
+        }
+
+        /// <summary>
+        /// CefSharp.Core.Runtime.dll (C++/CLI) and the browser subprocess are in the cef folder, not next to
+        /// GTANetwork.dll, so the CLR needs help finding them. Call before the first method that uses CefSharp runs.
+        /// </summary>
+        internal static void RegisterAssemblyResolver()
+        {
+            if (_resolverRegistered) return;
+            _resolverRegistered = true;
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                try
+                {
+                    var name = new AssemblyName(args.Name).Name;
+                    if (!name.StartsWith("CefSharp", StringComparison.OrdinalIgnoreCase)) return null;
+
+                    var candidate = Path.Combine(CefDirectory, name + ".dll");
+                    if (!File.Exists(candidate)) return null;
+
+                    LogManager.CefLog("-> Resolving " + name + " from " + candidate);
+                    return Assembly.LoadFrom(candidate);
+                }
+                catch (Exception ex)
+                {
+                    LogManager.CefLog(ex, "CEF ASSEMBLY RESOLVE");
+                    return null;
                 }
             };
         }
 
-    }
-
-    internal static class CEFManager
-    {
         internal static void InitializeCef()
         {
-            if (!CefUtil.DISABLE_CEF)
+            if (CefUtil.DISABLE_CEF) return;
+
+            RegisterAssemblyResolver();
+
+            _cefThread = new Thread(CefThread) { IsBackground = true, Name = "GTAN CEF" };
+            _cefThread.SetApartmentState(ApartmentState.STA);
+            _cefThread.Start();
+        }
+
+        /// <summary>True once CEF is up (or has definitely failed); browsers wait for it.</summary>
+        internal static bool WaitUntilReady(int timeoutMs)
+        {
+            return CefReady.WaitOne(timeoutMs) && _cefInitialised;
+        }
+
+        private static void CefThread()
+        {
+            try
             {
-                var t = new Thread((ThreadStart)delegate
+                var cefDir = CefDirectory;
+                LogManager.CefLog("--> InitializeCef: CEF directory " + cefDir);
+
+                if (!File.Exists(Path.Combine(cefDir, "libcef.dll")) || !File.Exists(Path.Combine(cefDir, "CefSharp.BrowserSubprocess.exe")))
                 {
-                    try
-                    {
-                        //LogManager.CefLog("--> InitilizeCef: Start");
-                        CefRuntime.Load(Main.GTANInstallDir + "\\cef");
-                        //LogManager.CefLog("-> InitilizeCef: 1");
+                    LogManager.CefLog("libcef.dll or CefSharp.BrowserSubprocess.exe is missing in " + cefDir + "; CEF stays disabled");
+                    CefUtil.DISABLE_CEF = true;
+                    return;
+                }
 
-                        var args = new[]
-                        {
-                            "--off-screen-rendering-enabled",
-                            "--transparent-painting-enabled",
-                            "--disable-gpu",
-                            "--disable-gpu-compositing",
-                            "--disable-gpu-vsync",
-                            "--enable-begin-frame-scheduling",
-                            "--disable-d3d11",
+                // libcef.dll is imported by CefSharp.Core.Runtime.dll; the loader only looks next to GTA5.exe and on PATH.
+                if (!SetDllDirectory(cefDir))
+                {
+                    LogManager.CefLog("SetDllDirectory failed: " + Marshal.GetLastWin32Error());
+                }
 
-                        };
-
-                        var cefMainArgs = new CefMainArgs(args);
-                        var cefApp = new MainCefApp();
-
-                        if (CefRuntime.ExecuteProcess(cefMainArgs, cefApp, IntPtr.Zero) != -1) {
-                            LogManager.CefLog("CefRuntime could not execute the secondary process.");
-                        }
-
-                        //LogManager.CefLog("-> InitilizeCef: 2");
-                        var cefSettings = new CefSettings()
-                        {
-                            SingleProcess = true,
-                            MultiThreadedMessageLoop = true,
-                            WindowlessRenderingEnabled = true,
-                            BackgroundColor = new CefColor(0, 0, 0, 0),
-                            CachePath = Main.GTANInstallDir + "\\cef",
-                            ResourcesDirPath = Main.GTANInstallDir + "\\cef",
-                            LocalesDirPath = Main.GTANInstallDir + "\\cef\\locales",
-                            BrowserSubprocessPath = Main.GTANInstallDir + "\\cef",
-                            IgnoreCertificateErrors = true,
-                        };
-                        if(Main.PlayerSettings.CEFDevtool) cefSettings.RemoteDebuggingPort = 9222;
-
-                        CefRuntime.Initialize(cefMainArgs, cefSettings, cefApp, IntPtr.Zero);
-                        //LogManager.CefLog("-> InitilizeCef: 3");
-
-                        CefRuntime.RegisterSchemeHandlerFactory("http", null, new SecureSchemeFactory());
-                        CefRuntime.RegisterSchemeHandlerFactory("https", null, new SecureSchemeFactory());
-                        CefRuntime.RegisterSchemeHandlerFactory("ftp", null, new SecureSchemeFactory());
-                        CefRuntime.RegisterSchemeHandlerFactory("sftp", null, new SecureSchemeFactory());
-                        //LogManager.CefLog("--> InitilizeCef: End");
-
-
-                    }
-                    catch (Exception ex)
-                    {
-                        LogManager.CefLog(ex, "cef initialization");
-                    }
-                });
-
-                t.SetApartmentState(ApartmentState.STA);
-                t.Start();
-
+                InitializeCefRuntime(cefDir);
             }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "cef initialization");
+                CefUtil.DISABLE_CEF = true;
+            }
+            finally
+            {
+                CefReady.Set();
+            }
+
+            // Shutdown must run on the thread that called Initialize.
+            CefShutdown.WaitOne();
+
+            try
+            {
+                if (_cefInitialised) ShutdownCefRuntime();
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "cef shutdown");
+            }
+        }
+
+        // Kept out of CefThread so that the JIT only touches CefSharp types after the resolver and DLL directory are set.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void InitializeCefRuntime(string cefDir)
+        {
+            var libcef = new CefLibraryHandle(Path.Combine(cefDir, "libcef.dll"));
+            if (libcef.IsInvalid)
+            {
+                LogManager.CefLog("libcef.dll could not be pre-loaded (error " + Marshal.GetLastWin32Error() + ")");
+            }
+            _libcefHandle = libcef;
+
+            CefSharpSettings.SubprocessExitIfParentProcessClosed = true;
+            CefSharpSettings.ShutdownOnExit = false;
+
+            var playerSettings = Main.PlayerSettings;
+            var gpu = playerSettings != null && playerSettings.CefGpu;
+
+            var settings = new CefSettings
+            {
+                BrowserSubprocessPath = Path.Combine(cefDir, "CefSharp.BrowserSubprocess.exe"),
+                CachePath = Path.Combine(cefDir, "cache"),
+                LocalesDirPath = Path.Combine(cefDir, "locales"),
+                ResourcesDirPath = cefDir,
+                LogFile = Path.Combine(LogManager.LogDirectory, "CEF-chromium.log"),
+                LogSeverity = LogSeverity.Warning,
+                MultiThreadedMessageLoop = true,
+                WindowlessRenderingEnabled = true,
+                BackgroundColor = 0,
+                IgnoreCertificateErrors = false,
+            };
+
+            if (playerSettings != null && playerSettings.CEFDevtool) settings.RemoteDebuggingPort = 9222;
+
+            // Software rendering by default, exactly what the old single-process browser did; <cefgpu>true</cefgpu>
+            // in settings.xml keeps the GPU process (worth trying, it is a separate process now).
+            if (!gpu)
+            {
+                settings.CefCommandLineArgs.Add("disable-gpu");
+                settings.CefCommandLineArgs.Add("disable-gpu-compositing");
+            }
+            settings.CefCommandLineArgs.Add("disable-gpu-vsync");
+            settings.CefCommandLineArgs.Add("autoplay-policy", "no-user-gesture-required");
+            if (Main.EnableMediaStream) settings.CefCommandLineArgs.Add("enable-media-stream");
+
+            var ok = Cef.Initialize(settings, false, (IBrowserProcessHandler)null);
+            _cefInitialised = ok;
+
+            if (ok)
+            {
+                LogManager.CefLog("CEF initialised: Chromium " + Cef.ChromiumVersion + ", CEF " + Cef.CefVersion + ", CefSharp " + Cef.CefSharpVersion +
+                                  ", " + (gpu ? "GPU process on" : "software rendering") + ", subprocess " + settings.BrowserSubprocessPath);
+            }
+            else
+            {
+                LogManager.CefLog("CEF FAILED to initialise, see logs\\CEF-chromium.log");
+                CefUtil.DISABLE_CEF = true;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ShutdownCefRuntime()
+        {
+            Cef.Shutdown();
         }
 
         internal static void DisposeCef()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                CefRuntime.Shutdown();
-            }
+            if (CefUtil.DISABLE_CEF && !_cefInitialised) return;
+
+            CefShutdown.Set();
+            _cefThread?.Join(3000);
         }
 
         internal static void Dispose()
@@ -326,8 +434,6 @@ namespace GTANetwork.GUI
 
         internal static void Initialize(Size screenSize)
         {
-
-            //LogManager.CefLog("--> Initiatlize: Start");
             ScreenSize = screenSize;
             if (CefUtil.DISABLE_CEF || DirectXHook != null) return;
 
@@ -342,17 +448,11 @@ namespace GTANetwork.GUI
             {
                 LogManager.CefLog("--> Initiatlize: Creating device");
                 DirectXHook = new DXHookD3D11(screenSize.Width, screenSize.Height);
-                //DirectXHook.Hook();
             }
             catch (Exception ex)
             {
                 LogManager.CefLog(ex, "DIRECTX START");
             }
-
-            //RenderThread = new Thread(RenderLoop);
-            //RenderThread.IsBackground = true;
-            //RenderThread.Start();
-            //LogManager.CefLog("--> Initiatlize: End");
         }
 
         internal static readonly List<Browser> Browsers = new List<Browser>();
@@ -361,124 +461,103 @@ namespace GTANetwork.GUI
         internal static bool Draw = false;
 
         internal static DXHookD3D11 DirectXHook;
-
-        private static long _lastCefRender = 0;
-        private static Bitmap _lastCefBitmap = null;
     }
 
-
+    /// <summary>
+    /// The page side calls the client script through <c>resourceCall(name, ...args)</c>; this runs the call on the
+    /// script thread. Calls are one-way: the page gets no return value (CEF pages live in another process).
+    /// </summary>
     public class BrowserJavascriptCallback
     {
-        private V8ScriptEngine _parent;
-        private Browser _wrapper;
+        private static readonly Regex FunctionName = new Regex(@"^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$", RegexOptions.Compiled);
+
+        private readonly V8ScriptEngine _parent;
+        private readonly Browser _wrapper;
+
         public BrowserJavascriptCallback(V8ScriptEngine parent, Browser wrapper)
         {
             _parent = parent;
-            if (!CefUtil.DISABLE_CEF)
-            {
-                _wrapper = wrapper;
-            }
+            _wrapper = wrapper;
         }
 
         public BrowserJavascriptCallback() { }
 
+        internal void Invoke(string functionName, object[] arguments)
+        {
+            if (_parent == null || _wrapper == null || !_wrapper._localMode) return;
+
+            if (string.IsNullOrEmpty(functionName) || !FunctionName.IsMatch(functionName))
+            {
+                LogManager.CefLog("-> resourceCall refused: '" + functionName + "' is not a function name");
+                return;
+            }
+
+            var call = new StringBuilder(functionName).Append('(');
+            if (arguments != null)
+            {
+                for (var i = 0; i < arguments.Length; i++)
+                {
+                    if (i > 0) call.Append(", ");
+                    call.Append(ToLiteral(arguments[i]));
+                }
+            }
+            call.Append(");");
+
+            var code = call.ToString();
+            Queue(() => _parent.Evaluate(code));
+        }
+
+        internal void Run(string code)
+        {
+            if (_parent == null || _wrapper == null || !_wrapper._localMode || string.IsNullOrEmpty(code)) return;
+            Queue(() => _parent.Evaluate(code));
+        }
+
+        private static void Queue(Action action)
+        {
+            lock (JavascriptHook.ThreadJumper)
+            {
+                JavascriptHook.ThreadJumper.Add(() =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.LogException(ex, "PAGE -> CLIENT SCRIPT");
+                    }
+                });
+            }
+        }
+
+        internal static string ToLiteral(object value)
+        {
+            if (value == null) return "null";
+            if (value is string) return System.Web.HttpUtility.JavaScriptStringEncode((string)value, true);
+            if (value is bool) return (bool)value ? "true" : "false";
+            if (value is int || value is long || value is short || value is byte || value is uint || value is ulong || value is float || value is double || value is decimal)
+                return Convert.ToString(value, CultureInfo.InvariantCulture);
+            if (value is System.Collections.IEnumerable) return JsonConvert.SerializeObject(value);
+            return System.Web.HttpUtility.JavaScriptStringEncode(value.ToString(), true);
+        }
+
         public object call(string functionName, params object[] arguments)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (!_wrapper._localMode) return null;
-
-                object objToReturn = null;
-                bool hasValue = false;
-
-                lock (JavascriptHook.ThreadJumper)
-                    JavascriptHook.ThreadJumper.Add(() =>
-                    {
-                        try
-                        {
-                            string callString = functionName + "(";
-
-                            if (arguments != null)
-                                for (int i = 0; i < arguments.Length; i++)
-                                {
-                                    string comma = ", ";
-
-                                    if (i == arguments.Length - 1)
-                                        comma = "";
-
-                                    if (arguments[i] is string)
-                                    {
-                                        callString += System.Web.HttpUtility.JavaScriptStringEncode(arguments[i].ToString(), true) + comma;
-                                    }
-                                    else if (arguments[i] is bool)
-                                    {
-                                        callString += arguments[i].ToString().ToLower() + comma;
-                                    }
-                                    else
-                                    {
-                                        callString += arguments[i] + comma;
-                                    }
-                                }
-
-                            callString += ");";
-
-                            objToReturn = _parent.Evaluate(callString);
-                        }
-                        finally
-                        {
-                            hasValue = true;
-                        }
-                    });
-
-                while (!hasValue) Thread.Sleep(10);
-
-                return objToReturn;
-            }
-            else
-            {
-                return null;
-            }
+            Invoke(functionName, arguments);
+            return null;
         }
 
         public object eval(string code)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (!_wrapper._localMode) return null;
-                // TODO: reinstate
-
-                object objToReturn = null;
-                bool hasValue = false;
-
-                lock (JavascriptHook.ThreadJumper)
-                    JavascriptHook.ThreadJumper.Add(() =>
-                    {
-                        try
-                        {
-                            objToReturn = _parent.Evaluate(code);
-                        }
-                        finally
-                        {
-                            hasValue = true;
-                        }
-                    });
-
-                while (!hasValue) Thread.Sleep(10);
-
-                return objToReturn;
-            }
-            else
-            {
-                return null;
-            }
+            Run(code);
+            return null;
         }
+
         public void addEventHandler(string eventName, Action<object[]> action)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (!_wrapper._localMode) return;
-                _eventHandlers.Add(new Tuple<string, Action<object[]>>(eventName, action));
-            }
+            if (_wrapper == null || !_wrapper._localMode) return;
+            _eventHandlers.Add(new Tuple<string, Action<object[]>>(eventName, action));
         }
 
         internal void TriggerEvent(string eventName, params object[] arguments)
@@ -490,39 +569,55 @@ namespace GTANetwork.GUI
             }
         }
 
-        private List<Tuple<string, Action<object[]>>> _eventHandlers = new List<Tuple<string, Action<object[]>>>();
+        private readonly List<Tuple<string, Action<object[]>>> _eventHandlers = new List<Tuple<string, Action<object[]>>>();
     }
 
+    /// <summary>One off-screen browser: a CefSharp control whose frames land in the DirectX overlay.</summary>
     public class Browser : IDisposable
     {
-        internal MainCefClient _client;
-        internal CefBrowser _browser;
+        internal ChromiumWebBrowser _browser;
+        internal OverlayRenderHandler _render;
         internal BrowserJavascriptCallback _callback;
-
-        internal CefV8Context _mainContext;
 
         internal readonly bool _localMode;
         internal bool _hasFocused;
+        private int _messagesLogged;
 
-        public CefBrowserHost GetHost()
+        private bool _headless;
+        private Point _position;
+        private Size _size;
+
+        /// <summary>The CEF browser host for input, or null until the browser exists.</summary>
+        public IBrowserHost Host
         {
-            return _browser.GetHost();
+            get
+            {
+                try
+                {
+                    var b = _browser;
+                    return b != null && !b.IsDisposed && b.IsBrowserInitialized ? b.GetBrowserHost() : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
         }
 
-        private bool _headless = false;
+        public IBrowserHost GetHost()
+        {
+            return Host;
+        }
+
         public bool Headless
         {
             get { return _headless; }
             set
             {
-                if (!CefUtil.DISABLE_CEF)
-                {
-                    _client.SetHidden(value);
-                }
                 _headless = value;
+                _render?.SetHidden(value);
             }
         }
-        private Point _position;
 
         public Point Position
         {
@@ -530,253 +625,251 @@ namespace GTANetwork.GUI
             set
             {
                 _position = value;
-                if (!CefUtil.DISABLE_CEF)
-                {
-                    _client.SetPosition(value.X, value.Y);
-                }
+                _render?.SetPosition(value.X, value.Y);
             }
         }
 
         public PointF[] Pinned { get; set; }
 
-        private Size _size;
         public Size Size
         {
             get { return _size; }
             set
             {
-                //_browser.Size = value;
-                if (!CefUtil.DISABLE_CEF)
-                {
-                    _client.SetSize(value.Width, value.Height);
-                }
                 _size = value;
-            }
-        }
-
-        private V8ScriptEngine Father;
-
-        public void eval(string code)
-        {
-            if (!_localMode) return;
-            if (!CefUtil.DISABLE_CEF)
-            {
-
-                _browser.GetMainFrame().ExecuteJavaScript(code, null, 0);
-            }
-        }
-
-        public void call(string method, params object[] arguments)
-        {
-            if (!_localMode) return;
-            if (!CefUtil.DISABLE_CEF)
-            {
-                string callString = method + "(";
-                if (arguments != null)
-                {
-                    for (int i = 0; i < arguments.Length; i++)
-                    {
-                        string comma = ", ";
-                        if (i == arguments.Length - 1)
-                            comma = "";
-                        if (arguments[i] is string)
-                        {
-                            var escaped = System.Web.HttpUtility.JavaScriptStringEncode(arguments[i].ToString(), true);
-                            callString += escaped + comma;
-                        }
-                        else if (arguments[i] is bool)
-                        {
-                            callString += arguments[i].ToString().ToLower() + comma;
-                        }
-                        else
-                        {
-                            callString += arguments[i] + comma;
-                        }
-                    }
-                }
-                callString += ");";
-
-                _browser.GetMainFrame().ExecuteJavaScript(callString, null, 0);
+                _render?.SetSize(value.Width, value.Height);
+                var b = _browser;
+                if (b != null && !b.IsDisposed) b.Size = value;
             }
         }
 
         internal Browser(V8ScriptEngine father, Size browserSize, bool localMode)
         {
-            Father = father;
-            if (!CefUtil.DISABLE_CEF)
+            _localMode = localMode;
+            _size = browserSize;
+
+            if (CefUtil.DISABLE_CEF) return;
+
+            LogManager.CefLog("--> Browser: Start (" + browserSize.Width + "x" + browserSize.Height + ", " + (localMode ? "local" : "remote") + ")");
+
+            if (!CEFManager.WaitUntilReady(15000))
             {
-                LogManager.CefLog("--> Browser: Start");
-                CefWindowInfo cefWindowinfo = CefWindowInfo.Create();
-                cefWindowinfo.SetAsWindowless(IntPtr.Zero, true);
-                cefWindowinfo.TransparentPaintingEnabled = true;
-                cefWindowinfo.WindowlessRenderingEnabled = true;
+                LogManager.CefLog("--> Browser: CEF is not initialised, no browser created");
+                return;
+            }
 
+            _callback = new BrowserJavascriptCallback(father, this);
+            _render = new OverlayRenderHandler(browserSize.Width, browserSize.Height);
 
-                var browserSettings = new CefBrowserSettings()
-                {
-                    JavaScriptCloseWindows = CefState.Disabled,
-                    JavaScriptOpenWindows = CefState.Disabled,
-                    WindowlessFrameRate = 30,
-                    FileAccessFromFileUrls = CefState.Disabled,
-                };
-
-                _client = new MainCefClient(browserSize.Width, browserSize.Height);
-
-                _client.OnCreated += (sender, args) =>
-                {
-                    _browser = (CefBrowser)sender;
-                    LogManager.CefLog("-> Browser created!");
-                };
-
-                Size = browserSize;
-                _localMode = localMode;
-                _callback = new BrowserJavascriptCallback(father, this);
-                try
-                {
-                    LogManager.CefLog("--> Browser: Creating Browser");
-                    CefBrowserHost.CreateBrowser(cefWindowinfo, _client, browserSettings);
-                }
-                catch (Exception e)
-                {
-                    LogManager.CefLog(e, "CreateBrowser");
-                }
+            try
+            {
+                CreateBrowser(browserSize, localMode);
                 LogManager.CefLog("--> Browser: End");
             }
+            catch (Exception e)
+            {
+                LogManager.CefLog(e, "CreateBrowser");
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void CreateBrowser(Size browserSize, bool localMode)
+        {
+            var frameRate = Main.PlayerSettings != null && Main.PlayerSettings.CefFrameRate > 0 ? Math.Min(60, Main.PlayerSettings.CefFrameRate) : 30;
+
+            var settings = new BrowserSettings(true)
+            {
+                WindowlessFrameRate = frameRate,
+                BackgroundColor = 0,
+                JavascriptCloseWindows = CefState.Disabled,
+            };
+
+            _browser = new ChromiumWebBrowser(string.Empty, settings, null, false, null, false)
+            {
+                Size = browserSize,
+                RenderHandler = _render,
+                RequestHandler = new LocalResourceRequestHandler(localMode),
+                LifeSpanHandler = new PopupToMainFrameLifeSpanHandler(),
+                MenuHandler = new NoContextMenuHandler(),
+                RenderProcessMessageHandler = new ResourceBridgeInjector(),
+            };
+
+            _browser.BrowserInitialized += (sender, args) => LogManager.CefLog("-> Browser created!");
+            _browser.FrameLoadStart += (sender, args) =>
+            {
+                if (args.Frame != null && args.Frame.IsMain) LogManager.CefLog("-> Start: " + args.Url);
+                // The bridge is also injected from OnContextCreated; this covers pages whose scripts run before that message arrives.
+                args.Frame?.ExecuteJavaScriptAsync(ResourceBridgeInjector.Shim, "gtan://bridge", 0);
+            };
+            _browser.FrameLoadEnd += (sender, args) =>
+            {
+                if (args.Frame != null && args.Frame.IsMain) LogManager.CefLog("-> End: " + args.Url + ", " + args.HttpStatusCode);
+            };
+            _browser.LoadError += (sender, args) => LogManager.CefLog("-> Load error " + args.ErrorCode + " (" + args.ErrorText + ") for " + args.FailedUrl);
+            _browser.ConsoleMessage += (sender, args) => LogManager.CefLog("-> Page console [" + args.Level + "] " + args.Message + " (" + args.Source + ":" + args.Line + ")");
+            _browser.JavascriptMessageReceived += OnJavascriptMessage;
+
+            LogManager.CefLog("--> Browser: Creating Browser");
+            _browser.CreateBrowser(null, settings);
+        }
+
+        private void OnJavascriptMessage(object sender, JavascriptMessageReceivedEventArgs e)
+        {
+            try
+            {
+                var message = e.Message as IDictionary<string, object>;
+                if (message == null) return;
+
+                object typeObj;
+                message.TryGetValue("type", out typeObj);
+                var type = typeObj as string;
+
+                if (type == "resourceCall")
+                {
+                    object nameObj, argsObj;
+                    message.TryGetValue("name", out nameObj);
+                    message.TryGetValue("args", out argsObj);
+
+                    var name = nameObj as string;
+                    if (string.IsNullOrEmpty(name)) return;
+
+                    var args = (argsObj as IEnumerable<object>)?.ToArray() ?? new object[0];
+
+                    if (_messagesLogged < 5)
+                    {
+                        _messagesLogged++;
+                        LogManager.CefLog("-> resourceCall " + name + " (" + args.Length + " argument(s))");
+                    }
+
+                    _callback?.Invoke(name, args);
+                }
+                else if (type == "resourceEval")
+                {
+                    object codeObj;
+                    message.TryGetValue("code", out codeObj);
+                    var code = codeObj as string;
+                    if (!string.IsNullOrEmpty(code)) _callback?.Run(code);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "PAGE MESSAGE");
+            }
+        }
+
+        public void eval(string code)
+        {
+            if (!_localMode || CefUtil.DISABLE_CEF) return;
+
+            var b = _browser;
+            if (b == null || b.IsDisposed || !b.IsBrowserInitialized) return;
+            b.ExecuteScriptAsync(code);
+        }
+
+        public void call(string method, params object[] arguments)
+        {
+            if (!_localMode || CefUtil.DISABLE_CEF) return;
+
+            var callString = new StringBuilder(method).Append('(');
+            if (arguments != null)
+            {
+                for (var i = 0; i < arguments.Length; i++)
+                {
+                    if (i > 0) callString.Append(", ");
+                    callString.Append(BrowserJavascriptCallback.ToLiteral(arguments[i]));
+                }
+            }
+            callString.Append(");");
+
+            eval(callString.ToString());
         }
 
         internal void GoToPage(string page)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (_browser != null)
-                {
-                    LogManager.CefLog("Trying to load page " + page + "...");
-                    _browser.GetMainFrame().LoadUrl(page);
-                }
-            }
+            if (CefUtil.DISABLE_CEF) return;
+
+            var b = _browser;
+            if (b == null || b.IsDisposed) return;
+
+            LogManager.CefLog("Trying to load page " + page + "...");
+            b.Load(page);
         }
 
         internal void GoBack()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (_browser != null && _browser.CanGoBack)
-                {
-                    LogManager.CefLog("Trying to go back a page...");
-                    _browser.GoBack();
-                }
-            }
+            if (CefUtil.DISABLE_CEF) return;
+
+            var b = _browser;
+            if (b == null || b.IsDisposed || !b.CanGoBack) return;
+
+            LogManager.CefLog("Trying to go back a page...");
+            b.Back();
         }
 
         internal void Close()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                _client.Close();
+            if (CefUtil.DISABLE_CEF) return;
 
-                if (_browser == null) return;
-                var host = _browser.GetHost();
-                host.CloseBrowser(true);
-                host.Dispose();
-                _browser.Dispose();
-            }
+            _render?.Dispose();
+            _render = null;
+
+            var b = _browser;
+            _browser = null;
+            b?.Dispose();
         }
 
         internal void LoadHtml(string html)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (_browser == null) return;
-                _browser.GetMainFrame().LoadString(html, "localhost");
-            }
+            if (CefUtil.DISABLE_CEF) return;
+
+            var b = _browser;
+            if (b == null || b.IsDisposed) return;
+
+            b.Load("data:text/html;charset=utf-8;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(html ?? string.Empty)));
         }
 
         internal string GetAddress()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                if (_browser == null) return null;
-                return _browser.GetMainFrame().Url;
-            }
-            else
-            {
-                return null;
-            }
+            if (CefUtil.DISABLE_CEF) return null;
+
+            var b = _browser;
+            return b == null || b.IsDisposed ? null : b.Address;
         }
 
         internal bool IsLoading()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                return _browser.IsLoading;
-            }
-            else
-            {
-                return false;
-            }
+            if (CefUtil.DISABLE_CEF) return false;
+
+            var b = _browser;
+            return b != null && !b.IsDisposed && b.IsLoading;
         }
 
         internal bool IsInitialized()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                return _browser != null;
-            }
-            else
-            {
-                return true;
-            }
+            if (CefUtil.DISABLE_CEF) return true;
+
+            var b = _browser;
+            return b != null && !b.IsDisposed && b.IsBrowserInitialized;
         }
 
-        internal Bitmap GetRawBitmap()
+        internal void SetFocus(bool focus)
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                //if (!_browser.IsBrowserInitialized) return null;
+            var host = Host;
+            if (host == null) return;
 
-                //if (_browser.Size.Width != Size.Width && _browser.Size.Height != Size.Height)
-                //_browser.Size = Size;
-
-                //Bitmap output = _browser.ScreenshotOrNull();
-                //_browser.InvokeRenderAsync(_browser.BitmapFactory.CreateBitmap(false, 1));
-                //return output;
-                Bitmap lbmp = _client.GetLastBitmap();
-
-                //LogManager.CefLog("Requesting bitmap. Null? " + (lbmp == null));
-                return lbmp;
-            }
-            else
-            {
-                return null;
-            }
+            host.SetFocus(focus);
+            _hasFocused = focus;
         }
 
-        internal Bitmap GetBitmap()
+        internal void SetFrameRate(int fps)
         {
-            var bmp = GetRawBitmap();
-
-            if (bmp == null) return null;
-
-            Bitmap doubleBuffer = new Bitmap(bmp.Width, bmp.Height, PixelFormat.Format32bppArgb);
-
-            using (var graphics = Graphics.FromImage(doubleBuffer))
-            {
-                graphics.DrawImage(bmp, new Point(0, 0));
-            }
-            if (!CefUtil.DISABLE_CEF)
-            {
-                //_browser.InvokeRenderAsync(_browser.BitmapFactory.CreateBitmap(false, 1));
-            }
-
-            return doubleBuffer;
+            var host = Host;
+            if (host != null) host.WindowlessFrameRate = Math.Max(1, Math.Min(60, fps));
         }
 
         public void Dispose()
         {
-            if (!CefUtil.DISABLE_CEF)
-            {
-                _browser = null;
-            }
+            _browser = null;
         }
     }
 }

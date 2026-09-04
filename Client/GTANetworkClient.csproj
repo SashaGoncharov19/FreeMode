@@ -24,7 +24,18 @@
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
     <PackageReference Include="EasyHook" Version="2.7.6035" />
+    <!-- JavaScript runtime: ClearScript 7 (V8 12). ClearScriptV8.win-x64.dll is copied next to the managed assemblies. -->
+    <PackageReference Include="Microsoft.ClearScript.V8" Version="$(ClearScriptVersion)" />
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="$(ClearScriptVersion)" />
+    <!-- Browser: CefSharp off-screen (Chromium via CefSharp.BrowserSubprocess.exe). The CEF runtime and the
+         CefSharp native parts are copied into $(OutDir)cef\ (CefSharpTargetDir), which becomes <install>\cef. -->
+    <PackageReference Include="CefSharp.OffScreen" Version="$(CefSharpVersion)" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <CefSharpTargetDir>cef</CefSharpTargetDir>
+    <CefSharpPlatformTargetOverride>x64</CefSharpPlatformTargetOverride>
+  </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="System.Configuration" />
@@ -41,13 +52,9 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
-  <!-- Binary dependencies without a matching NuGet package (ClearScript 5.4.9 with its native V8 bridge,
-       custom Lidgren fork, CEF 3.2987 (Chromium 57) CefGlue build, the exact SharpDX mix that the DirectX hook was tested with, NAudio). -->
+  <!-- Binary dependencies without a matching NuGet package (custom Lidgren fork, the exact SharpDX mix that the
+       DirectX hook was tested with, NAudio). -->
   <ItemGroup>
-    <!-- libs/ClearScript.dll, ClearScriptV8-64.dll and v8-x64.dll are the three files of the official ClearScript.V8
-         5.4.9 package (V8 5.5.372.40). They must always come from one build: a bridge compiled against another V8
-         still loads and runs scripts, but host object members are silently invisible to JavaScript. -->
-    <Reference Include="ClearScript"><HintPath>$(GtanLibsDir)ClearScript.dll</HintPath></Reference>
     <Reference Include="Lidgren.Network"><HintPath>$(GtanLibsDir)Lidgren.Network.dll</HintPath></Reference>
     <Reference Include="NAudio"><HintPath>$(GtanLibsDir)NAudio.dll</HintPath></Reference>
     <Reference Include="SharpDX"><HintPath>$(GtanLibsDir)SharpDX.dll</HintPath></Reference>
@@ -57,7 +64,6 @@
     <Reference Include="SharpDX.Direct3D11.Effects"><HintPath>$(GtanLibsDir)SharpDX.Direct3D11.Effects.dll</HintPath></Reference>
     <Reference Include="SharpDX.DXGI"><HintPath>$(GtanLibsDir)SharpDX.DXGI.dll</HintPath></Reference>
     <Reference Include="SharpDX.Mathematics"><HintPath>$(GtanLibsDir)SharpDX.Mathematics.dll</HintPath></Reference>
-    <Reference Include="Xilium.CefGlue"><HintPath>$(GtanLibsDir)Xilium.CefGlue.dll</HintPath></Reference>
   </ItemGroup>
 
   <!-- ScriptHookVDotNet: the real C++/CLI build when present, otherwise the managed reference stub. -->

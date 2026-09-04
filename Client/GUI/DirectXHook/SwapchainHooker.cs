@@ -1,7 +1,6 @@
 using System;
 using GTA;
 using GTANetwork.Util;
-using Xilium.CefGlue;
 
 namespace GTANetwork.GUI.DirectXHook
 {

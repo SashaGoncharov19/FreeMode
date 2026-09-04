@@ -8,8 +8,9 @@
     launcher\                   GTANSubprocess.exe + GTANetwork.dll (launcher behaviour) + deps
     bin\ScriptHookVDotNet.dll   the C++/CLI hook (built from Shv.NET)
     bin\*.dll                   native helpers injected/loaded into GTA5.exe (V8, EasyHook, SharpDX effects)
-    bin\scripts\                GTANetwork.dll (in-game client) + managed dependencies
-    cef\                        Chromium Embedded Framework runtime
+    bin\scripts\                GTANetwork.dll (in-game client) + managed dependencies (CefSharp, ClearScript 7 + its V8)
+    cef\                        Chromium Embedded Framework runtime + CefSharp.BrowserSubprocess.exe (from the NuGet
+                                packages, copied by the client build into Client\bin\...\cef)
     images\                     HUD / map / CEF assets
 
   ScriptHookV.dll and dinput8.dll are NOT included (not redistributable): users download them from
@@ -60,11 +61,12 @@ Remove-Item "$Out/bin/scripts/ScriptHookVDotNet.dll" -ErrorAction SilentlyContin
 
 # 4. ScriptHookVDotNet (real C++/CLI build) + native helpers -> bin\
 Copy-Item (Require-File "$Root/Shv.NET/bin/ScriptHookVDotNet.dll") "$Out/bin"
-foreach ($n in "ClearScriptV8-64.dll", "v8-x64.dll", "EasyHook64.dll", "EasyLoad64.dll", "sharpdx_direct3d11_effects_x64.dll", "sharpdx_direct3d11_1_effects_x64.dll") {
+foreach ($n in "EasyHook64.dll", "EasyLoad64.dll", "sharpdx_direct3d11_effects_x64.dll", "sharpdx_direct3d11_1_effects_x64.dll") {
     Copy-Item (Require-File "$Root/libs/$n") "$Out/bin"
 }
-# ClearScript 5.x looks for its V8 proxy next to ClearScript.dll first
-Copy-Item "$Root/libs/ClearScriptV8-64.dll", "$Root/libs/v8-x64.dll" "$Out/bin/scripts"
+# ClearScript 7: the V8 library sits next to ClearScript.Core.dll in bin\scripts (copied above); a second copy in
+# bin\ (the game folder) is the fallback for the loader's default search path.
+Copy-Item (Require-File "$client/ClearScriptV8.win-x64.dll") "$Out/bin"
 
 Set-Content -Path "$Out/bin/PUT-SCRIPTHOOKV-HERE.txt" -Value @"
 GTA Network needs Alexander Blade's ScriptHookV, which may not be redistributed.
@@ -75,8 +77,16 @@ GTA Network needs Alexander Blade's ScriptHookV, which may not be redistributed.
 The launcher refuses to start until both files are here.
 "@
 
-# 5. CEF runtime, images, data files
-Copy-Item "$Root/libs/cef/*" "$Out/cef" -Recurse -Force
+# 5. CEF runtime (CefSharp + Chromium, placed in $client/cef by the CefSharp NuGet targets), images, data files
+$cefSrc = "$client/cef"
+Require-File "$cefSrc/libcef.dll" | Out-Null
+Require-File "$cefSrc/CefSharp.BrowserSubprocess.exe" | Out-Null
+Require-File "$cefSrc/CefSharp.Core.Runtime.dll" | Out-Null
+Copy-Item "$cefSrc/*" "$Out/cef" -Recurse -Force
+# Debug symbols and XML docs are not needed at runtime (31 MB); keep the locales players actually use (50 MB otherwise).
+Get-ChildItem "$Out/cef" -Include *.pdb, *.xml -Recurse | Remove-Item -Force
+$keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "tr", "it", "nl", "cs", "ro", "hu"
+Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force
 Copy-Item "$Root/vehicleData.json", "$Root/whitelist.txt", "$Root/LICENSE" $Out
 

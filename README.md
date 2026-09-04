@@ -40,7 +40,7 @@ Ukrainian version: [README.uk.md](README.uk.md).
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, launcher `GTANetwork.dll` | net48 | The classic three-stage Windows launcher (registry, updates, DLL injection). Still builds, still works on Windows. |
 | `Map2Resource/` | `Map2Resource` | net8.0 | Converts Map Editor XML files into server map resources. |
 | `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless client that speaks the real protocol: joins a server, downloads map and scripts, chats, runs commands. Used by the CI integration test. |
-| `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, CEF 3.2987 (Chromium 57, 2017) + CefGlue, SharpDX mix, NAudio, native V8/EasyHook DLLs. |
+| `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, SharpDX mix, NAudio, EasyHook. The browser (CefSharp + Chromium) and the JavaScript runtime (ClearScript 7 + V8) come from NuGet. |
 | `images/` | - | - | HUD, map and CEF assets shipped with the client. |
 | `Setup/` | - | NSIS | Windows installer script. |
 | `eng/` | - | scripts | Version computation, server smoke test, client packaging. |
@@ -292,7 +292,11 @@ the synchronization review in [`docs/SYNC.md`](docs/SYNC.md); the browser upgrad
 * **ScriptHookV is not redistributable** and has to be downloaded by every user.
 * **The master server is gone**: no public server list, no updates through the master (the Linux installer
   updates itself from GitHub releases), `announce` is disabled by default.
-* **CEF 3.2987 (Chromium 57, 2017) / CefGlue** and the SharpDX 2.6/4.0 mix are kept as the binaries the DirectX hook was tuned for.
+* **Browser**: CefSharp.OffScreen (Chromium 151, 2026) with `CefSharp.BrowserSubprocess.exe`; the game is the browser
+  process, pages render in separate processes and land in the DirectX overlay. The whole runtime lives in
+  `<install>/cef`. Pages talk to the client script through `resourceCall(name, ...args)` (one-way, see
+  `docs/CEF-UPGRADE.md`). **JavaScript**: ClearScript 7.5 (V8 12). The SharpDX 2.6/4.0 mix is kept as the binaries
+  the DirectX hook was tuned for.
 * The classic Windows launcher still contacts `master.gtanet.work` for updates and silently continues when
   it is unreachable.
 

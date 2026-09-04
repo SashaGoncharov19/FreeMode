@@ -290,6 +290,11 @@ namespace GTANetwork
             EnableMediaStream = PlayerSettings.MediaStream;
             EnableDevTool = PlayerSettings.CEFDevtool;
 
+            // CefSharp's C++/CLI runtime lives in <install>\cef, ClearScript's native V8 next to this assembly:
+            // both need to be findable before the first method that touches them is compiled.
+            CEFManager.RegisterAssemblyResolver();
+            JavascriptHook.ConfigureClearScript();
+
             _threadJumping = new Queue<Action>();
 
             NetEntityHandler = new Streamer.Streamer();

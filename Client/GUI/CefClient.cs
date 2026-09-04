@@ -1,13 +1,21 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Net;
+using CefSharp;
+using CefSharp.Enums;
+using CefSharp.Handler;
+using CefSharp.OffScreen;
+using CefSharp.Structs;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
+using GTANetwork.Streamer;
 using GTANetwork.Util;
 using GTANetworkShared;
-using Xilium.CefGlue;
+using Point = System.Drawing.Point;
+using Range = CefSharp.Structs.Range;
+using Rect = CefSharp.Structs.Rect;
 
 namespace GTANetwork.GUI
 {
@@ -15,351 +23,99 @@ namespace GTANetwork.GUI
     {
         public static bool DISABLE_CEF = true;
 
-
-        internal static Dictionary<int, Browser> _cachedReferences = new Dictionary<int, Browser>();
-
-        internal static Browser GetBrowserFromCef(CefBrowser browser)
+        /// <summary>Our wrapper for a CefSharp browser control, or null.</summary>
+        internal static Browser GetBrowser(IWebBrowser chromiumWebBrowser)
         {
-            Browser father = null;
-
-            if (browser == null) return null;
-
-            lock (CEFManager.Browsers)
-            {
-                if (_cachedReferences.ContainsKey(browser.Identifier))
-                    return _cachedReferences[browser.Identifier];
-            }
-            if (DISABLE_CEF) return null;
             lock (CEFManager.Browsers)
             {
                 for (var index = CEFManager.Browsers.Count - 1; index >= 0; index--)
                 {
                     var b = CEFManager.Browsers[index];
-                    if (b?._browser == null || b._browser.Identifier != browser.Identifier) continue;
-                    father = b;
-                    _cachedReferences.Add(browser.Identifier, b);
-                    break;
+                    if (b != null && ReferenceEquals(b._browser, chromiumWebBrowser)) return b;
                 }
-            }
-            return father;
-        }
-    }
-
-    internal class MainCefApp : CefApp
-    {
-        private WebKitInjector _injector;
-
-        public MainCefApp()
-        {
-            _injector = new WebKitInjector();
-        }
-
-        protected override CefRenderProcessHandler GetRenderProcessHandler()
-        {
-            return _injector;
-        }
-
-        protected override void OnBeforeCommandLineProcessing(string processType, CefCommandLine commandLine)
-        {
-            if(Main.EnableMediaStream)
-            {
-                commandLine.AppendSwitch("enable-media-stream");
-            }
-        }
-    }
-
-    internal class SecureSchemeFactory : CefSchemeHandlerFactory
-    {
-        protected override CefResourceHandler Create(CefBrowser browser, CefFrame frame, string schemeName, CefRequest request)
-        {
-            Browser father = null;
-
-            //LogManager.CefLog("-> Entering request w/ schemeName " + schemeName);
-
-            try
-            {
-                father = CefUtil.GetBrowserFromCef(browser);
-
-                if (father == null || father._localMode)
-                {
-                    LogManager.CefLog("-> [Local mode] Uri: " + request.Url);
-                    var uri = new Uri(request.Url);
-                    var path = Main.GTANInstallDir + "resources\\";
-                    var requestedFile = path + uri.Host + uri.LocalPath.Replace("/", "\\");
-
-                    LogManager.CefLog("-> Loading: " + requestedFile);
-
-                    if (File.Exists(requestedFile))
-                        return SecureCefResourceHandler.FromFilePath(requestedFile,
-                            MimeType.GetMimeType(Path.GetExtension(requestedFile)));
-                    LogManager.CefLog("-> Error: File does not exist!");
-                    browser.StopLoad();
-                    return SecureCefResourceHandler.FromString("404", ".txt");
-                }
-            }
-            catch (Exception ex)
-            {
-                LogManager.CefLog(ex, "CEF SCHEME HANDLING");
-                browser?.StopLoad();
-                return SecureCefResourceHandler.FromString("error", ".txt");
             }
 
             return null;
         }
     }
-    
-    internal class MainCefLoadHandler : CefLoadHandler
+
+    /// <summary>
+    /// Receives the frames of one off-screen browser and hands them to the DirectX overlay as an image element.
+    /// CEF calls <see cref="OnPaint"/> on its UI thread; the buffer is only valid during the call, so it is copied.
+    /// </summary>
+    internal class OverlayRenderHandler : IRenderHandler
     {
-        protected override void OnLoadStart(CefBrowser browser, CefFrame frame, CefTransitionType transitionType)
-        {
-            // A single CefBrowser instance can handle multiple requests
-            //   for a single URL if there are frames (i.e. <FRAME>, <IFRAME>).
-            //if (frame.IsMain)
-            {
-                LogManager.CefLog("-> Start: " + browser.GetMainFrame().Url);
-            }
-        }
-
-        protected override void OnLoadEnd(CefBrowser browser, CefFrame frame, int httpStatusCode)
-        {
-            //if (frame.IsMain)
-            {
-                LogManager.CefLog($"-> End: {browser.GetMainFrame().Url}, {httpStatusCode}");
-            }
-        }
-    }
-
-    internal class MainLifeSpanHandler : CefLifeSpanHandler
-    {
-        private MainCefClient bClient;
-
-
-        internal MainLifeSpanHandler(MainCefClient bc)
-        {
-            this.bClient = bc;
-        }
-
-        protected override void OnAfterCreated(CefBrowser browser)
-        {
-            base.OnAfterCreated(browser);
-            this.bClient.Created(browser);
-        }
-
-        protected override bool OnBeforePopup(CefBrowser browser, CefFrame frame, string targetUrl, string targetFrameName, CefWindowOpenDisposition targetDisposition, bool userGesture, CefPopupFeatures popupFeatures, CefWindowInfo windowInfo, ref CefClient client, CefBrowserSettings settings, ref bool noJavascriptAccess)
-        {
-            Browser father = CefUtil.GetBrowserFromCef(browser);
-            father.GoToPage(targetUrl);
-            return true;
-        }
-
-    }
-
-    internal class V8Bridge : CefV8Handler
-    {
-        private CefBrowser _browser;
-
-        public V8Bridge(CefBrowser browser)
-        {
-            _browser = browser;
-        }
-
-        protected override bool Execute(string name, CefV8Value obj, CefV8Value[] arguments, out CefV8Value returnValue, out string exception)
-        {
-            Browser father = null;
-
-            LogManager.CefLog("-> Entering JS Execute. Func: " + name + " arg len: " + arguments.Length);
-
-            father = CefUtil.GetBrowserFromCef(_browser);
-
-            if (father == null)
-            {
-                LogManager.SimpleLog("cef", "NO FATHER FOUND FOR BROWSER " + _browser.Identifier);
-                returnValue = CefV8Value.CreateNull();
-                exception = "NO FATHER WAS FOUND.";
-                return false;
-            }
-            if (!CefUtil.DISABLE_CEF)
-            {
-                LogManager.CefLog("-> Father was found!");
-                try
-                {
-                    switch (name)
-                    {
-                        case "resourceCall":
-                        {
-                            LogManager.CefLog("-> Entering resourceCall...");
-
-                            List<object> args = new List<object>();
-
-                            for (int i = 1; i < arguments.Length; i++)
-                            {
-                                args.Add(arguments[i].GetValue());
-                            }
-
-                            LogManager.CefLog("-> Executing callback...");
-
-                            object output = father._callback.call(arguments[0].GetStringValue(), args.ToArray());
-
-                            LogManager.CefLog("-> Callback executed!");
-
-                            returnValue = V8Helper.CreateValue(output);
-                            exception = null;
-                            return true;
-                        }
-                        case "resourceEval":
-                        {
-                            LogManager.CefLog("-> Entering resource eval");
-                            object output = father._callback.eval(arguments[0].GetStringValue());
-                            LogManager.CefLog("-> callback executed!");
-
-                            returnValue = V8Helper.CreateValue(output);
-                            exception = null;
-                            return true;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogManager.CefLog(ex, "EXECUTE JS FUNCTION");
-                }
-            }
-            returnValue = CefV8Value.CreateNull();
-            exception = "";
-            return false;
-        }
-    }
-
-    internal class WebKitInjector : CefRenderProcessHandler
-    {
-        protected override void OnContextCreated(CefBrowser browser, CefFrame frame, CefV8Context context)
-        {
-            if (frame.IsMain)
-            {
-                LogManager.CefLog("-> Setting main context!");
-
-                Browser father = CefUtil.GetBrowserFromCef(browser);
-                if (father != null)
-                {
-                    if (!CefUtil.DISABLE_CEF)
-                    {
-                        father._mainContext = context;
-                    }
-                    LogManager.CefLog("-> Main context set!");
-                }
-            }
-
-            CefV8Value global = context.GetGlobal();
-
-            CefV8Value func = CefV8Value.CreateFunction("resourceCall", new V8Bridge(browser));
-            global.SetValue("resourceCall", func);
-
-            CefV8Value func2 = CefV8Value.CreateFunction("resourceEval", new V8Bridge(browser));
-            global.SetValue("resourceEval", func2);
-
-            base.OnContextCreated(browser, frame, context);
-        }
-
-        protected override bool OnBeforeNavigation(CefBrowser browser, CefFrame frame, CefRequest request, CefNavigationType navigation_type, bool isRedirect)
-        {
-            if ((request.TransitionType & CefTransitionType.ForwardBackFlag) != 0 || navigation_type == CefNavigationType.BackForward)
-            {
-                return true;
-            }
-
-            return base.OnBeforeNavigation(browser, frame, request, navigation_type, isRedirect);
-        }
-    }
-
-    internal class MainCefRenderHandler : CefRenderHandler
-    {
-        private int _windowHeight;
-        private int _windowWidth;
-
+        private int _width;
+        private int _height;
         private ImageElement _imageElement;
+        private int _paintsLogged;
 
-        public Bitmap LastBitmap;
-        public readonly object BitmapLock = new object();
+        public Point Position { get; private set; }
 
-
-        public MainCefRenderHandler(int windowWidth, int windowHeight)
+        public OverlayRenderHandler(int width, int height)
         {
-            _windowWidth = windowWidth;
-            _windowHeight = windowHeight;
-
+            _width = Math.Max(1, width);
+            _height = Math.Max(1, height);
             _imageElement = new ImageElement(null, true);
-
-            CEFManager.DirectXHook.AddImage(_imageElement);
+            CEFManager.DirectXHook?.AddImage(_imageElement);
             LogManager.CefLog("-> Instantiated Renderer");
         }
 
         public void SetHidden(bool hidden)
         {
-            _imageElement.Hidden = hidden;
+            if (_imageElement != null) _imageElement.Hidden = hidden;
         }
 
         public void SetSize(int width, int height)
         {
-            _windowHeight = height;
-            _windowWidth = width;
+            _width = Math.Max(1, width);
+            _height = Math.Max(1, height);
         }
 
         public void SetPosition(int x, int y)
         {
-            _imageElement.Location = new Point(x, y);
+            Position = new Point(x, y);
+            if (_imageElement != null) _imageElement.Location = Position;
         }
 
         public void Dispose()
         {
-            CEFManager.DirectXHook?.RemoveImage(_imageElement);
-            _imageElement?.Dispose();
+            var element = _imageElement;
             _imageElement = null;
+            if (element == null) return;
+
+            CEFManager.DirectXHook?.RemoveImage(element);
+            element.Dispose();
         }
 
-        protected override void OnCursorChange(CefBrowser browser, IntPtr cursorHandle, CefCursorType type, CefCursorInfo customCursorInfo)
+        public ScreenInfo? GetScreenInfo()
         {
-
+            return null; // the view rectangle is the screen, scale factor 1
         }
 
-        protected override bool GetRootScreenRect(CefBrowser browser, ref CefRectangle rect)
+        public Rect GetViewRect()
         {
-            return GetViewRect(browser, ref rect);
+            return new Rect(0, 0, _width, _height);
         }
 
-        protected override bool GetScreenPoint(CefBrowser browser, int viewX, int viewY, ref int screenX, ref int screenY)
+        public bool GetScreenPoint(int viewX, int viewY, out int screenX, out int screenY)
         {
-            screenX = viewX;
-            screenY = viewY;
+            screenX = viewX + Position.X;
+            screenY = viewY + Position.Y;
             return true;
         }
 
-        protected override bool GetViewRect(CefBrowser browser, ref CefRectangle rect)
+        public void OnAcceleratedPaint(PaintElementType type, Rect dirtyRect, AcceleratedPaintInfo acceleratedPaintInfo)
         {
-            rect.X = 0;
-            rect.Y = 0;
-            rect.Width = _windowWidth;
-            rect.Height = _windowHeight;
-            return true;
+            // Shared D3D11 textures (zero copy into the overlay) are the next step; software paints are used today.
         }
 
-        protected override bool GetScreenInfo(CefBrowser browser, CefScreenInfo screenInfo)
-        {
-            return false;
-        }
-
-        protected override void OnPopupSize(CefBrowser browser, CefRectangle rect)
-        {
-        }
-
-        private int _paintsLogged;
-
-        protected override void OnPaint(CefBrowser browser, CefPaintElementType type, CefRectangle[] dirtyRects, IntPtr buffer, int width, int height)
+        public void OnPaint(PaintElementType type, Rect dirtyRect, IntPtr buffer, int width, int height)
         {
             try
             {
-                if (type != CefPaintElementType.View || _imageElement == null || width <= 0 || height <= 0) return;
+                if (type != PaintElementType.View || _imageElement == null || width <= 0 || height <= 0 || buffer == IntPtr.Zero) return;
 
-                // The buffer belongs to CEF and is only valid during this call; the overlay uploads the bitmap later
-                // on the render thread, so take a copy instead of wrapping the pointer.
                 var copy = new Bitmap(width, height, PixelFormat.Format32bppArgb);
                 var data = copy.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
                 try
@@ -385,7 +141,7 @@ namespace GTANetwork.GUI
                 if (_paintsLogged < 3)
                 {
                     _paintsLogged++;
-                    LogManager.CefLog("-> Paint " + width + "x" + height + " (" + dirtyRects.Length + " dirty rect(s))");
+                    LogManager.CefLog("-> Paint " + width + "x" + height + " (dirty " + dirtyRect.Width + "x" + dirtyRect.Height + " at " + dirtyRect.X + "," + dirtyRect.Y + ")");
                 }
             }
             catch (Exception ex)
@@ -393,156 +149,165 @@ namespace GTANetwork.GUI
                 LogManager.CefLog(ex, "CEF PAINT");
             }
         }
-        
-        protected override void OnScrollOffsetChanged(CefBrowser browser, double x, double y)
-        {
 
+        public void OnCursorChange(IntPtr cursor, CursorType type, CursorInfo customCursorInfo)
+        {
         }
 
-        protected override void OnImeCompositionRangeChanged(CefBrowser browser, CefRange selectedRange, CefRectangle[] characterBounds)
+        public bool StartDragging(IDragData dragData, DragOperationsMask mask, int x, int y)
         {
+            return false;
+        }
 
+        public void UpdateDragCursor(DragOperationsMask operation)
+        {
+        }
+
+        public void OnPopupShow(bool show)
+        {
+        }
+
+        public void OnPopupSize(Rect rect)
+        {
+        }
+
+        public void OnImeCompositionRangeChanged(Range selectedRange, Rect[] characterBounds)
+        {
+        }
+
+        public void OnVirtualKeyboardRequested(IBrowser browser, TextInputMode inputMode)
+        {
         }
     }
 
-    internal class ContextMenuRemover : CefContextMenuHandler
+    /// <summary>
+    /// Local-mode browsers (the ones resources create for their UI) only see the files of the resources:
+    /// <c>https://&lt;resource&gt;/&lt;path&gt;</c> is served from the download folder, everything else is refused.
+    /// Remote browsers keep the normal network stack.
+    /// </summary>
+    internal class LocalResourceRequestHandler : RequestHandler
     {
-        protected override void OnBeforeContextMenu(CefBrowser browser, CefFrame frame, CefContextMenuParams state, CefMenuModel model)
+        private readonly bool _localMode;
+        private readonly LocalResourceHandlerFactory _factory = new LocalResourceHandlerFactory();
+
+        public LocalResourceRequestHandler(bool localMode)
+        {
+            _localMode = localMode;
+        }
+
+        protected override IResourceRequestHandler GetResourceRequestHandler(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IRequest request,
+            bool isNavigation, bool isDownload, string requestInitiator, ref bool disableDefaultHandling)
+        {
+            return _localMode ? _factory : null;
+        }
+
+        protected override void OnRenderProcessTerminated(IWebBrowser chromiumWebBrowser, IBrowser browser, CefTerminationStatus status, int errorCode, string errorMessage)
+        {
+            LogManager.CefLog("-> Render process terminated: " + status + " (" + errorCode + ") " + errorMessage);
+        }
+    }
+
+    internal class LocalResourceHandlerFactory : ResourceRequestHandler
+    {
+        protected override IResourceHandler GetResourceHandler(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IRequest request)
+        {
+            try
+            {
+                var url = request.Url ?? string.Empty;
+
+                // data:/about: pages (loadHtmlCefBrowser, blank pages) do not touch the disk.
+                if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || url.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return null;
+
+                LogManager.CefLog("-> [Local mode] Uri: " + url);
+
+                Uri uri;
+                if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http"))
+                {
+                    LogManager.CefLog("-> Refused: only https://<resource>/<file> is allowed in a local browser");
+                    return ResourceHandler.ForErrorMessage("Only https://<resource>/<file> is allowed here", HttpStatusCode.Forbidden);
+                }
+
+                string file;
+                if (!ResourceFileDownloader.TryGetLocalPath(FileTransferId._DOWNLOADFOLDER_, uri.Host, Uri.UnescapeDataString(uri.AbsolutePath), out file))
+                {
+                    LogManager.CefLog("-> Refused: bad path");
+                    return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
+                }
+
+                LogManager.CefLog("-> Loading: " + file);
+
+                if (!File.Exists(file))
+                {
+                    LogManager.CefLog("-> Error: File does not exist!");
+                    return ResourceHandler.ForErrorMessage("File not found: " + uri.Host + uri.AbsolutePath, HttpStatusCode.NotFound);
+                }
+
+                return ResourceHandler.FromFilePath(file, MimeType.GetMimeType(Path.GetExtension(file)), true);
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "CEF SCHEME HANDLING");
+                return ResourceHandler.ForErrorMessage("error", HttpStatusCode.InternalServerError);
+            }
+        }
+    }
+
+    /// <summary>Pop-ups (target=_blank, window.open) navigate the browser itself instead of opening a window.</summary>
+    internal class PopupToMainFrameLifeSpanHandler : LifeSpanHandler
+    {
+        protected override bool OnBeforePopup(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, string targetUrl, string targetFrameName,
+            WindowOpenDisposition targetDisposition, bool userGesture, IPopupFeatures popupFeatures, IWindowInfo windowInfo, IBrowserSettings browserSettings,
+            ref bool noJavascriptAccess, out IWebBrowser newBrowser)
+        {
+            newBrowser = null;
+            if (!string.IsNullOrEmpty(targetUrl)) chromiumWebBrowser.Load(targetUrl);
+            return true;
+        }
+    }
+
+    internal class NoContextMenuHandler : ContextMenuHandler
+    {
+        protected override void OnBeforeContextMenu(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IContextMenuParams parameters, IMenuModel model)
         {
             model.Clear();
         }
     }
 
-    internal class MainCefClient : CefClient
+    /// <summary>
+    /// Defines <c>resourceCall(name, ...args)</c> and <c>resourceEval(code)</c> in every page. CEF runs pages in its
+    /// render process, so the functions post a message that the browser process (the game) forwards to the client
+    /// script of the resource; they return nothing. <c>gtan.call/gtan.eval</c> are the same functions under a
+    /// namespace for new pages.
+    /// </summary>
+    internal class ResourceBridgeInjector : IRenderProcessMessageHandler
     {
-        private readonly MainCefLoadHandler _loadHandler;
-        private readonly MainCefRenderHandler _renderHandler;
-        private readonly MainLifeSpanHandler _lifeSpanHandler;
-        private readonly ContextMenuRemover _contextMenuHandler;
+        internal const string Shim =
+            "(function(){" +
+            " if (window.resourceCall && window.gtan) return;" +
+            " var post = function(m){ if (window.CefSharp && CefSharp.PostMessage) CefSharp.PostMessage(m); else if (window.cefSharp && cefSharp.postMessage) cefSharp.postMessage(m); };" +
+            " window.resourceCall = function(name){ post({ type: 'resourceCall', name: String(name), args: Array.prototype.slice.call(arguments, 1) }); };" +
+            " window.resourceEval = function(code){ post({ type: 'resourceEval', code: String(code) }); };" +
+            " window.gtan = { call: window.resourceCall, eval: window.resourceEval };" +
+            "})();";
 
-        public event EventHandler OnCreated;
-
-        public MainCefClient(int windowWidth, int windowHeight)
+        public void OnContextCreated(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame)
         {
-            _renderHandler = new MainCefRenderHandler(windowWidth, windowHeight);
-            _loadHandler = new MainCefLoadHandler();
-            _lifeSpanHandler = new MainLifeSpanHandler(this);
-            _contextMenuHandler = new ContextMenuRemover();
+            if (frame == null) return;
+            if (frame.IsMain) LogManager.CefLog("-> Main context created: " + frame.Url);
+            frame.ExecuteJavaScriptAsync(Shim, "gtan://bridge", 0);
         }
 
-        public void SetPosition(int x, int y)
+        public void OnContextReleased(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame)
         {
-            _renderHandler.SetPosition(x, y);
         }
 
-        public void SetSize(int w, int h)
+        public void OnFocusedNodeChanged(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IDomNode node)
         {
-            _renderHandler.SetSize(w, h);
         }
 
-        public void SetHidden(bool hidden)
+        public void OnUncaughtException(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, JavascriptException exception)
         {
-            _renderHandler.SetHidden(hidden);
+            LogManager.CefLog("-> Page exception in " + (frame != null ? frame.Url : "?") + ": " + exception.Message);
         }
-
-        public void Close()
-        {
-            _renderHandler.Dispose();
-        }
-
-        public Bitmap GetLastBitmap()
-        {
-            if (_renderHandler.LastBitmap == null) return null;
-
-            lock (_renderHandler.BitmapLock)
-                return new Bitmap(_renderHandler.LastBitmap);
-        }
-
-        public void Created(CefBrowser bs)
-        {
-            OnCreated?.Invoke(bs, EventArgs.Empty);
-        }
-
-        protected override CefContextMenuHandler GetContextMenuHandler()
-        {
-            return _contextMenuHandler;
-        }
-
-        protected override CefRenderHandler GetRenderHandler()
-        {
-            return _renderHandler;
-        }
-
-        protected override CefLoadHandler GetLoadHandler()
-        {
-            return _loadHandler;
-        }
-
-        protected override CefLifeSpanHandler GetLifeSpanHandler()
-        {
-            return _lifeSpanHandler;
-        }
-    }
-
-    public static class V8Helper
-    {
-        public static object GetValue(this CefV8Value val)
-        {
-            if (val.IsNull || val.IsUndefined) return null;
-
-            if (val.IsArray) return new V8Array(val);
-            if (val.IsBool) return val.GetBoolValue();
-            if (val.IsDouble) return val.GetDoubleValue();
-            if (val.IsInt) return val.GetIntValue();
-            if (val.IsString) return val.GetStringValue();
-            if (val.IsUInt) return val.GetUIntValue();
-
-            return null;
-        }
-
-        public static CefV8Value CreateValue(object value)
-        {
-            if (value == null)
-                return CefV8Value.CreateNull();
-            if (value is bool)
-                return CefV8Value.CreateBool((bool) value);
-            if (value is double)
-                return CefV8Value.CreateDouble((double) value);
-            if (value is float)
-                return CefV8Value.CreateDouble((double)(float)value);
-            if (value is int)
-                return CefV8Value.CreateInt((int)value);
-            var s = value as string;
-            if (s != null)
-                return CefV8Value.CreateString(s);
-            if (value is uint)
-                return CefV8Value.CreateUInt((uint)value);
-            var list = value as IList;
-            if (list == null) return CefV8Value.CreateUndefined();
-            var val = list;
-
-            var arr = CefV8Value.CreateArray(val.Count);
-
-            for (var i = 0; i < val.Count; i++)
-            {
-                arr.SetValue(i, CreateValue(val[i]));
-            }
-
-            return arr;
-        }
-    }
-
-    public class V8Array
-    {
-        private CefV8Value _value;
-
-        internal V8Array(CefV8Value val)
-        {
-            _value = val;
-        }
-
-        public object this[int index] => _value.GetValue(index).GetValue();
-
-        public int length => _value.GetArrayLength();
     }
 }

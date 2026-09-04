@@ -16,6 +16,32 @@ Two version numbers exist side by side:
 
 Nothing yet.
 
+## [0.2.0] - unreleased
+
+Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these notes while the branch
+`claude/modernize-deps-4d8uyn` is being tested in game.
+
+### Changed
+* **Browser: CEF 3.2987 (Chromium 57, 2017, single-process) → CefSharp.OffScreen 151 (Chromium 151, 2026)**.
+  The game is the browser process; page rendering and the GPU run in `CefSharp.BrowserSubprocess.exe`
+  processes, which is how Chromium is meant to be embedded and what keeps page work off the game's threads.
+  Pages render off-screen into the same DirectX overlay as before. The runtime (~350 MB) lives in
+  `<install>/cef` and comes from NuGet; `libs/cef` and `libs/Xilium.CefGlue.dll` left the repository (144 MB).
+  Settings: `<CefGpu>` (GPU process, default off = software rendering), `<CefFrameRate>` (default 30),
+  `<CEFDevtool>` (remote debugger on port 9222). Details, mapping and the performance plan (dirty rectangles,
+  shared textures): `docs/CEF-UPGRADE.md`.
+* **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page
+  (also as `gtan.call`/`gtan.eval`) but are one-way now: the page runs in another process, so there is no return
+  value. `browser.call()`/`browser.eval()` from client scripts are unchanged. Local browsers only see
+  `https://<resource>/<file>` from the downloaded resource files; pop-ups navigate the same browser.
+* **JavaScript runtime: ClearScript 5.4.9 (V8 5.5) → ClearScript 7.5 (V8 12)** from NuGet; modern JavaScript
+  (ES2023) in client scripts. The V8 inspector (port 9222) is only opened with `<DebugMode>true</DebugMode>`.
+* Closing a browser removes its image from the overlay (it used to be added a second time).
+
+### Not yet
+* Server, launcher and bot stay on .NET 8; the client stays on .NET Framework 4.8 (ScriptHookVDotNet hosts the
+  desktop CLR). The route to .NET 10 for the client is in `docs/ROADMAP.md`.
+
 ## [0.1.1] - 2026-09-04
 
 Resource files (`<file src="..."/>` in `meta.xml`: CEF pages, images, sounds) now actually reach the client, and

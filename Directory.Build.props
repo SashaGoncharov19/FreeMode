@@ -60,5 +60,7 @@
     <ProtobufNetVersion>2.4.9</ProtobufNetVersion>
     <NetFrameworkReferenceAssembliesVersion>1.0.3</NetFrameworkReferenceAssembliesVersion>
     <RoslynVersion>4.14.0</RoslynVersion>
+    <ClearScriptVersion>7.5.1</ClearScriptVersion>
+    <CefSharpVersion>151.3.240</CefSharpVersion>
   </PropertyGroup>
 </Project>

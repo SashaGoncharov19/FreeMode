@@ -274,16 +274,11 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             DebugMessage("RemoveImage");
             lock (_overlayLock)
             {
-                if (OverlayEngine == null || OverlayEngine.Overlays == null)
-                    OverlayEngine = new DX11.DXOverlayEngine(this);
+                // (Used to Add() the element again: closed browsers stayed in the overlay.)
+                if (OverlayEngine?.Overlays == null || element == null) return;
 
-                if (OverlayEngine.Overlays.Count == 0)
-                {
-                    OverlayEngine.Overlays.Add(new Overlay());
-                    OverlayEngine.Overlays.Add(new Overlay());
-                }
-
-                OverlayEngine.Overlays[overlay].Elements.Add(element);
+                foreach (var o in OverlayEngine.Overlays)
+                    o.Elements.Remove(element);
             }
         }
 

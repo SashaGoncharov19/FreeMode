@@ -36,14 +36,17 @@ namespace GTANetwork.Javascript
 {
     internal class ClientsideScriptWrapper
     {
-        internal ClientsideScriptWrapper(V8ScriptEngine en, string rs, string filename)
+        internal ClientsideScriptWrapper(V8ScriptEngine en, ScriptContext context, string rs, string filename)
         {
             Engine = en;
+            Context = context;
             ResourceParent = rs;
             Filename = filename;
         }
 
         internal V8ScriptEngine Engine { get; set; }
+        /// <summary>The API object of this script (the same instance JavaScript sees as <c>API</c>).</summary>
+        internal ScriptContext Context { get; set; }
         internal string ResourceParent { get; set; }
         internal string Filename { get; set; }
     }
@@ -338,6 +341,28 @@ namespace GTANetwork.Javascript
             }
         }
 
+        /// <summary>
+        /// ClearScript 7 looks for ClearScriptV8.win-x64.dll next to its own assembly; ScriptHookVDotNet shadow-copies
+        /// scripts, so that folder is a temp copy without the native library. Point ClearScript at the real folder.
+        /// </summary>
+        internal static void ConfigureClearScript()
+        {
+            try
+            {
+                var codeBase = new Uri(typeof(JavascriptHook).Assembly.CodeBase).LocalPath;
+                var scriptsDir = Path.GetDirectoryName(codeBase);
+                var paths = new List<string>();
+                if (!string.IsNullOrEmpty(scriptsDir)) paths.Add(scriptsDir);
+                paths.Add(Main.GTANInstallDir.TrimEnd('\\', '/') + "\\bin");
+                Microsoft.ClearScript.HostSettings.AuxiliarySearchPath = string.Join(";", paths);
+                LogManager.RuntimeLog("ClearScript search path: " + Microsoft.ClearScript.HostSettings.AuxiliarySearchPath);
+            }
+            catch (Exception ex)
+            {
+                LogManager.LogException(ex, "CLEARSCRIPT SETUP");
+            }
+        }
+
         internal static void StartScripts(ScriptCollection sc)
         {
             var localSc = new List<ClientsideScript>(sc.ClientsideScripts);
@@ -379,9 +404,12 @@ namespace GTANetwork.Javascript
         internal static ClientsideScriptWrapper StartScript(ClientsideScript script)
         {
             ClientsideScriptWrapper csWrapper;
-            var scriptEngine = new V8ScriptEngine(V8ScriptEngineFlags.EnableDebugging);
+            // EnableDebugging opens the V8 inspector port (9222) for every engine; only wanted in debug mode.
+            var flags = Main.PlayerSettings != null && Main.PlayerSettings.DebugMode ? V8ScriptEngineFlags.EnableDebugging : V8ScriptEngineFlags.None;
+            var scriptEngine = new V8ScriptEngine(script.ResourceParent + "/" + script.Filename, flags);
+            var context = new ScriptContext(scriptEngine);
             //scriptEngine.AddHostObject("host", new HostFunctions()); // Disable an exploit where you could get reflection
-            scriptEngine.AddHostObject("API", new ScriptContext(scriptEngine));
+            scriptEngine.AddHostObject("API", context);
             scriptEngine.AddHostType("Enumerable", typeof(Enumerable));
             scriptEngine.AddHostType("List", typeof(List<>));
             scriptEngine.AddHostType("Dictionary", typeof(Dictionary<,>));
@@ -423,10 +451,11 @@ namespace GTANetwork.Javascript
                 LogManager.RuntimeLog("Client script API probe failed: " + probeException);
             }
 
+            context.ParentResourceName = script.ResourceParent;
+
             try
             {
-                scriptEngine.Execute(script.Script);
-                scriptEngine.Script.API.ParentResourceName = script.ResourceParent;
+                scriptEngine.Execute(script.Filename + ".js", script.Script);
             }
             catch (ScriptEngineException ex)
             {
@@ -434,7 +463,7 @@ namespace GTANetwork.Javascript
             }
             finally
             {
-                csWrapper = new ClientsideScriptWrapper(scriptEngine, script.ResourceParent, script.Filename);
+                csWrapper = new ClientsideScriptWrapper(scriptEngine, context, script.ResourceParent, script.Filename);
                 lock (ScriptEngines) ScriptEngines.Add(csWrapper);
             }
             return csWrapper;
@@ -446,7 +475,7 @@ namespace GTANetwork.Javascript
             {
                 foreach (var t in ScriptEngines)
                 {
-                    t.Engine.Script.API.isDisposing = true;
+                    t.Context.isDisposing = true;
                 }
             }
 
@@ -487,7 +516,7 @@ namespace GTANetwork.Javascript
                 for (int i = 0; i < ScriptEngines.Count; i++)
                 {
                     if (ScriptEngines[i].ResourceParent != resourceName) continue;
-                    ScriptEngines[i].Engine.Script.API.isDisposing = true;
+                    ScriptEngines[i].Context.isDisposing = true;
                 }
             }
 
@@ -1100,8 +1129,7 @@ namespace GTANetwork.Javascript
 
         public void setCefBrowserFocus(Browser browser, bool focus)
         {
-            browser.GetHost().SetFocus(focus);
-            browser.GetHost().SendFocusEvent(focus);
+            browser?.SetFocus(focus);
         }
 
         public void destroyCefBrowser(Browser browser)
@@ -1113,7 +1141,6 @@ namespace GTANetwork.Javascript
             
             try
             {
-                CefUtil._cachedReferences.Remove(CefUtil._cachedReferences.FirstOrDefault(pair => pair.Value == browser).Key);
                 browser.Close();
                 browser.Dispose();
             }
@@ -1299,7 +1326,7 @@ namespace GTANetwork.Javascript
             if (fps > 60) fps = 60;
             else if (fps < 1) fps = 1;
 
-            browser.GetHost().SetWindowlessFrameRate(fps);
+            browser?.SetFrameRate(fps);
         }
 
         private DateTime _last;

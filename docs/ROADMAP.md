@@ -17,7 +17,7 @@ sync, chat, commands, vehicles, client-side JavaScript. The rest of the state:
 | Sync | 2016-2018 code: 100 ms pure sync, 1.5 s light sync, ped/vehicle interpolation, ~64 players tested by the original team | Stable with 100+ players per server, no visible warping for vehicles and peds, weapons/aim/animations/ragdoll |
 | Streaming | Client-side streamer thread, fixed ranges, server keeps 250 "near" players | Configurable per entity type, server-side interest management, dimensions used for load |
 | Scripting (server) | C#/VB compiled with Roslyn at startup, `API` with ~700 members, events, commands, entities, colshapes, dimensions | Same plus a first-class JavaScript/TypeScript server runtime, typings, documented and versioned API |
-| Scripting (client) | JavaScript on V8 (ClearScript 5.4.9), CEF 3.2987 (Chromium 57) browsers, `API` with ~600 members | Modern V8 and CEF, typings, hot reload, client packages with assets |
+| Scripting (client) | JavaScript on V8 12 (ClearScript 7.5), Chromium 151 browsers through CefSharp (multi-process, off-screen), `API` with ~600 members | Typings, hot reload, client packages with assets, GPU-shared browser textures |
 | Master server / browser | Gone (`master.gtanet.work`), address configurable, empty by default | Own master server ([issue #1](https://github.com/SashaGoncharov19/FreeMode/issues/1)), browser in the launcher and in game |
 | Updates | Linux installer updates from GitHub releases; Windows: NSIS installer, no updater | One updater for all platforms, delta downloads, channels (stable/beta) |
 | Custom content | None | Client packages (scripts, CEF assets, sounds), custom DLC packs (vehicles, clothes, interiors) |
@@ -58,17 +58,24 @@ Goal: a `v0.1.0` release that a stranger can install and play on with friends.
 
 Decided in September 2026, in this order; each is its own branch and pull request, each ships as an alpha first.
 
-1. **Dependency modernisation** (branch `claude/modernize-deps-4d8uyn`): CEF from 3.2987 (Chromium 57) to a
-   current CEF with a maintained binding, ClearScript 5.4.9 to 7.x (modern V8), NuGet packages to current
-   versions, server/launcher/bot to the current .NET LTS. Plan and findings: `docs/CEF-UPGRADE.md`.
+1. **Dependency modernisation** (branch `claude/modernize-deps-4d8uyn`, done in code, in-game verification
+   pending): CEF 3.2987 (Chromium 57, single-process) replaced by CefSharp.OffScreen 151 (Chromium 151, browser
+   subprocess, GPU process optional), ClearScript 5.4.9 by 7.5 (V8 12). Findings and the remaining steps
+   (shared-texture rendering, .NET 10 for server/launcher/bot): `docs/CEF-UPGRADE.md`.
+   * **Client on modern .NET** (separate step, 1-3 weeks): the in-game client is .NET Framework 4.8 because
+     ScriptHookVDotNet is a C++/CLI shell that hosts the desktop CLR. The route is recompiling that shell with
+     `/clr:netcore` (.NET 8/10 + `ijwhost`), AssemblyLoadContext instead of the script AppDomain, and the .NET
+     Desktop Runtime in the Proton prefix instead of .NET Framework (which also removes the most fragile install
+     step on Linux). CefSharp and ClearScript both support .NET Core, so the browser and script work above is a
+     prerequisite, not a throw-away.
 2. **Debug mode**: one switch (settings.xml `<debug>`, launcher `--debug`, Debug builds default to on) that keeps
    all diagnostics in the code (API probe, download summaries, overlay frames, profiler lines) and turns them on
    or off per build instead of adding and removing log lines by hand.
 3. **Linux GUI launcher**: a graphical shell over `GTANetwork.Launcher` (Avalonia, one binary for Linux and
    Windows): server list with favourites, settings, update/install progress, log viewer, "play" button.
-4. **CEF connect screen**: replace the NativeUI pause-menu-style main menu (server list, connect, loading) with a
-   CEF page drawn by the overlay from the main menu until the server is joined, styled like a modern launcher.
-   Needs the CEF upgrade first.
+4. **CEF connect and loading screen**: the server list, connect and loading flow (from the main menu until the
+   server is joined) as a CEF page drawn by the overlay, styled like a modern launcher. NativeUI stays for the
+   settings and the other in-game menus. Needs the CEF upgrade first.
 
 ## Phase 1 - platform: master server, updates, crash reports (weeks)
 
@@ -111,8 +118,8 @@ This is what separates a demo from a platform. Work items, each with a measureme
   with ClearScript because the C# `API` object can be exposed directly.
 * **Resource system**: dependencies, shared scripts, config per resource, hot reload on the server (already
   compiled with Roslyn; add file watching), `client_packages`-style asset folders streamed to the client.
-* **Modern runtimes**: ClearScript 7.x (needs a CLR-hosted V8 build compatible with the in-game .NET
-  Framework, or moving the client to an out-of-process V8), CEF upgrade from 3.2987 (Chromium 57) with the CefGlue binding.
+* **Modern runtimes**: done for the browser (CefSharp 151) and the script engine (ClearScript 7.5); next is the
+  client itself on .NET 8/10 (see "Next updates").
 * **Gamemode templates**: `dotnet new`-style templates for C# and TS gamemodes, the freeroam resource as the
   reference implementation with tests.
 

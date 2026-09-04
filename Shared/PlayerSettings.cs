@@ -25,6 +25,10 @@ namespace GTANetworkShared
         public bool MediaStream { get; set; }
         public bool CEFDevtool { get; set; }
         public bool DebugMode { get; set; }
+        /// <summary>Let the browser use its GPU process (default false: software rendering, as the old browser did).</summary>
+        public bool CefGpu { get; set; }
+        /// <summary>Frames per second the off-screen browsers paint (1-60, default 30).</summary>
+        public int CefFrameRate { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -69,6 +73,8 @@ namespace GTANetworkShared
             OfflineMode = false;
             MediaStream = false;
             CEFDevtool = false;
+            CefGpu = false;
+            CefFrameRate = 30;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";
