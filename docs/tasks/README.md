@@ -23,7 +23,7 @@ done
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
 | [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | ready | E-04 TypeScript | none (T-001 preferred first) |
 | [T-005-client-typescript-resources](T-005-client-typescript-resources.md) | Client resources in TypeScript: `lang="typescript"` bundled by the server with Bun | ready | E-04 TypeScript | T-004 |
-| [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | ready | E-04 TypeScript | T-001, T-004 |
+| [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | in progress | E-04 TypeScript | T-001, T-004 |
 | [T-007-gamemode-template-and-freeroam-in-typescript](T-007-gamemode-template-and-freeroam-in-typescript.md) | Gamemode template (`gtanetwork create`) and freeroam fully in TypeScript | ready | E-04 TypeScript | T-005, T-006 |
 | [T-008-typed-rpc-server-client-cef](T-008-typed-rpc-server-client-cef.md) | Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits | ready | E-05 RPC and protocol security | T-004 |
 | [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | ready | E-05 RPC and protocol security | T-008 |

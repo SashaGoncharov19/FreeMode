@@ -146,6 +146,7 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 | `Launcher/Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | Deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, logging, the `--debug` system monitor. |
 | `Tools/GTANetwork.Bot/Program.cs` | Options (`--host`, `--port`, `--name`, `--password`, `--say`, `--expect`, `--duration`, `--no-sync`, `--discover`, `--download-files`, `-i`), one Lidgren connection, the protocol handshake and sync loop, chat assertions. Also compiles `Shv.NET/ref/Core/NativeHashes.g.cs`. |
 | `Map2Resource/` | Map Editor XML → resource. |
+| `Tools/GTANetwork.BridgeBench/Program.cs`, `runtime/bench/bench.ts`, `eng/bench-bridge.sh` | The engine ⇄ Bun bridge benchmark (T-006 stage 1): frame protocol `u32 length + msgpack [type, id, name, payload]`, one-way/round-trip/state-mirror measurements over a Unix socket and loopback TCP. `runtime/.bun-version` pins Bun. |
 
 ## 8. Network protocol (server ⇄ client)
 
