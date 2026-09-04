@@ -271,6 +271,39 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
         DXImage GetImageForImageElement(ImageElement element)
         {
+            var surface = element.Surface;
+            if (surface != null)
+            {
+                lock (surface.SyncRoot)
+                {
+                    if (surface.Width <= 0 || surface.Height <= 0 || surface.Data == System.IntPtr.Zero) return element.Image;
+
+                    if (element.Image == null || element.Image.Width != surface.Width || element.Image.Height != surface.Height)
+                    {
+                        element.Image?.Dispose();
+                        element.Image = new DXImage(_device, _deviceContext);
+                        if (!element.Image.InitialiseDynamic(surface.Width, surface.Height))
+                        {
+                            element.Image.Dispose();
+                            element.Image = null;
+                            return null;
+                        }
+                        surface.InvalidateAll();
+                    }
+
+                    if (surface.HasUpdate)
+                    {
+                        int x, y, w, h;
+                        surface.GetDirty(out x, out y, out w, out h);
+                        // The immediate context: the update must land before the deferred command list that draws the
+                        // texture executes (End), and we are on the game's render thread inside Present anyway.
+                        element.Image.UpdateRegion(_device.ImmediateContext, surface.Data, surface.Stride, x, y, w, h);
+                        surface.MarkUploaded();
+                    }
+                }
+                return element.Image;
+            }
+
             if (element.Dirty)
             {
                 lock (element.SwitchLock)

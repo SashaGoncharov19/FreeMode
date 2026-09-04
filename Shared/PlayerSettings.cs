@@ -27,11 +27,11 @@ namespace GTANetworkShared
         public bool DebugMode { get; set; }
         /// <summary>Let the browser use its GPU process (default false: software rendering, as the old browser did).</summary>
         public bool CefGpu { get; set; }
-        /// <summary>Frames per second the off-screen browsers paint (1-60, default 30).</summary>
+        /// <summary>Frames per second the off-screen browsers paint (1-60, default 60).</summary>
         public int CefFrameRate { get; set; }
-        /// <summary>Start Chromium at game start instead of with the first browser a resource creates (default false).</summary>
+        /// <summary>Start the browser host (Chromium) at game start instead of with the first browser a resource creates (default false).</summary>
         public bool CefPreload { get; set; }
-        /// <summary>Run Chromium's GPU service inside the game process instead of a separate process (default true).</summary>
+        /// <summary>Run Chromium's GPU service inside the browser host process instead of a further GPU process (default true).</summary>
         public bool CefInProcessGpu { get; set; }
 
         public int ChatboxXOffset { get; set; }
@@ -78,7 +78,7 @@ namespace GTANetworkShared
             MediaStream = false;
             CEFDevtool = false;
             CefGpu = false;
-            CefFrameRate = 30;
+            CefFrameRate = 60;
             CefPreload = false;
             CefInProcessGpu = true;
             DebugMode = false;

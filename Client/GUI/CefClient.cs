@@ -1,54 +1,31 @@
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Net;
-using CefSharp;
-using CefSharp.Enums;
-using CefSharp.Handler;
-using CefSharp.OffScreen;
-using CefSharp.Structs;
+using System.Runtime.InteropServices;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
-using GTANetwork.Streamer;
 using GTANetwork.Util;
-using GTANetworkShared;
+using GTANetworkShared.Cef;
 using Point = System.Drawing.Point;
-using Range = CefSharp.Structs.Range;
-using Rect = CefSharp.Structs.Rect;
 
 namespace GTANetwork.GUI
 {
     internal static class CefUtil
     {
         public static bool DISABLE_CEF = true;
-
-        /// <summary>Our wrapper for a CefSharp browser control, or null.</summary>
-        internal static Browser GetBrowser(IWebBrowser chromiumWebBrowser)
-        {
-            lock (CEFManager.Browsers)
-            {
-                for (var index = CEFManager.Browsers.Count - 1; index >= 0; index--)
-                {
-                    var b = CEFManager.Browsers[index];
-                    if (b != null && ReferenceEquals(b._browser, chromiumWebBrowser)) return b;
-                }
-            }
-
-            return null;
-        }
     }
 
     /// <summary>
-    /// Receives the frames of one off-screen browser and hands them to the DirectX overlay as an image element.
-    /// CEF calls <see cref="OnPaint"/> on its UI thread; the buffer is only valid during the call, so it is copied.
+    /// The picture of one browser in the DirectX overlay. The browser host paints into a shared-memory
+    /// <see cref="CefFrameBuffer"/>; the CEF frame pump thread copies each new frame's changed rectangle into a
+    /// <see cref="CefFrameStager"/>, and the overlay uploads that rectangle into a persistent texture on the render
+    /// thread. No bitmaps, no texture re-creation: one copy on the pump thread, one upload in Present.
     /// </summary>
-    internal class OverlayRenderHandler : IRenderHandler
+    internal class OverlayRenderHandler : IDisposable
     {
+        private readonly object _lock = new object();
         private int _width;
         private int _height;
         private ImageElement _imageElement;
-        private int _paintsLogged;
+        private CefFrameStager _stager;
+        private int _framesLogged;
 
         public Point Position { get; private set; }
 
@@ -63,7 +40,8 @@ namespace GTANetwork.GUI
 
         public void SetHidden(bool hidden)
         {
-            if (_imageElement != null) _imageElement.Hidden = hidden;
+            var element = _imageElement;
+            if (element != null) element.Hidden = hidden;
         }
 
         public void SetSize(int width, int height)
@@ -75,239 +53,166 @@ namespace GTANetwork.GUI
         public void SetPosition(int x, int y)
         {
             Position = new Point(x, y);
-            if (_imageElement != null) _imageElement.Location = Position;
+            var element = _imageElement;
+            if (element != null) element.Location = Position;
+        }
+
+        /// <summary>The host announced a (new) frame buffer for this browser: switch to it.</summary>
+        internal void AttachFrame(string name, int width, int height, int stride)
+        {
+            CefFrameStager fresh;
+            try
+            {
+                fresh = new CefFrameStager(CefFrameBuffer.Open(name));
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "CEF FRAME BUFFER " + name);
+                return;
+            }
+
+            CefFrameStager old;
+            lock (_lock)
+            {
+                old = _stager;
+                _stager = fresh;
+                var element = _imageElement;
+                if (element != null) element.Surface = fresh;
+            }
+            old?.Dispose();
+            LogManager.VerboseCefLog("-> Frame buffer " + name + " (" + width + "x" + height + ", stride " + stride + ")");
+        }
+
+        /// <summary>Called by the frame pump: stages the newest frame (or its changed part) for the overlay.</summary>
+        internal void Pump()
+        {
+            CefFrameStager stager;
+            lock (_lock) stager = _stager;
+            if (stager == null) return;
+
+            int x, y, w, h;
+            if (!stager.Pump(out x, out y, out w, out h)) return;
+
+            if (_framesLogged < 3 && LogManager.Verbose)
+            {
+                _framesLogged++;
+                LogManager.CefLog("-> Frame " + stager.Width + "x" + stager.Height + " (copied " + w + "x" + h + " at " + x + "," + y + ", sequence " + stager.Sequence + ")");
+            }
         }
 
         public void Dispose()
         {
-            var element = _imageElement;
-            _imageElement = null;
-            if (element == null) return;
-
-            CEFManager.DirectXHook?.RemoveImage(element);
-            element.Dispose();
-        }
-
-        public ScreenInfo? GetScreenInfo()
-        {
-            return null; // the view rectangle is the screen, scale factor 1
-        }
-
-        public Rect GetViewRect()
-        {
-            return new Rect(0, 0, _width, _height);
-        }
-
-        public bool GetScreenPoint(int viewX, int viewY, out int screenX, out int screenY)
-        {
-            screenX = viewX + Position.X;
-            screenY = viewY + Position.Y;
-            return true;
-        }
-
-        public void OnAcceleratedPaint(PaintElementType type, Rect dirtyRect, AcceleratedPaintInfo acceleratedPaintInfo)
-        {
-            // Shared D3D11 textures (zero copy into the overlay) are the next step; software paints are used today.
-        }
-
-        public void OnPaint(PaintElementType type, Rect dirtyRect, IntPtr buffer, int width, int height)
-        {
-            try
+            ImageElement element;
+            CefFrameStager stager;
+            lock (_lock)
             {
-                if (type != PaintElementType.View || _imageElement == null || width <= 0 || height <= 0 || buffer == IntPtr.Zero) return;
-
-                var copy = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-                var data = copy.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-                try
-                {
-                    unsafe
-                    {
-                        var rowBytes = (long)width * 4;
-                        var src = (byte*)buffer;
-                        var dst = (byte*)data.Scan0;
-                        for (var y = 0; y < height; y++)
-                        {
-                            System.Buffer.MemoryCopy(src + y * rowBytes, dst + (long)y * data.Stride, rowBytes, rowBytes);
-                        }
-                    }
-                }
-                finally
-                {
-                    copy.UnlockBits(data);
-                }
-
-                _imageElement.SetBitmap(copy);
-
-                if (_paintsLogged < 3 && LogManager.Verbose)
-                {
-                    _paintsLogged++;
-                    LogManager.CefLog("-> Paint " + width + "x" + height + " (dirty " + dirtyRect.Width + "x" + dirtyRect.Height + " at " + dirtyRect.X + "," + dirtyRect.Y + ")");
-                }
+                element = _imageElement;
+                _imageElement = null;
+                stager = _stager;
+                _stager = null;
             }
-            catch (Exception ex)
+            if (element != null)
             {
-                LogManager.CefLog(ex, "CEF PAINT");
+                element.Surface = null;
+                CEFManager.DirectXHook?.RemoveImage(element);
+                element.Dispose();
             }
-        }
-
-        public void OnCursorChange(IntPtr cursor, CursorType type, CursorInfo customCursorInfo)
-        {
-        }
-
-        public bool StartDragging(IDragData dragData, DragOperationsMask mask, int x, int y)
-        {
-            return false;
-        }
-
-        public void UpdateDragCursor(DragOperationsMask operation)
-        {
-        }
-
-        public void OnPopupShow(bool show)
-        {
-        }
-
-        public void OnPopupSize(Rect rect)
-        {
-        }
-
-        public void OnImeCompositionRangeChanged(Range selectedRange, Rect[] characterBounds)
-        {
-        }
-
-        public void OnVirtualKeyboardRequested(IBrowser browser, TextInputMode inputMode)
-        {
+            stager?.Dispose();
         }
     }
 
     /// <summary>
-    /// Local-mode browsers (the ones resources create for their UI) only see the files of the resources:
-    /// <c>https://&lt;resource&gt;/&lt;path&gt;</c> is served from the download folder, everything else is refused.
-    /// Remote browsers keep the normal network stack.
+    /// The game-side copy of one browser's frame: a staging image filled from the shared frame buffer, changed
+    /// rectangle by changed rectangle, and handed to the overlay as an <see cref="IDynamicSurface"/>. Consecutive
+    /// frames only move their dirty rectangle; after a missed frame (or a torn read) the whole frame is copied.
     /// </summary>
-    internal class LocalResourceRequestHandler : RequestHandler
+    internal sealed class CefFrameStager : IDynamicSurface, IDisposable
     {
-        private readonly bool _localMode;
-        private readonly LocalResourceHandlerFactory _factory = new LocalResourceHandlerFactory();
+        private readonly object _sync = new object();
+        private CefFrameBuffer _frame;
+        private IntPtr _data;
+        private long _lastSequence = -1;
+        private bool _hasUpdate;
+        private int _dirtyX, _dirtyY, _dirtyW, _dirtyH;
+        private bool _hadFrame;
 
-        public LocalResourceRequestHandler(bool localMode)
+        public CefFrameStager(CefFrameBuffer frame)
         {
-            _localMode = localMode;
+            _frame = frame;
+            Width = frame.Width;
+            Height = frame.Height;
+            Stride = frame.Stride;
+            _data = Marshal.AllocHGlobal((IntPtr)((long)Stride * Height));
         }
 
-        protected override IResourceRequestHandler GetResourceRequestHandler(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IRequest request,
-            bool isNavigation, bool isDownload, string requestInitiator, ref bool disableDefaultHandling)
-        {
-            return _localMode ? _factory : null;
-        }
+        public object SyncRoot => _sync;
+        public int Width { get; }
+        public int Height { get; }
+        public IntPtr Data => _data;
+        public int Stride { get; }
+        public bool HasUpdate => _hasUpdate;
+        public long Sequence => _lastSequence;
 
-        protected override void OnRenderProcessTerminated(IWebBrowser chromiumWebBrowser, IBrowser browser, CefTerminationStatus status, int errorCode, string errorMessage)
+        /// <summary>Frame pump thread: copy what changed in the shared buffer since the last copy.</summary>
+        public bool Pump(out int x, out int y, out int w, out int h)
         {
-            LogManager.CefLog("-> Render process terminated: " + status + " (" + errorCode + ") " + errorMessage);
-        }
-    }
-
-    internal class LocalResourceHandlerFactory : ResourceRequestHandler
-    {
-        protected override IResourceHandler GetResourceHandler(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IRequest request)
-        {
-            try
+            lock (_sync)
             {
-                var url = request.Url ?? string.Empty;
+                x = y = w = h = 0;
+                var frame = _frame;
+                if (frame == null || _data == IntPtr.Zero) return false;
+                if (frame.Sequence == _lastSequence) return false; // one shared read, nothing to do
 
-                // data:/about: pages (loadHtmlCefBrowser, blank pages) do not touch the disk.
-                if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || url.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return null;
+                // Partial copies are only safe once the staging image holds a complete frame.
+                if (!frame.TryCopyTo(_data, Stride, ref _lastSequence, _hadFrame, out x, out y, out w, out h)) return false;
+                _hadFrame = true;
 
-                LogManager.VerboseCefLog("-> [Local mode] Uri: " + url);
-
-                Uri uri;
-                if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http"))
+                if (!_hasUpdate)
                 {
-                    LogManager.CefLog("-> Refused: only https://<resource>/<file> is allowed in a local browser");
-                    return ResourceHandler.ForErrorMessage("Only https://<resource>/<file> is allowed here", HttpStatusCode.Forbidden);
+                    _dirtyX = x; _dirtyY = y; _dirtyW = w; _dirtyH = h;
                 }
-
-                string file;
-                if (!ResourceFileDownloader.TryGetLocalPath(FileTransferId._DOWNLOADFOLDER_, uri.Host, Uri.UnescapeDataString(uri.AbsolutePath), out file))
+                else
                 {
-                    LogManager.CefLog("-> Refused: bad path");
-                    return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
+                    // Not uploaded yet: widen the pending rectangle to cover this frame's changes too.
+                    var right = Math.Max(_dirtyX + _dirtyW, x + w);
+                    var bottom = Math.Max(_dirtyY + _dirtyH, y + h);
+                    _dirtyX = Math.Min(_dirtyX, x);
+                    _dirtyY = Math.Min(_dirtyY, y);
+                    _dirtyW = right - _dirtyX;
+                    _dirtyH = bottom - _dirtyY;
                 }
-
-                LogManager.VerboseCefLog("-> Loading: " + file);
-
-                if (!File.Exists(file))
-                {
-                    LogManager.CefLog("-> Error: File does not exist!");
-                    return ResourceHandler.ForErrorMessage("File not found: " + uri.Host + uri.AbsolutePath, HttpStatusCode.NotFound);
-                }
-
-                return ResourceHandler.FromFilePath(file, MimeType.GetMimeType(Path.GetExtension(file)), true);
-            }
-            catch (Exception ex)
-            {
-                LogManager.CefLog(ex, "CEF SCHEME HANDLING");
-                return ResourceHandler.ForErrorMessage("error", HttpStatusCode.InternalServerError);
+                _hasUpdate = true;
+                return true;
             }
         }
-    }
 
-    /// <summary>Pop-ups (target=_blank, window.open) navigate the browser itself instead of opening a window.</summary>
-    internal class PopupToMainFrameLifeSpanHandler : LifeSpanHandler
-    {
-        protected override bool OnBeforePopup(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, string targetUrl, string targetFrameName,
-            WindowOpenDisposition targetDisposition, bool userGesture, IPopupFeatures popupFeatures, IWindowInfo windowInfo, IBrowserSettings browserSettings,
-            ref bool noJavascriptAccess, out IWebBrowser newBrowser)
+        public void GetDirty(out int x, out int y, out int width, out int height)
         {
-            newBrowser = null;
-            if (!string.IsNullOrEmpty(targetUrl)) chromiumWebBrowser.Load(targetUrl);
-            return true;
-        }
-    }
-
-    internal class NoContextMenuHandler : ContextMenuHandler
-    {
-        protected override void OnBeforeContextMenu(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IContextMenuParams parameters, IMenuModel model)
-        {
-            model.Clear();
-        }
-    }
-
-    /// <summary>
-    /// Defines <c>resourceCall(name, ...args)</c> and <c>resourceEval(code)</c> in every page. CEF runs pages in its
-    /// render process, so the functions post a message that the browser process (the game) forwards to the client
-    /// script of the resource; they return nothing. <c>gtan.call/gtan.eval</c> are the same functions under a
-    /// namespace for new pages.
-    /// </summary>
-    internal class ResourceBridgeInjector : IRenderProcessMessageHandler
-    {
-        internal const string Shim =
-            "(function(){" +
-            " if (window.resourceCall && window.gtan) return;" +
-            " var post = function(m){ if (window.CefSharp && CefSharp.PostMessage) CefSharp.PostMessage(m); else if (window.cefSharp && cefSharp.postMessage) cefSharp.postMessage(m); };" +
-            " window.resourceCall = function(name){ post({ type: 'resourceCall', name: String(name), args: Array.prototype.slice.call(arguments, 1) }); };" +
-            " window.resourceEval = function(code){ post({ type: 'resourceEval', code: String(code) }); };" +
-            " window.gtan = { call: window.resourceCall, eval: window.resourceEval };" +
-            "})();";
-
-        public void OnContextCreated(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame)
-        {
-            if (frame == null) return;
-            if (frame.IsMain) LogManager.VerboseCefLog("-> Main context created: " + frame.Url);
-            frame.ExecuteJavaScriptAsync(Shim, "gtan://bridge", 0);
+            x = _dirtyX; y = _dirtyY; width = _dirtyW; height = _dirtyH;
         }
 
-        public void OnContextReleased(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame)
+        public void MarkUploaded()
         {
+            _hasUpdate = false;
         }
 
-        public void OnFocusedNodeChanged(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, IDomNode node)
+        public void InvalidateAll()
         {
+            if (!_hadFrame) return;
+            _dirtyX = 0; _dirtyY = 0; _dirtyW = Width; _dirtyH = Height;
+            _hasUpdate = true;
         }
 
-        public void OnUncaughtException(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame, JavascriptException exception)
+        public void Dispose()
         {
-            LogManager.CefLog("-> Page exception in " + (frame != null ? frame.Url : "?") + ": " + exception.Message);
+            lock (_sync)
+            {
+                _frame?.Dispose();
+                _frame = null;
+                if (_data != IntPtr.Zero) Marshal.FreeHGlobal(_data);
+                _data = IntPtr.Zero;
+                _hasUpdate = false;
+            }
         }
     }
 }

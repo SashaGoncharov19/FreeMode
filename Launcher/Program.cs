@@ -32,7 +32,8 @@ Options:
   --no-wait                start the game and exit immediately (files stay deployed; run ""restore"" later)
   --save                   write the effective --game-path/--method/--steam/--proton/--prefix into settings.xml
   --debug                  debug mode: GTAN_DEBUG=1 for the in-game client (diagnostic lines in Runtime.log and
-                           CEF.log) and PROTON_LOG=1 for Proton (Wine log with crash backtraces in ~/steam-271590.log)
+                           CEF.log) and PROTON_LOG=1 for Proton (Wine log with exceptions and module loads in
+                           ~/steam-271590.log; GTAN_WINEDEBUG overrides the channels). Costs frame rate: not for playing.
   -h, --help               this text
 ";
 
@@ -261,7 +262,12 @@ Options:
                 {
                     psi.Environment["GTAN_DEBUG"] = "1";
                     psi.Environment["PROTON_LOG"] = "1";
-                    Log.Info("Debug mode: GTAN_DEBUG=1 (client diagnostics) and PROTON_LOG=1 (Wine log: ~/steam-271590.log)");
+                    // Proton's default WINEDEBUG for PROTON_LOG=1 adds +unwind and +debugstr, which trace every stack walk
+                    // (millions of lines from .NET's GC alone), and GTA V calls ActivateKeyboardLayout in a hot loop while
+                    // loading (10 million fixme lines, over 1 GB of log per session). Keep what crash analysis needs.
+                    psi.Environment["WINEDEBUG"] = Environment.GetEnvironmentVariable("GTAN_WINEDEBUG")
+                        ?? "+timestamp,+pid,+tid,+seh,+threadname,+loaddll,+mscoree,-keyboard";
+                    Log.Info($"Debug mode: GTAN_DEBUG=1 (client diagnostics), PROTON_LOG=1 with WINEDEBUG={psi.Environment["WINEDEBUG"]} (Wine log: ~/steam-271590.log)");
                 }
 
                 Log.Info($"Starting through Proton: {psi.FileName} run {exe}");

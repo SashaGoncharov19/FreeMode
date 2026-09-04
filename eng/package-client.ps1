@@ -8,9 +8,9 @@
     launcher\                   GTANSubprocess.exe + GTANetwork.dll (launcher behaviour) + deps
     bin\ScriptHookVDotNet.dll   the C++/CLI hook (built from Shv.NET)
     bin\*.dll                   native helpers injected/loaded into GTA5.exe (V8, EasyHook, SharpDX effects)
-    bin\scripts\                GTANetwork.dll (in-game client) + managed dependencies (CefSharp, ClearScript 7 + its V8)
-    cef\                        Chromium Embedded Framework runtime + CefSharp.BrowserSubprocess.exe (from the NuGet
-                                packages, copied by the client build into Client\bin\...\cef)
+    bin\scripts\                GTANetwork.dll (in-game client) + managed dependencies (ClearScript 7 + its V8)
+    cef\                        GTANetwork.CefHost.exe (the browser process) + Chromium Embedded Framework runtime +
+                                CefSharp (the output folder of Subprocess\GTANetwork.CefHost)
     images\                     HUD / map / CEF assets
 
   ScriptHookV.dll and dinput8.dll are NOT included (not redistributable): users download them from
@@ -77,14 +77,17 @@ GTA Network needs Alexander Blade's ScriptHookV, which may not be redistributed.
 The launcher refuses to start until both files are here.
 "@
 
-# 5. CEF runtime (CefSharp + Chromium, placed in $client/cef by the CefSharp NuGet targets), images, data files
-$cefSrc = "$client/cef"
+# 5. The browser host and its CEF runtime (CefSharp + Chromium, placed next to GTANetwork.CefHost.exe by the CefSharp
+#    NuGet targets), images, data files
+$cefSrc = "$Root/Subprocess/GTANetwork.CefHost/bin/$Configuration/net48"
+Require-File "$cefSrc/GTANetwork.CefHost.exe" | Out-Null
 Require-File "$cefSrc/libcef.dll" | Out-Null
 Require-File "$cefSrc/CefSharp.BrowserSubprocess.exe" | Out-Null
 Require-File "$cefSrc/CefSharp.Core.Runtime.dll" | Out-Null
 Copy-Item "$cefSrc/*" "$Out/cef" -Recurse -Force
-# Debug symbols and XML docs are not needed at runtime (31 MB); keep the locales players actually use (50 MB otherwise).
-Get-ChildItem "$Out/cef" -Include *.pdb, *.xml -Recurse | Remove-Item -Force
+Remove-Item "$Out/cef/cache" -Recurse -Force -ErrorAction SilentlyContinue
+# CefSharp's debug symbols and XML docs are not needed at runtime (31 MB); keep the locales players actually use (50 MB otherwise).
+Get-ChildItem "$Out/cef" -Include CefSharp.*.pdb, *.xml -Recurse | Remove-Item -Force
 $keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "tr", "it", "nl", "cs", "ro", "hu"
 Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force

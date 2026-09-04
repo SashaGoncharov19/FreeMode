@@ -827,6 +827,9 @@ namespace GTANetwork
                                 LocalDimension = 0;
                                 ResetPlayer();
                                 CEFManager.Initialize(Main.screen);
+                                // Start the browser host now, while the connection and the resource download take
+                                // their seconds, so a page a resource opens on join is drawn at once.
+                                CEFManager.InitializeCef();
                                 StringCache?.Dispose();
 
                                 StringCache = new StringCache();

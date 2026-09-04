@@ -461,8 +461,13 @@ namespace GTANetwork.GUI
                 keyboardState[(int)Keys.Menu] = 0xff;
             }
 
-            ToUnicodeEx((uint)key, 0, keyboardState, buf, 256, 0, InputLanguage.CurrentInputLanguage.Handle);
-            return ((((ushort)GetKeyState(0x14)) & 0xffff) != 0) ? buf.ToString().ToUpper() : buf.ToString();
+            // Caps Lock is a toggle: bit 0 of its key state. ToUnicodeEx applies it (and Shift+Caps Lock = lowercase),
+            // which upper-casing the result by hand did not get right.
+            if ((GetKeyState((int)Keys.Capital) & 1) != 0) keyboardState[(int)Keys.Capital] = 0x01;
+
+            var n = ToUnicodeEx((uint)key, 0, keyboardState, buf, 256, 0, InputLanguage.CurrentInputLanguage.Handle);
+            if (n <= 0) return string.Empty; // no character (or a dead key)
+            return buf.ToString(0, Math.Min(n, buf.Length));
         }
     }
 }

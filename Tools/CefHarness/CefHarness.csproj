@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stand-alone CEF harness: starts Chromium through CefSharp exactly the way the in-game client does (same switches
+    from GTANetworkShared.CefLaunch, same cef\ folder layout and loading code, same thread model) but in a plain
+    process, then creates one off-screen browser and waits for its first paint. Lets a Chromium start-up problem be
+    reproduced and bisected without GTA V: on Linux, eng/cef-harness.sh runs it under Proton in the game's prefix.
+    Build output mirrors the install: CefHarness.exe + managed CefSharp next to it, the Chromium runtime in cef\.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>CefHarness</AssemblyName>
+    <RootNamespace>GTANetwork.CefHarness</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyTitle>GTA Network CEF harness</AssemblyTitle>
+    <Description>Starts Chromium (CefSharp) the way the GTA Network client does, without the game.</Description>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <CefSharpTargetDir>cef</CefSharpTargetDir>
+    <CefSharpPlatformTargetOverride>x64</CefSharpPlatformTargetOverride>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="$(NetFrameworkReferenceAssembliesVersion)" PrivateAssets="all" />
+    <PackageReference Include="CefSharp.OffScreen" Version="$(CefSharpVersion)" />
+    <ProjectReference Include="..\..\Shared\GTANetworkShared.csproj" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+</Project>

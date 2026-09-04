@@ -34,6 +34,12 @@ namespace GTANetwork.GUI.DirectXHook.Hook.Common
 
         public Bitmap NextBitmap { get; set; }
 
+        /// <summary>
+        /// When set, the element draws this surface instead of a bitmap: the overlay keeps one texture of the surface's
+        /// size and uploads only the changed rectangle of each frame (no bitmaps, no texture re-creation).
+        /// </summary>
+        public IDynamicSurface Surface { get; set; }
+
         public object SwitchLock = new object();
 
         public void SetBitmap(Bitmap bmp)

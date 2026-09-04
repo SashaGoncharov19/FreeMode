@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The browser process of GTA Network: runs Chromium (CefSharp.OffScreen) outside GTA5.exe. The in-game client
+    starts it with redirected stdin/stdout, sends commands and receives events over GTANetworkShared.Cef
+    (length-prefixed JSON) and reads every browser's pixels from a shared-memory frame buffer the host writes.
+    Ships as cef\GTANetwork.CefHost.exe with the whole Chromium runtime next to it (this project's output folder
+    is the cef\ folder of the install), so the game never loads libcef.dll or CefSharp itself.
+  -->
+
+  <PropertyGroup>
+    <!-- A Windows-subsystem exe: no console is ever created for it (a console window would take the foreground from
+         the game; under Wine that means a system cursor over GTA V and the game's background frame limiter).
+         stdin/stdout still work: the game hands over pipe handles, and Console.OpenStandardInput/Output use them. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>GTANetwork.CefHost</AssemblyName>
+    <RootNamespace>GTANetwork.CefHost</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyTitle>GTA Network browser host</AssemblyTitle>
+    <Description>Runs Chromium (CefSharp) for the GTA Network client in a separate process.</Description>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CefSharpPlatformTargetOverride>x64</CefSharpPlatformTargetOverride>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="$(NetFrameworkReferenceAssembliesVersion)" PrivateAssets="all" />
+    <PackageReference Include="CefSharp.OffScreen" Version="$(CefSharpVersion)" />
+    <ProjectReference Include="..\..\Shared\GTANetworkShared.csproj" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+</Project>

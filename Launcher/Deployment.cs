@@ -45,6 +45,8 @@ internal static class Deployment
 
         if (!File.Exists(Path.Combine(paths.CefDir, "libcef.dll")))
             problems.Add($"CEF runtime is missing ({paths.CefDir}/libcef.dll); the in-game browser UI will not work.");
+        else if (!File.Exists(Path.Combine(paths.CefDir, "GTANetwork.CefHost.exe")))
+            problems.Add($"The browser host is missing ({paths.CefDir}/GTANetwork.CefHost.exe); the in-game browser UI will not work.");
 
         return problems;
     }

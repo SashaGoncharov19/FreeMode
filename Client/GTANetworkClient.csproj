@@ -4,7 +4,8 @@
     The in-game client. It is loaded inside GTA5.exe by ScriptHookVDotNet (which hosts the
     .NET Framework CLR), so it must stay a .NET Framework assembly. It compiles on any OS thanks to
     Microsoft.NETFramework.ReferenceAssemblies; native/third-party DLLs that have no NuGet package
-    (or whose NuGet version differs from the tested binary) are referenced from ../libs.
+    (or whose NuGet version differs from the tested binary) are referenced from ../libs. Chromium lives in a separate
+    process (Subprocess/GTANetwork.CefHost), so nothing of CefSharp is loaded into the game.
   -->
 
   <PropertyGroup>
@@ -27,15 +28,9 @@
     <!-- JavaScript runtime: ClearScript 7 (V8 12). ClearScriptV8.win-x64.dll is copied next to the managed assemblies. -->
     <PackageReference Include="Microsoft.ClearScript.V8" Version="$(ClearScriptVersion)" />
     <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="$(ClearScriptVersion)" />
-    <!-- Browser: CefSharp off-screen (Chromium via CefSharp.BrowserSubprocess.exe). The CEF runtime and the
-         CefSharp native parts are copied into $(OutDir)cef\ (CefSharpTargetDir), which becomes <install>\cef. -->
-    <PackageReference Include="CefSharp.OffScreen" Version="$(CefSharpVersion)" />
+    <!-- The browser (Chromium via CefSharp) is NOT referenced here: it runs in Subprocess/GTANetwork.CefHost, a separate
+         process, whose output folder ships as <install>\cef. The client only speaks GTANetworkShared.Cef to it. -->
   </ItemGroup>
-
-  <PropertyGroup>
-    <CefSharpTargetDir>cef</CefSharpTargetDir>
-    <CefSharpPlatformTargetOverride>x64</CefSharpPlatformTargetOverride>
-  </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="System.Configuration" />

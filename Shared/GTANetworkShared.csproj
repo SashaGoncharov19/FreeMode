@@ -8,6 +8,8 @@
     <RootNamespace>GTANetworkShared</RootNamespace>
     <AssemblyTitle>GTANetworkShared</AssemblyTitle>
     <Description>Types shared between the GTA Network client and server (packets, math, settings).</Description>
+    <!-- Cef/CefFrameBuffer.cs reads and writes the shared-memory frames through raw pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

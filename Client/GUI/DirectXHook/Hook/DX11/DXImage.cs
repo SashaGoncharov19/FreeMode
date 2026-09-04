@@ -108,6 +108,64 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
             return true;
         }
 
+        /// <summary>An empty texture of the given size that <see cref="UpdateRegion"/> fills; for dynamic surfaces.</summary>
+        public bool InitialiseDynamic(int width, int height)
+        {
+            RemoveAndDispose(ref _tex);
+            RemoveAndDispose(ref _texSRV);
+            _tex = null;
+            _texSRV = null;
+
+            _texWidth = width;
+            _texHeight = height;
+
+            _textDesc = new Texture2DDescription
+            {
+                Width = width,
+                Height = height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm,
+                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None,
+            };
+            _tex = Collect(new Texture2D(_device, _textDesc));
+            if (_tex == null) return false;
+
+            _srvDesc = new ShaderResourceViewDescription
+            {
+                Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm,
+                Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,
+                Texture2D = { MipLevels = 1, MostDetailedMip = 0 },
+            };
+            _texSRV = Collect(new ShaderResourceView(_device, _tex, _srvDesc));
+            if (_texSRV == null) return false;
+
+            _initialised = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Copies a rectangle of a BGRA image (<paramref name="stride"/> bytes per row, the pointer at the image's
+        /// top-left) into the texture. Runs on the given context: the immediate one when called from the present hook.
+        /// </summary>
+        public void UpdateRegion(DeviceContext context, System.IntPtr data, int stride, int x, int y, int width, int height)
+        {
+            if (_tex == null || width <= 0 || height <= 0) return;
+            if (x < 0) { width += x; x = 0; }
+            if (y < 0) { height += y; y = 0; }
+            if (x + width > _texWidth) width = _texWidth - x;
+            if (y + height > _texHeight) height = _texHeight - y;
+            if (width <= 0 || height <= 0) return;
+
+            var box = new DataBox(data + y * stride + x * 4, stride, 0);
+            var region = new ResourceRegion(x, y, 0, x + width, y + height, 1);
+            context.UpdateSubresource(box, _tex, 0, region);
+        }
+
         public void Update(Bitmap bitmap)
         {
             //Initialise(bitmap);
