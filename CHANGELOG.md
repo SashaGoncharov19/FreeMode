@@ -47,8 +47,10 @@ was created, but `https://auth/ui/index.html` was "File does not exist" and noth
   are served byte for byte, the server script and a path traversal are refused) and that the bot ends up with
   complete copies of the `auth` UI files.
 
-### Docs
+### Docs and release process
 * README (EN/UK): how resource files travel and where they land; `docs/ROADMAP.md` phase 0 status.
+* A pre-release tag without its own changelog section (`v0.1.1-alpha.1`) gets the notes of its base version
+  (`## [0.1.1]`) as release body instead of a placeholder.
 
 ## [0.1.0] - 2026-09-04
 
