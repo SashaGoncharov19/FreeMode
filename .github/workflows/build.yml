@@ -39,6 +39,25 @@ jobs:
       - name: Build solution
         run: dotnet build GTANetwork.sln -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION
 
+      - name: TypeScript typings (Tools/GTANetwork.TypeGen) must match the built APIs
+        run: |
+          refs="$(find ~/.nuget/packages/microsoft.netframework.referenceassemblies.net48 -type d -path '*/build/.NETFramework/v4.8' | head -1)"
+          dotnet run --project Tools/GTANetwork.TypeGen -c Release -- \
+            --client "$(ls Client/bin/Release/net*/GTANetwork.dll | head -1)" \
+            --server "$(ls Server/bin/Release/net*/GTANetworkServer.dll | head -1)" \
+            --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types
+          git diff --exit-code -- types/ || { echo "types/ is stale: run Tools/GTANetwork.TypeGen (types/README.md) and commit the result"; exit 1; }
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Type-check the TypeScript sample resource against the typings
+        working-directory: samples/ts-resource
+        run: |
+          bun install --frozen-lockfile
+          bun run check
+
       - name: Publish server and launcher
         run: |
           set -euo pipefail
