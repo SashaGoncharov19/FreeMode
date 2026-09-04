@@ -10,7 +10,7 @@ This repository is the revived code base. Compared with the original (Visual Stu
 Windows only) it now has:
 
 * **one `dotnet build` for everything** - SDK-style projects, NuGet package references, a single `GTANetwork.sln`;
-* **a server that runs natively on Linux** (and Windows/macOS) on .NET 8 - scripts are compiled with Roslyn,
+* **a server that runs natively on Linux** (and Windows/macOS) on .NET 10 - scripts are compiled with Roslyn,
   Unix signals stop it cleanly, the HTTP file server no longer needs Nancy/OWIN;
 * **a cross-platform launcher** (`GTANetwork.Launcher`) that starts the game through Steam/Proton on Linux
   using the standard ScriptHookV ASI loader instead of DLL injection;
@@ -31,15 +31,15 @@ Ukrainian version: [README.uk.md](README.uk.md).
 | Path | Project | Target | What it is |
 | --- | --- | --- | --- |
 | `Shared/` | `GTANetworkShared` | net48 + netstandard2.0 | Packets, entity properties, math, settings, protobuf contracts shared by client and server. |
-| `Server/` | `GTANetworkServer` | **net8.0** | Dedicated server: Lidgren UDP networking, streamer, resources, scripting API (`API.cs`), HTTP file server. Runs on Linux. |
-| `Launcher/` | `GTANetwork.Launcher` | **net8.0** | Cross-platform launcher (Steam / Proton / Windows). |
+| `Server/` | `GTANetworkServer` | **net10.0** | Dedicated server: Lidgren UDP networking, streamer, resources, scripting API (`API.cs`), HTTP file server. Runs on Linux. |
+| `Launcher/` | `GTANetwork.Launcher` | **net10.0** | Cross-platform launcher (Steam / Proton / Windows). |
 | `Client/` | `GTANetwork` (client) | net48 | The in-game client, loaded inside `GTA5.exe` by ScriptHookVDotNet. Sync, streaming, CEF UI, JS engine, DirectX hook. |
 | `NativeUI/` | `NativeUI` | net48 | Rockstar-style menu library used by the client (GPL-3.0). |
 | `Shv.NET/` | `ScriptHookVDotNet` | C++/CLI, net48 | GTA Network's fork of crosire's ScriptHookVDotNet v3. **Windows + MSVC only**, needs the ScriptHookV SDK. |
 | `Shv.NET/ref/` | `ScriptHookVDotNet.Ref` | net48 | Managed *reference stub* with the same API surface, so the client compiles on Linux. Never shipped. |
 | `Subprocess/` | `GTANLauncher`, `GTANSubprocess`, launcher `GTANetwork.dll` | net48 | The classic three-stage Windows launcher (registry, updates, DLL injection). Still builds, still works on Windows. |
-| `Map2Resource/` | `Map2Resource` | net8.0 | Converts Map Editor XML files into server map resources. |
-| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net8.0** | Headless client that speaks the real protocol: joins a server, downloads map and scripts, chats, runs commands. Used by the CI integration test. |
+| `Map2Resource/` | `Map2Resource` | net10.0 | Converts Map Editor XML files into server map resources. |
+| `Tools/GTANetwork.Bot/` | `GTANetwork.Bot` | **net10.0** | Headless client that speaks the real protocol: joins a server, downloads map and scripts, chats, runs commands. Used by the CI integration test. |
 | `libs/` | - | - | Binary dependencies without a NuGet equivalent: the custom Lidgren fork, SharpDX mix, NAudio, EasyHook. The browser (CefSharp + Chromium) and the JavaScript runtime (ClearScript 7 + V8) come from NuGet. |
 | `images/` | - | - | HUD, map and CEF assets shipped with the client. |
 | `Setup/` | - | NSIS | Windows installer script. |
@@ -89,7 +89,7 @@ flowchart TD
 
 ```
 server/
-  GTANetworkServer(.exe)     .NET 8 app (dotnet GTANetworkServer.dll also works)
+  GTANetworkServer(.exe)     .NET 10 app (dotnet GTANetworkServer.dll also works)
   settings.xml               name, port (UDP 4499), max players, which resources to start, httpserver ...
   vehicleData.json           vehicle metadata used by the streamer
   resources/<name>/meta.xml  one folder per resource
@@ -119,7 +119,7 @@ server/
 
 Prerequisites:
 
-* [.NET 8 SDK](https://dotnet.microsoft.com/download) on any OS - builds **everything managed**, including
+* [.NET 10 SDK](https://dotnet.microsoft.com/download) on any OS - builds **everything managed**, including
   the .NET Framework client (through `Microsoft.NETFramework.ReferenceAssemblies`).
 * Windows + Visual Studio 2022 with *C++/CLI support* and the *Windows 10/11 SDK* - only for the real
   `ScriptHookVDotNet.dll`. Put the [ScriptHookV SDK](http://www.dev-c.com/gtav/scripthookv/) (`inc/`, `lib/`)
@@ -147,7 +147,7 @@ When `Shv.NET/bin/ScriptHookVDotNet.dll` exists, `Client` and `NativeUI` link ag
 ### Fast local loop (dev container)
 
 To iterate on the client without waiting for CI, use the dev container (`.devcontainer/`, or
-`docker-compose.yml` from the CLI): it has the .NET 8 SDK and rebuilds `GTANetwork.dll` in seconds.
+`docker-compose.yml` from the CLI): it has the .NET 10 SDK and rebuilds `GTANetwork.dll` in seconds.
 
 ```bash
 eng/dev-build-client.sh --sync     # build the client and drop it into ~/GTANetwork

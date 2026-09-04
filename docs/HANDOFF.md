@@ -8,7 +8,7 @@ file is the "right now".
 ## The project in three lines
 
 GTA Network / **FreeMode** is a revival of the 2016–2018 GTA V multiplayer mod. Goal: a modern,
-Linux-first build (server, launcher and bot are native .NET 8 on Linux; the game runs through Proton)
+Linux-first build (server, launcher and bot are native .NET 10 on Linux; the game runs through Proton)
 with CI and GitHub releases. It is tested by the owner **by hand on Debian 13 + GTA V Legacy 1.0.3889
 under Proton** — there is no Windows machine and no GTA V in CI, so anything touching the hook or
 rendering can only be verified in game by the owner.
@@ -26,7 +26,7 @@ rendering can only be verified in game by the owner.
   pixels are drawn by the DirectX 11 overlay hooked onto the game's swap chain (SharpDX, under DXVK).
   **Nothing of CefSharp or libcef is loaded into GTA5.exe.**
 * **Script engine**: client-side JavaScript on **ClearScript 7.5 (V8 12)**, in the game process.
-* **Server / launcher / bot**: .NET 8, Linux-native. The **headless bot** (`Tools/GTANetwork.Bot`) speaks
+* **Server / launcher / bot**: .NET 10, Linux-native. The **headless bot** (`Tools/GTANetwork.Bot`) speaks
   the real protocol (Lidgren + protobuf) and is how we test the server without the game (CI runs it).
 * **CEF harness** (`Tools/CefHarness`, `eng/cef-harness.sh`): drives the browser host under Proton in the
   game's Wine prefix, without the game: start, browser, local page, pixels, page→game bridge, resize, close.
