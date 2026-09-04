@@ -817,10 +817,23 @@ namespace GTA
 
 	void ScriptDomain::DoD3DCall(void *swapchain)
 	{
+		// Called from the present callback of ScriptHookV on the render thread of the game: an exception that
+		// escapes here has no managed frame above it and takes the game down.
 		int count = _hookedScripts->Count;
 		for (int i = 0; i < count; i++)
 		{
-			_hookedScripts[i]->D3DHook(swapchain);
+			try
+			{
+				_hookedScripts[i]->D3DHook(swapchain);
+			}
+			catch (Exception ^ex)
+			{
+				if (_d3dErrorsLogged < 5)
+				{
+					_d3dErrorsLogged++;
+					Log("[ERROR]", "Caught unhandled exception in the Present handler of '", _hookedScripts[i]->Name, "':", Environment::NewLine, ex->ToString());
+				}
+			}
 		}
 	}
 

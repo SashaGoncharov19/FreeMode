@@ -74,8 +74,12 @@ API (C#, VB, JavaScript на клієнті) та внутрішньоігров
   підключень, перевірка версій, sync-пакети, стрімер сутностей, пікапи, колшейпи.
 * `Resources.cs` запускає ресурси зі `settings.xml`. `meta.xml` ресурсу описує серверні скрипти
   (`lang="csharp|vbasic|compiled"`, компілюються **під час запуску Roslyn'ом**, `Managers/ScriptCompiler.cs`),
-  клієнтські JS-скрипти (хешуються і передаються гравцям по UDP або через HTTP-файлсервер), файли, карти,
-  залежності та експорти. Кожен публічний клас-нащадок `GTANetworkServer.Script` отримує екземпляр `API`.
+  клієнтські JS-скрипти (хешуються і передаються гравцям по UDP разом із картою), файли (`<file src="..."/>`:
+  CEF-сторінки, картинки, звуки — при `<httpserver>true</httpserver>` клієнт забирає їх з HTTP-файлсервера,
+  `GET /manifest.json` + `GET /<ресурс>/<шлях>`, інакше вони йдуть по UDP; на клієнті вони лягають у
+  `resources/<ресурс>/<шлях>`, клієнтські скрипти стартують лише після того, як усі файли на місці, а CEF-браузер
+  відкриває їх як `https://<ресурс>/<шлях>`), карти, залежності та експорти. Кожен публічний клас-нащадок
+  `GTANetworkServer.Script` отримує екземпляр `API`. Еталонний приклад із формою — `Server/resources/auth`.
 * `Server/resources/example` — мінімальний C#-геймод, який стартує з дефолтним `settings.xml`.
 
 ## Збірка
@@ -133,7 +137,8 @@ cd ~/gtan-server && ./GTANetworkServer
 
 ```bash
 dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name Tester --discover \
-  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5
+  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5 \
+  --download-files /tmp/client-files   # необов'язково: забрати файли ресурсів так само, як це робить гра
 ```
 
 З `--interactive` бот читає рядки чату і `/команди` зі stdin до `/quit`, тож сервером можна керувати прямо з

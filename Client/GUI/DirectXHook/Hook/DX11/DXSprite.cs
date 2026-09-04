@@ -1,4 +1,4 @@
-﻿// Adapted from Frank Luna's "Sprites and Text" example here: http://www.d3dcoder.net/resources.htm 
+// Adapted from Frank Luna's "Sprites and Text" example here: http://www.d3dcoder.net/resources.htm 
 // checkout his books here: http://www.d3dcoder.net/default.htm
 
 using System;
@@ -288,7 +288,9 @@ technique11 SpriteTech {
 
             _batchTexSRV = texSRV;
 
-            Texture2D tex = _batchTexSRV.ResourceAs<Texture2D>();
+            // ResourceAs() hands out a new reference that has to be released: without the using this leaked one
+            // texture reference per drawn image per frame.
+            using (Texture2D tex = _batchTexSRV.ResourceAs<Texture2D>())
             {
                 Texture2DDescription texDesc = tex.Description;
                 _texWidth = texDesc.Width;

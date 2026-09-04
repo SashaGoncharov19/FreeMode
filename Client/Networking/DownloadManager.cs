@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,6 +23,11 @@ namespace GTANetwork.Streamer
             "audio/basic",
             "audio/mid",
             "audio/wav",
+            "audio/x-wav",
+            "video/x-msvideo",
+            "audio/ogg",
+            "video/ogg",
+            "application/ogg",
             "image/gif",
             "image/jpeg",
             "image/pjpeg",
@@ -30,12 +35,61 @@ namespace GTANetwork.Streamer
             "image/x-png",
             "image/tiff",
             "image/bmp",
+            "image/x-icon",
             "video/avi",
             "video/mpeg",
             "audio/mpeg",
             "text/plain",
             "application/x-font-ttf",
         };
+
+        /// <summary>The policy both file transfers apply: a downloaded file is kept only when its sniffed type is allowed.</summary>
+        internal static bool IsAllowedFile(byte[] content, string path)
+        {
+            return _allowedFiletypes.Contains(MimeTypes.GetMimeType(content, path));
+        }
+
+        // Set when the end-of-transfer marker arrived while resource files were still coming over HTTP.
+        private static volatile bool _endOfTransferPending;
+        private static string _lastPromptText;
+        private static volatile string _pendingNotification;
+
+        /// <summary>Queues a notification from a worker thread; shown by <see cref="Pulse"/> on the script thread.</summary>
+        internal static void NotifyOnMainThread(string text)
+        {
+            _pendingNotification = text;
+        }
+
+        /// <summary>Called every frame while connected: shows the HTTP download progress and starts the client scripts
+        /// once both the UDP transfer (map, scripts) and the HTTP transfer (resource files) are complete.</summary>
+        internal static void Pulse()
+        {
+            var notification = _pendingNotification;
+            if (notification != null)
+            {
+                _pendingNotification = null;
+                Util.Util.SafeNotify(notification);
+            }
+
+            if (Main.HttpDownloadPending)
+            {
+                var text = Main._threadsafeSubtitle;
+                if (text != null && text != _lastPromptText)
+                {
+                    _lastPromptText = text;
+                    Main.LoadingPromptText(text);
+                }
+                return;
+            }
+
+            _lastPromptText = null;
+
+            if (_endOfTransferPending)
+            {
+                _endOfTransferPending = false;
+                FinishTransfer();
+            }
+        }
 
         internal static bool ValidateExternalMods(List<string> whitelist)
         {
@@ -139,7 +193,11 @@ namespace GTANetwork.Streamer
 
         internal static void Cancel()
         {
+            CurrentFile?.Dispose();
             CurrentFile = null;
+            _endOfTransferPending = false;
+            _lastPromptText = null;
+            PendingScripts.ClientsideScripts.Clear();
         }
 
         internal static void DownloadPart(int id, byte[] bytes)
@@ -205,21 +263,17 @@ namespace GTANetwork.Streamer
                 }
                 else if (CurrentFile.Type == FileType.EndOfTransfer)
                 {
-                    if (Main.JustJoinedServer)
+                    if (Main.HTTPFileServer && Main.HttpDownloadPending)
                     {
-                        World.RenderingCamera = null;
-                        Main.MainMenu.TemporarilyHidden = false;
-                        Main.MainMenu.Visible = false;
-                        Main.JustJoinedServer = false;
+                        // The map and the scripts came over UDP, the <file>s of the resources are still coming over
+                        // HTTP: start the scripts when those are on disk (see Pulse), or a CEF page would not be found.
+                        LogManager.DebugLog("END OF TRANSFER, WAITING FOR THE HTTP RESOURCE FILES");
+                        _endOfTransferPending = true;
                     }
-
-                    List<string> AffectedResources = new List<string>();
-                    AffectedResources.AddRange(PendingScripts.ClientsideScripts.Select(cs => cs.ResourceParent));
-
-                    Main.StartClientsideScripts(PendingScripts);
-                    PendingScripts.ClientsideScripts.Clear();
-
-                    Main.InvokeFinishedDownload(AffectedResources);
+                    else
+                    {
+                        FinishTransfer();
+                    }
                 }
                 else if (CurrentFile.Type == FileType.CustomData)
                 {
@@ -247,6 +301,27 @@ namespace GTANetwork.Streamer
 
                 CurrentFile = null;
             }
+        }
+
+        /// <summary>Everything that has to happen once the whole transfer is in: leave the loading camera, start the
+        /// client scripts and tell the server we are ready.</summary>
+        private static void FinishTransfer()
+        {
+            if (Main.JustJoinedServer)
+            {
+                World.RenderingCamera = null;
+                Main.MainMenu.TemporarilyHidden = false;
+                Main.MainMenu.Visible = false;
+                Main.JustJoinedServer = false;
+            }
+
+            var affectedResources = new List<string>();
+            affectedResources.AddRange(PendingScripts.ClientsideScripts.Select(cs => cs.ResourceParent));
+
+            Main.StartClientsideScripts(PendingScripts);
+            PendingScripts.ClientsideScripts.Clear();
+
+            Main.InvokeFinishedDownload(affectedResources);
         }
     }
 

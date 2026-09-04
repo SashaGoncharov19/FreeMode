@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -189,6 +189,10 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                     OverlayEngine = null;
                     DebugMessage("Cleanup");
                 }
+
+                _gameSwapChain?.Dispose();
+                _gameSwapChain = null;
+                _swapChainPointer = IntPtr.Zero;
             }
             catch
             {
@@ -338,12 +342,13 @@ namespace GTANetwork.GUI.DirectXHook.Hook
         int PresentHook(IntPtr swapChainPtr, int syncInterval, SharpDX.DXGI.PresentFlags flags)
         {
             DebugMessage("PresentHook");
-            SwapChain swapChain = (SharpDX.DXGI.SwapChain)swapChainPtr;
 
             if (swapChainPtr != IntPtr.Zero)
             {
                 try
                 {
+                    SwapChain swapChain = GetGameSwapChain(swapChainPtr);
+
                     #region Draw overlay (after screenshot so we don't capture overlay as well)
 
                     // Initialise Overlay Engine
@@ -422,8 +427,8 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             else if (now - _presentCostWindowStart >= System.Diagnostics.Stopwatch.Frequency * 10)
             {
                 var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame",
-                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick));
+                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far",
+                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick, _presentErrors));
                 _presentCostTicks = 0;
                 _presentCostMax = 0;
                 _presentCostFrames = 0;
@@ -434,9 +439,19 @@ namespace GTANetwork.GUI.DirectXHook.Hook
         public void ManualPresentHook(IntPtr swapChainPtr)
         {
             DebugMessage("ManualPresentHook Method start");
-            SwapChain swapChain = (SharpDX.DXGI.SwapChain)swapChainPtr;
+            if (swapChainPtr == IntPtr.Zero) return;
 
-            if (swapChainPtr != IntPtr.Zero)
+            SwapChain swapChain;
+            try
+            {
+                swapChain = GetGameSwapChain(swapChainPtr);
+            }
+            catch (Exception e)
+            {
+                LogManager.LogException(e, "PresentHook (swap chain)");
+                return;
+            }
+
             {
                 try
                 {
@@ -495,9 +510,11 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                             }
                         }
                         DebugMessage("ManualPresentHook:11");
-                        OverlayEngine.Initialise(swapChain);
+                        var initialised = OverlayEngine.Initialise(swapChain);
                         DebugMessage("ManualPresentHook:12");
                         _swapChainPointer = swapChain.NativePointer;
+                        LogManager.RuntimeLog("CEF overlay: " + (initialised ? "initialised" : "FAILED to initialise") + " on swap chain 0x" +
+                                              swapChainPtr.ToInt64().ToString("X") + " (" + OverlayEngine.Describe() + ")");
                     }
                     #endregion
 
@@ -506,9 +523,13 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                     if (OverlayEngine != null)
                     {
                         DebugMessage("ManualPresentHook:13");
+                        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
                         foreach (var overlay in OverlayEngine.Overlays)
                             overlay.Frame();
                         OverlayEngine.Draw();
+
+                        RecordPresentCost(System.Diagnostics.Stopwatch.GetTimestamp() - started);
                         DebugMessage("ManualPresentHook:14");
                     }
                     // ---LOOP---
@@ -518,16 +539,34 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                 catch (Exception e)
                 {
                     // If there is an error we do not want to crash the hooked application, so swallow the exception
-                    LogManager.DebugLog("PresentHook: Exeception: " + e.GetType().FullName + ": " + e.ToString());
-                    LogManager.LogException(e, "PresentHook");
+                    _presentErrors++;
+                    if (_presentErrors <= 5) LogManager.LogException(e, "PresentHook (CEF overlay), error " + _presentErrors);
                     //return unchecked((int)0x8000FFFF); //E_UNEXPECTED
                 }
             }
         }
 
+        private long _presentErrors;
+
         public DXOverlayEngine OverlayEngine;
 
         IntPtr _swapChainPointer = IntPtr.Zero;
+
+        // The game's swap chain. A SharpDX wrapper built from a raw pointer does not own a COM reference, yet with
+        // Configuration.EnableReleaseOnFinalizer the finalizer used to call Release() on it: one wrapper per frame,
+        // one Release per collected wrapper, and after the first GC the swap chain of the game was gone (a crash a
+        // few seconds after the first CEF page under DXVK). One wrapper per swap chain, with our own reference.
+        SwapChain _gameSwapChain;
+
+        SwapChain GetGameSwapChain(IntPtr swapChainPtr)
+        {
+            if (_gameSwapChain != null && _gameSwapChain.NativePointer == swapChainPtr) return _gameSwapChain;
+
+            _gameSwapChain?.Dispose();                                   // releases the reference we took below
+            System.Runtime.InteropServices.Marshal.AddRef(swapChainPtr); // the wrapper must own the reference it will release
+            _gameSwapChain = new SwapChain(swapChainPtr);
+            return _gameSwapChain;
+        }
         
     }
 }

@@ -46,9 +46,27 @@ done
 grep -q "Started! Waiting for connections." "$server_dir/it-server.log" || { echo "server did not start:"; cat "$server_dir/it-server.log"; exit 1; }
 grep -q "auth: 0 account(s) loaded" "$server_dir/it-server.log" || { echo "the auth resource did not start:"; grep -i -E "auth|exception|error" "$server_dir/it-server.log" || true; exit 1; }
 
+# ---- the resource's CEF page (<file src="ui/..."/>) must be served the way the game client fetches it:
+# GET /manifest.json lists it, GET /<resource>/<path> returns it byte for byte, nothing else leaks.
+base="http://127.0.0.1:$port"
+manifest=$(curl -sS -m 5 "$base/manifest.json" || true)
+echo "manifest: $manifest"
+[[ "$manifest" == *'"ui/index.html"'* ]] || { echo "FAIL: manifest.json does not list auth/ui/index.html"; exit 1; }
+for f in ui/index.html ui/style.css ui/app.js; do
+  code=$(curl -sS -m 5 -o "$server_dir/dl.tmp" -w '%{http_code}' "$base/auth/$f" || true)
+  [ "$code" = "200" ] || { echo "FAIL: GET /auth/$f answered $code"; exit 1; }
+  cmp -s "$server_dir/dl.tmp" "$server_dir/resources/auth/$f" || { echo "FAIL: GET /auth/$f returned different content"; exit 1; }
+done
+code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "$base/auth/auth.cs" || true)
+[ "$code" = "404" ] || { echo "FAIL: the server script auth.cs is not exported but GET answered $code"; exit 1; }
+code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' --path-as-is "$base/auth/../settings.xml" || true)
+[ "$code" != "200" ] || { echo "FAIL: path traversal /auth/../settings.xml was served"; exit 1; }
+echo "HTTP file server: manifest and the three auth files OK, auth.cs and traversal refused"
+
 # The bot sends one line per second, so the order below is the order the server sees.
 set +e
-"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name CIBot \
+client_files="$server_dir/client-files"
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name CIBot --download-files "$client_files" \
   --say "/veh adder" \
   --say "hello before login" \
   --say "/register cibot secret123" \
@@ -71,6 +89,13 @@ fi
 if ! grep -q '"Name": "cibot"' "$server_dir/resources/auth/accounts.json" 2>/dev/null; then
   echo "FAIL: accounts.json does not contain the new account"; rc=1
 fi
+# The bot downloaded the resource files with the same code as the game client: they must be complete copies.
+for f in ui/index.html ui/style.css ui/app.js; do
+  if ! cmp -s "$client_files/auth/$f" "$server_dir/resources/auth/$f"; then
+    echo "FAIL: the bot did not download auth/$f (or it differs)"; rc=1
+  fi
+done
+if [ -e "$client_files/auth/auth.cs" ]; then echo "FAIL: the server script auth.cs ended up on the client"; rc=1; fi
 
 # Second connection: the stored account must accept the password, the wrong one must be rejected.
 set +e

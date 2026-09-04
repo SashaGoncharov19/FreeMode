@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
 using GTANetworkShared;
+using GTANetwork.Util;
 using SharpDX;
 using SharpDX.Direct3D11;
 using Device = SharpDX.Direct3D11.Device;
@@ -26,6 +27,10 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
         Device _device;
         DeviceContext _deviceContext;
+        SharpDX.DXGI.SwapChain _swapChain;
+        // Per frame: the current back buffer and a view on it, released again before Present returns. Holding them
+        // across frames kept a reference on the back buffer (ResizeBuffers of the game fails then) and went stale
+        // after a resize; creating a view per frame is cheap.
         Texture2D _renderTarget;
         RenderTargetView _renderTargetView;
         DXSprite _spriteEngine;
@@ -46,43 +51,27 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
         public bool Initialise(SharpDX.DXGI.SwapChain swapChain)
         {
-            return Initialise(swapChain.GetDevice<Device>(), swapChain.GetBackBuffer<Texture2D>(0));
-        }
-
-        public bool Initialise(Device device, Texture2D renderTarget)
-        {
-            //Debug.Assert(!_initialised);
-            if (_initialised) return false;
-            if (_initialising)
-                return false;
+            if (_initialised || _initialising) return false;
 
             _initialising = true;
 
             try
             {
+                _swapChain = swapChain;
+                _device = Collect(swapChain.GetDevice<Device>());
 
-                _device = device;
-                _renderTarget = renderTarget;
                 try
                 {
-                    //_deviceContext = ToDispose(new DeviceContext(_device)); // TODO: Test if this fixes crash 
-                    _deviceContext = new DeviceContext(_device); // WARN: may cause a mem leak
+                    // A deferred context records our draw calls; executing the command list with state restore
+                    // leaves the game's pipeline state untouched.
+                    _deviceContext = Collect(new DeviceContext(_device));
                 }
                 catch (SharpDXException)
                 {
-                    _deviceContext = _device.ImmediateContext;
+                    _deviceContext = Collect(_device.ImmediateContext);
                 }
 
-                _renderTargetView = Collect(new RenderTargetView(_device, _renderTarget));
-
-                //if (DeferredContext)
-                //{
-                //    ViewportF[] viewportf = { new ViewportF(0, 0, _renderTarget.Description.Width, _renderTarget.Description.Height, 0, 1) };
-                //    _deviceContext.Rasterizer.SetViewports(viewportf);
-                //    _deviceContext.OutputMerger.SetTargets(_renderTargetView);
-                //}
-
-                _spriteEngine = new DXSprite(_device, _deviceContext);
+                _spriteEngine = Collect(new DXSprite(_device, _deviceContext));
                 if (!_spriteEngine.Initialize())
                     return false;
 
@@ -95,6 +84,24 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
             finally
             {
                 _initialising = false;
+            }
+        }
+
+        /// <summary>One line for the log: device feature level, back buffer size and format.</summary>
+        public string Describe()
+        {
+            try
+            {
+                using (var backBuffer = _swapChain.GetBackBuffer<Texture2D>(0))
+                {
+                    var desc = backBuffer.Description;
+                    return "feature level " + _device.FeatureLevel + ", back buffer " + desc.Width + "x" + desc.Height + " " + desc.Format +
+                           ", " + (DeferredContext ? "deferred" : "immediate") + " context";
+                }
+            }
+            catch (Exception ex)
+            {
+                return "describe failed: " + ex.Message;
             }
         }
 
@@ -120,24 +127,81 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
             }
         }
 
-        private void Begin()
+        private bool Begin()
         {
-            //if (!DeferredContext)
-            //{
-                SharpDX.Mathematics.Interop.RawViewportF[] viewportf = { new ViewportF(0, 0, _renderTarget.Description.Width, _renderTarget.Description.Height, 0, 1) };
-                _deviceContext.Rasterizer.SetViewports(viewportf);
-                _deviceContext.OutputMerger.SetTargets(_renderTargetView);
-            //}
+            _renderTarget = _swapChain.GetBackBuffer<Texture2D>(0);
+            if (_renderTarget == null) return false;
+
+            _renderTargetView = new RenderTargetView(_device, _renderTarget);
+
+            SharpDX.Mathematics.Interop.RawViewportF[] viewportf = { new ViewportF(0, 0, _renderTarget.Description.Width, _renderTarget.Description.Height, 0, 1) };
+            _deviceContext.Rasterizer.SetViewports(viewportf);
+            _deviceContext.OutputMerger.SetTargets(_renderTargetView);
+            return true;
         }
 
         /// <summary>
         /// Draw the overlay(s)
         /// </summary>
+        private int _framesDrawn;
+
         public void Draw()
         {
             if (!_initialised) return;
 
-            Begin();
+            if (!Begin()) return;
+
+            try
+            {
+                if (_framesDrawn < 3) LogFrame();
+
+                DrawElements();
+                End();
+                _framesDrawn++;
+            }
+            finally
+            {
+                _renderTargetView?.Dispose();
+                _renderTargetView = null;
+                _renderTarget?.Dispose();
+                _renderTarget = null;
+            }
+        }
+
+        /// <summary>The geometry of the first frames, for the log: viewport, back buffer and every element.</summary>
+        private void LogFrame()
+        {
+            try
+            {
+                var desc = _renderTarget.Description;
+                var text = "CEF overlay frame " + (_framesDrawn + 1) + ": back buffer " + desc.Width + "x" + desc.Height + " " + desc.Format + ", elements:";
+                lock (_hook._overlayLock)
+                {
+                    for (var o = 0; o < Overlays.Count; o++)
+                    {
+                        foreach (var element in Overlays[o].Elements)
+                        {
+                            var image = element as ImageElement;
+                            var textElement = element as TextElement;
+                            if (image != null)
+                                text += " [overlay " + o + " image at " + image.Location.X + "," + image.Location.Y + " " +
+                                        (image.Bitmap != null ? image.Bitmap.Width + "x" + image.Bitmap.Height : (image.NextBitmap != null ? "pending " + image.NextBitmap.Width + "x" + image.NextBitmap.Height : "no bitmap")) +
+                                        (image.Hidden ? " hidden" : "") + "]";
+                            else if (textElement != null)
+                                text += " [overlay " + o + " text \"" + textElement.Text + "\"" + (textElement.Hidden ? " hidden" : "") + "]";
+                        }
+                    }
+                }
+                LogManager.RuntimeLog(text);
+            }
+            catch (Exception ex)
+            {
+                LogManager.RuntimeLog("CEF overlay frame log failed: " + ex.Message);
+            }
+        }
+
+        private void DrawElements()
+        {
 
             lock (_hook._overlayLock)
             foreach (var overlay in Overlays)
@@ -168,17 +232,18 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
                     }
                 }
             }
-
-            End();
         }
 
         private void End()
         {
             if (DeferredContext)
             {
-                var commandList = _deviceContext.FinishCommandList(true);
-                _device.ImmediateContext.ExecuteCommandList(commandList, true);
-                commandList.Dispose();
+                // Device.ImmediateContext is a wrapper cached inside the SharpDX device: it must not be disposed
+                // (alpha.2 did, and every later frame worked on a released wrapper).
+                using (var commandList = _deviceContext.FinishCommandList(true))
+                {
+                    _device.ImmediateContext.ExecuteCommandList(commandList, true);
+                }
             }
         }
 
@@ -223,7 +288,8 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
             if (element.Image == null && element.Bitmap != null)
             {
-                element.Image = Collect(new DXImage(_device, _deviceContext));
+                // Owned by the element (disposed when the next bitmap arrives or the element goes away).
+                element.Image = new DXImage(_device, _deviceContext);
                 element.Image.Initialise(element.Bitmap);
             }
 
@@ -237,10 +303,17 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         /// <param name="disposing">true if disposing both unmanaged and managed</param>
         protected override void Dispose(bool disposing)
         {
-            if (true)
-            {
-                _device = null;
-            }
+            // Releases everything that was Collect()ed: the sprite engine, the deferred context, the device
+            // reference and the fonts. Element images belong to the elements.
+            base.Dispose(disposing);
+
+            _renderTargetView = null;
+            _renderTarget = null;
+            _spriteEngine = null;
+            _deviceContext = null;
+            _device = null;
+            _swapChain = null;
+            _initialised = false;
         }
 
         void SafeDispose(DisposeBase disposableObj)

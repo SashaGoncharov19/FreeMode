@@ -13,7 +13,8 @@
   <acl_enabled>false</acl_enabled>
   <log>false</log>
   <loglevel>2</loglevel>
-  <!-- Serve resource files over HTTP (same port, TCP) instead of streaming them over UDP. -->
+  <!-- Serve the resources' <file>s (CEF pages, images, sounds) over HTTP (TCP, same port number) instead of streaming
+       them over UDP. The map and the client scripts always travel over UDP. -->
   <httpserver>true</httpserver>
   <local_address>0.0.0.0</local_address>
   <fqdn></fqdn>

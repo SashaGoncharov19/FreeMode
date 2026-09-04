@@ -33,6 +33,7 @@ internal sealed class Options
     public bool Discover;
     public bool Verbose;
     public bool Interactive;
+    public string DownloadFiles;     // folder that receives the resources' <file>s, like the game's resources folder
 
     public static Options Parse(string[] args)
     {
@@ -52,6 +53,7 @@ internal sealed class Options
                 case "--timeout": o.Timeout = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--no-sync": o.Sync = false; break;
                 case "--discover": o.Discover = true; break;
+                case "--download-files": o.DownloadFiles = Next(); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -76,6 +78,10 @@ internal sealed class Options
   --timeout <sec>      give up after this long (default 60)
   --no-sync            do not send position sync packets
   --discover           send a LAN discovery request first and print the answers
+  --download-files <dir>
+                       fetch the resources' <file>s like the game does (HTTP file server: manifest.json and
+                       /<resource>/<path>; otherwise the UDP stream) into <dir>/<resource>/<path>; exit code 1
+                       when a file fails
   -i, --interactive    after joining, read chat lines / commands from stdin until /quit or EOF
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
@@ -91,6 +97,7 @@ internal static class Program
     private static readonly StringBuilder _chatLog = new();
     private static Download _download;
     private static readonly HashSet<string> _resourcesWithScripts = new();
+    private static int _fileFailures;
     private static Vector3 _position = new(0f, 0f, 72f);
     private static float _heading;
     private static readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -232,6 +239,11 @@ internal static class Program
             Log("result", "FAILED: expected chat text not seen: " + string.Join(" | ", missing));
             return 1;
         }
+        if (_fileFailures > 0)
+        {
+            Log("result", $"FAILED: {_fileFailures} resource file(s) could not be downloaded");
+            return 1;
+        }
         Log("result", _o.Expect.Count > 0 ? $"OK: joined, all {_o.Expect.Count} expected chat lines seen" : "OK: joined");
         return 0;
     }
@@ -305,6 +317,12 @@ internal static class Program
                 _client.SendMessage(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                 _confirmedFalseSent = true;
                 Log("handshake", "ConnectionConfirmed(false) sent, waiting for the map and client scripts ...");
+
+                if (_o.DownloadFiles != null)
+                {
+                    if (response.Settings?.UseHttpServer == true) DownloadFilesOverHttp();
+                    else Log("files", "the server streams resource files over UDP; they are saved as they arrive");
+                }
                 return false;
             }
             case NetConnectionStatus.Disconnected:
@@ -502,9 +520,48 @@ internal static class Program
                 Log("joined", $"download finished, ConnectionConfirmed(true) sent for [{string.Join(", ", _resourcesWithScripts)}]. I am in the game world now.");
                 break;
             }
+            case FileType.Normal when _o.DownloadFiles != null:
+            {
+                // UDP-streamed <file>: same layout as the HTTP path, <dir>/<resource>/<path>.
+                if (ResourceFileDownloader.TryGetLocalPath(_o.DownloadFiles, d.Resource, d.Name, out var target))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.WriteAllBytes(target, bytes);
+                    Log("files", $"{d.Resource}/{d.Name} ({bytes.Length} bytes) saved to {target}");
+                }
+                else
+                {
+                    _fileFailures++;
+                    Log("files", $"REFUSED unsafe file path {d.Resource}/{d.Name}");
+                }
+                break;
+            }
             default:
                 Log("download", $"{d.Type} \"{d.Name}\" ({bytes.Length} bytes) received");
                 break;
+        }
+    }
+
+    /// <summary>The game client's HTTP path (Client/Main/Network/Download.cs) with the shared downloader.</summary>
+    private static void DownloadFilesOverHttp()
+    {
+        var address = $"http://{_o.Host}:{_o.Port}";
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            var downloader = new ResourceFileDownloader(address, _o.DownloadFiles, url => http.GetByteArrayAsync(url).GetAwaiter().GetResult())
+            {
+                Progress = (label, index, total) => Log("files", $"{index}/{total} {label}"),
+                Log = text => Log("files", text),
+            };
+            var result = downloader.Run();
+            _fileFailures += result.Failed.Count;
+            Log("files", $"{address}: {result}" + (result.Failed.Count > 0 ? " -> " + string.Join(" | ", result.Failed) : ""));
+        }
+        catch (Exception ex)
+        {
+            _fileFailures++;
+            Log("files", $"FAILED to download the manifest from {address}: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

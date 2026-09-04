@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using GTA;
+using GTANetwork.Util;
 using Xilium.CefGlue;
 
 namespace GTANetwork.GUI.DirectXHook
@@ -12,9 +13,25 @@ namespace GTANetwork.GUI.DirectXHook
 
             var hooked = false;
 
+            var failures = 0;
+
+            // Runs on the game's render thread inside the Present of the game: nothing may escape from here.
             Present += (sender, args) =>
             {
-                if (CEFManager.Draw && !Main.MainMenu.Visible && !Main._mainWarning.Visible && CEFManager.DirectXHook != null) CEFManager.DirectXHook.ManualPresentHook((IntPtr)sender);
+                try
+                {
+                    if (!CEFManager.Draw) return;
+
+                    var menu = Main.MainMenu;
+                    var warning = Main._mainWarning;
+                    if ((menu != null && menu.Visible) || (warning != null && warning.Visible)) return;
+
+                    CEFManager.DirectXHook?.ManualPresentHook((IntPtr)sender);
+                }
+                catch (Exception ex)
+                {
+                    if (failures++ < 5) LogManager.LogException(ex, "PRESENT (CEF overlay)");
+                }
             };
 
             Tick += (sender, args) =>

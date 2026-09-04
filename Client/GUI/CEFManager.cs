@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -331,9 +331,12 @@ namespace GTANetwork.GUI
             ScreenSize = screenSize;
             if (CefUtil.DISABLE_CEF || DirectXHook != null) return;
 
-            Configuration.EnableObjectTracking = true;
-            Configuration.EnableReleaseOnFinalizer = true;
-            Configuration.EnableTrackingReleaseOnFinalizer = true;
+            // SharpDX debugging aids, both off on purpose: object tracking records a stack trace for every COM
+            // wrapper (one per frame in the overlay), and release-on-finalizer turns every wrapper built from a raw
+            // pointer we do not own (the game's swap chain) into a Release() of somebody else's reference.
+            Configuration.EnableObjectTracking = false;
+            Configuration.EnableReleaseOnFinalizer = false;
+            Configuration.EnableTrackingReleaseOnFinalizer = false;
 
             try
             {

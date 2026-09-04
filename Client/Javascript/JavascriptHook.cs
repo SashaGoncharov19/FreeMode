@@ -1085,6 +1085,10 @@ namespace GTANetwork.Javascript
             var newBrowser = new Browser(Engine, new Size(w, h), local);
             CEFManager.Browsers.Add(newBrowser);
 
+            // Browsers (and the cursor) are drawn by the DirectX overlay only while the global draw switch is on.
+            // A freshly created browser is meant to be seen, so turn it on here; setCefDrawState(false) still hides everything.
+            CEFManager.Draw = true;
+
             //if (!newBrowser._hasFocused && focus)
             //{
             //    newBrowser._browser.GetHost().SetFocus(true);
@@ -1126,8 +1130,17 @@ namespace GTANetwork.Javascript
         
         public void waitUntilCefBrowserInit(Browser browser)
         {
+            if (browser == null) return;
+
+            var started = Util.Util.TickCount;
             while (!browser.IsInitialized())
             {
+                if (Util.Util.TickCount - started > 15000)
+                {
+                    LogManager.RuntimeLog("waitUntilCefBrowserInit: the browser did not initialize within 15 s (see CEF.log)");
+                    return;
+                }
+
                 Script.Yield();
             }
         }

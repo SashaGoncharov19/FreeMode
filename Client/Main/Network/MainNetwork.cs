@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -202,8 +202,7 @@ namespace GTANetwork
             StringCache.Dispose();
             StringCache = null;
             _threadsafeSubtitle = null;
-            _cancelDownload = true;
-            _httpDownloadThread?.Abort();
+            CancelFileDownload();
             CefController.ShowCursor = false;
             DEBUG_STEP = 51;
             DownloadManager.Cancel();
