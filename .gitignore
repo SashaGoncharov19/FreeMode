@@ -224,3 +224,7 @@ Shv.NET/obj/
 # server runtime files
 Server/server.log
 Server/bans.xml
+
+# Local dev-container settings (docker-compose.yml reads GTAN_INSTALL from here) and the fallback install mount
+.env
+.gtan-install/

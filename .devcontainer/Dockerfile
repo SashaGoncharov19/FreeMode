@@ -10,11 +10,12 @@ ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
-# Tools used by the build/test/package scripts. git is usually already in the SDK image; installing
+# Tools used by the build/test/package scripts (python3: eng/integration-test-auth.sh edits settings.xml with
+# it, as on the CI runner). git is usually already in the SDK image; installing
 # it again is a no-op.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      git zip unzip rsync curl ca-certificates procps less \
+      git zip unzip rsync curl ca-certificates procps less python3 \
  && rm -rf /var/lib/apt/lists/*
 
 # A non-root user. VS Code remaps its UID/GID to yours (updateRemoteUserUID, on by default) so files

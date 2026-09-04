@@ -11,7 +11,9 @@ almost never changes — you already have it in `~/GTANetwork/bin` from an insta
 | Part | Builds in the container? |
 | --- | --- |
 | Server, launcher, bot (net8.0) | yes |
-| In-game client `GTANetwork.dll` (net48) + the CEF/ClearScript runtime | yes (against the managed SHVDN reference stub) |
+| In-game client `GTANetwork.dll` (net48) + the ClearScript runtime | yes — **against the real `ScriptHookVDotNet.dll`** (`eng/dev-build-client.sh` copies it from your install into `Shv.NET/bin/`, git-ignored). The managed stub in `Shv.NET/ref` only proves the code compiles: it is not binary-compatible (other `InputArgument` conversions → `MissingMethodException`, the client never initialises in game) |
+| Browser host `GTANetwork.CefHost.exe` (net48) + the Chromium runtime | yes (Windows binaries from NuGet) |
+| CEF harness `CefHarness.exe` (net48) | yes; it runs under Proton on the host machine (`eng/cef-harness.sh`) |
 | `ScriptHookVDotNet.dll` (C++/CLI) | no — Windows + MSVC only (comes from a release; the CI Windows job builds it) |
 
 ## Open it
@@ -34,7 +36,7 @@ docker compose run --rm dev bash              # a shell in the container
 Edit client C#, then, in a container shell:
 
 ```bash
-# build GTANetwork.dll and copy it into the install (managed DLLs only — seconds)
+# build GTANetwork.dll + GTANetwork.CefHost.exe and copy them into the install (managed files only — seconds)
 eng/dev-build-client.sh --sync
 ```
 
@@ -73,6 +75,25 @@ eng/dev-build-client.sh --sync --cef # also refresh cef/ (only when the CefSharp
 eng/dev-test.sh                      # the Linux CI checks: build the solution, run the server + bot tests
 dotnet build GTANetwork.sln -c Release    # plain full build
 ```
+
+## The CEF harness: the browser without the game
+
+`Tools/CefHarness` is the acceptance test of the browser host. `eng/cef-harness.sh` runs it **on the host
+machine** (not in the container) under Proton, in the game's Wine prefix, with the same environment
+`play.sh` uses:
+
+```bash
+eng/cef-harness.sh --build          # build host + harness in the container, then run
+eng/cef-harness.sh                  # start cef/GTANetwork.CefHost.exe from the build output, create a browser,
+                                    # serve https://harness/ui/index.html, read the pixels, wait for resourceCall
+eng/cef-harness.sh --install-cef    # the same against the host of your install (~/GTANetwork/cef)
+eng/cef-harness.sh --in-process     # Chromium inside the harness process (how the client did it before)
+eng/cef-harness.sh --alone --appdomain   # ... in a second AppDomain like ScriptHookVDotNet: reproduces the crash
+```
+
+Exit code 0 means Chromium started, painted, and the page reached the game side. Logs land next to the harness
+(`Tools/CefHarness/bin/Release/net48/`: `harness.log`, `harness-host.log`, `harness-chromium.log`,
+`harness-wine.log`). The script refuses to run while GTA V is running (same prefix).
 
 ## When you still need CI
 
