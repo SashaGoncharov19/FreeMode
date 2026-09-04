@@ -1,6 +1,6 @@
 # T-001 — .NET 10 for server, launcher, bot, Map2Resource and the dev container
 
-Status: ready
+Status: in progress
 Epic: E-01 Platform upgrade
 Size: M
 Branch: task/T-001-dotnet-10 from the integration branch
@@ -61,6 +61,7 @@ If `Microsoft.CodeAnalysis.CSharp 5.9.0` changes `CSharpCompilation` defaults, `
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-04 23:20 agent — started on task/T-001-dotnet-10.
 
 ## Result
 
