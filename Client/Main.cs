@@ -414,8 +414,15 @@ namespace GTANetwork
 
             if (!PlayerSettings.DisableCEF)
             {
-                LogManager.RuntimeLog("Initializing CEF.");
-                CEFManager.InitializeCef();
+                if (PlayerSettings.CefPreload)
+                {
+                    LogManager.RuntimeLog("Initializing CEF (CefPreload).");
+                    CEFManager.InitializeCef();
+                }
+                else
+                {
+                    LogManager.RuntimeLog("CEF starts with the first browser a resource creates (CefPreload=false).");
+                }
             }
 
             LogManager.RuntimeLog("Rebuilding Server Browser.");

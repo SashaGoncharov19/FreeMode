@@ -131,7 +131,8 @@ namespace GTANetwork
             }
             catch (Exception ex)
             {
-                LogManager.LogException(ex, "UPDATE SC AVATAR");
+                // a.rsg.sc (Social Club avatars) is gone; not worth a stack trace in Error.log at every start.
+                LogManager.RuntimeLog("Social Club avatar not available: " + ex.Message);
             }
         }
 

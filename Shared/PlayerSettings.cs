@@ -29,6 +29,8 @@ namespace GTANetworkShared
         public bool CefGpu { get; set; }
         /// <summary>Frames per second the off-screen browsers paint (1-60, default 30).</summary>
         public int CefFrameRate { get; set; }
+        /// <summary>Start Chromium at game start instead of with the first browser a resource creates (default false).</summary>
+        public bool CefPreload { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -75,6 +77,7 @@ namespace GTANetworkShared
             CEFDevtool = false;
             CefGpu = false;
             CefFrameRate = 30;
+            CefPreload = false;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";

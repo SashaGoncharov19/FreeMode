@@ -227,9 +227,6 @@ namespace GTANetwork.GUI
         private static string _cefDirectory;
         private static object _libcefHandle; // CefLibraryHandle, kept alive for the life of the process
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern bool SetDllDirectory(string lpPathName);
-
         internal static string CefDirectory
         {
             get
@@ -272,20 +269,33 @@ namespace GTANetwork.GUI
             };
         }
 
+        private static readonly object InitLock = new object();
+
+        /// <summary>
+        /// Starts Chromium in the background. Called at game start only with &lt;CefPreload&gt;true&lt;/CefPreload&gt;;
+        /// otherwise the first browser a resource creates starts it (a few seconds once per game session), so a
+        /// player on servers without browser UIs never runs Chromium at all.
+        /// </summary>
         internal static void InitializeCef()
         {
             if (CefUtil.DISABLE_CEF) return;
 
-            RegisterAssemblyResolver();
+            lock (InitLock)
+            {
+                if (_cefThread != null) return;
 
-            _cefThread = new Thread(CefThread) { IsBackground = true, Name = "GTAN CEF" };
-            _cefThread.SetApartmentState(ApartmentState.STA);
-            _cefThread.Start();
+                RegisterAssemblyResolver();
+
+                _cefThread = new Thread(CefThread) { IsBackground = true, Name = "GTAN CEF" };
+                _cefThread.SetApartmentState(ApartmentState.STA);
+                _cefThread.Start();
+            }
         }
 
-        /// <summary>True once CEF is up (or has definitely failed); browsers wait for it.</summary>
+        /// <summary>Starts CEF if needed and waits until it is up (or has definitely failed).</summary>
         internal static bool WaitUntilReady(int timeoutMs)
         {
+            InitializeCef();
             return CefReady.WaitOne(timeoutMs) && _cefInitialised;
         }
 
@@ -303,12 +313,9 @@ namespace GTANetwork.GUI
                     return;
                 }
 
-                // libcef.dll is imported by CefSharp.Core.Runtime.dll; the loader only looks next to GTA5.exe and on PATH.
-                if (!SetDllDirectory(cefDir))
-                {
-                    LogManager.CefLog("SetDllDirectory failed: " + Marshal.GetLastWin32Error());
-                }
-
+                // libcef.dll is imported by CefSharp.Core.Runtime.dll. It is pre-loaded below with its own folder as
+                // search path (CefLibraryHandle), so the import resolves to the loaded module by name; the process-wide
+                // DLL search path of the game is left alone.
                 InitializeCefRuntime(cefDir);
             }
             catch (Exception ex)
@@ -344,9 +351,12 @@ namespace GTANetwork.GUI
                 LogManager.CefLog("libcef.dll could not be pre-loaded (error " + Marshal.GetLastWin32Error() + ")");
             }
             _libcefHandle = libcef;
+            LogManager.CefLog("--> libcef.dll loaded, CefSharp " + Cef.CefSharpVersion + " / CEF " + Cef.CefVersion + " / Chromium " + Cef.ChromiumVersion);
 
             CefSharpSettings.SubprocessExitIfParentProcessClosed = true;
             CefSharpSettings.ShutdownOnExit = false;
+            // Off-screen browsers need the Alloy runtime style (no Chrome UI, smaller footprint).
+            CefSharpSettings.RuntimeStyle = CefRuntimeStyle.Alloy;
 
             var playerSettings = Main.PlayerSettings;
             var gpu = playerSettings != null && playerSettings.CefGpu;
@@ -358,7 +368,9 @@ namespace GTANetwork.GUI
                 LocalesDirPath = Path.Combine(cefDir, "locales"),
                 ResourcesDirPath = cefDir,
                 LogFile = Path.Combine(LogManager.LogDirectory, "CEF-chromium.log"),
-                LogSeverity = LogSeverity.Warning,
+                // Info while the new browser is being brought up under Proton: the last Chromium line before a crash
+                // is the only trace of where it died. Debug mode turns on Chromium's verbose logging.
+                LogSeverity = LogManager.Verbose ? LogSeverity.Verbose : LogSeverity.Info,
                 MultiThreadedMessageLoop = true,
                 WindowlessRenderingEnabled = true,
                 BackgroundColor = 0,
@@ -376,8 +388,15 @@ namespace GTANetwork.GUI
             }
             settings.CefCommandLineArgs.Add("disable-gpu-vsync");
             settings.CefCommandLineArgs.Add("autoplay-policy", "no-user-gesture-required");
+            // Fewer Windows-only subsystems to trip over under Wine: no DirectComposition, no window occlusion
+            // tracking, no renderer code integrity (signed-DLL checks), and the network service in the browser
+            // process instead of a further utility process.
+            settings.CefCommandLineArgs.Add("disable-direct-composition");
+            settings.CefCommandLineArgs.Add("disable-features", "CalculateNativeWinOcclusion,RendererCodeIntegrity,WinUseBrowserSpellChecker");
+            settings.CefCommandLineArgs.Add("enable-features", "NetworkServiceInProcess");
             if (Main.EnableMediaStream) settings.CefCommandLineArgs.Add("enable-media-stream");
 
+            LogManager.CefLog("--> Cef.Initialize (" + (gpu ? "GPU process" : "software rendering") + ", cache " + settings.CachePath + ")");
             var ok = Cef.Initialize(settings, false, (IBrowserProcessHandler)null);
             _cefInitialised = ok;
 
