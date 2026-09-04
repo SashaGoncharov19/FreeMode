@@ -45,7 +45,9 @@ Goal: a `v0.1.0` release that a stranger can install and play on with friends.
       `Runtime.log`), no stutter, pattern fallbacks matched on 1.0.3889, 60 fps.
 * [ ] Two real players on one server (not only bots): position, vehicles, chat, weapons.
 * [ ] Windows path verified once (installer + classic launcher or the cross-platform launcher).
-* [ ] CEF browser UI verified in game (enable the `auth` resource and log in through the form).
+* [ ] CEF browser UI verified in game (enable the `auth` resource and log in through the form). First attempt
+      (0.1.0) showed nothing: the client never downloaded the resource files in HTTP file server mode and the CEF
+      overlay stayed switched off; both fixed in 0.1.1, waiting for the next in-game run.
 * [ ] Missing patterns on 1.0.3889: "force offline" patch (decide whether it is still needed with
       `-scOfflineOnly`) and the euphoria functions (port the upstream NaturalMotion message implementation or
       drop the API).

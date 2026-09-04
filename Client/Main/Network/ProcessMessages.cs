@@ -1,4 +1,4 @@
-﻿using GTA;
+using GTA;
 using GTA.Native;
 using GTANetwork.GUI;
 using GTANetwork.Javascript;
@@ -277,10 +277,17 @@ namespace GTANetwork
                         var len = msg.ReadInt32();
                         if (DeserializeBinary<DataDownloadStart>(msg.ReadBytes(len)) is DataDownloadStart data)
                         {
-                            var acceptDownload = DownloadManager.StartDownload(data.Id,
+                            var fileType = (FileType)data.FileType;
+                            // Files and scripts are written below resources\<resource>\; refuse names that would leave it.
+                            var safePath = (fileType != FileType.Normal && fileType != FileType.Script) ||
+                                           ResourceFileDownloader.TryGetLocalPath(FileTransferId._DOWNLOADFOLDER_, data.ResourceParent, data.FileName, out _);
+                            if (!safePath)
+                                LogManager.RuntimeLog("Refused a file transfer with an unsafe path: " + data.ResourceParent + "/" + data.FileName);
+
+                            var acceptDownload = safePath && DownloadManager.StartDownload(data.Id,
                                 data.ResourceParent + Path.DirectorySeparatorChar + data.FileName,
-                                (FileType)data.FileType, data.Length, data.Md5Hash, data.ResourceParent);
-                            LogManager.DebugLog("FILE TYPE: " + (FileType)data.FileType);
+                                fileType, data.Length, data.Md5Hash, data.ResourceParent);
+                            LogManager.DebugLog("FILE TYPE: " + fileType);
                             LogManager.DebugLog("DOWNLOAD ACCEPTED: " + acceptDownload);
                             var newMsg = Client.CreateMessage();
                             newMsg.Write((byte)PacketType.FileAcceptDeny);

@@ -15,6 +15,9 @@ function authOpen() {
     API.waitUntilCefBrowserInit(authBrowser);
     API.setCefBrowserPosition(authBrowser, (screen.Width - width) / 2, (screen.Height - height) / 2);
     API.loadPageCefBrowser(authBrowser, "ui/index.html");
+    // Global switch of the CEF overlay (browsers and the cursor). Newer clients turn it on in createCefBrowser
+    // already; older ones draw nothing without this call. Left on in authClose: other resources may show browsers too.
+    API.setCefDrawState(true);
     API.showCursor(true);
     API.setCanOpenChat(false);
 }

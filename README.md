@@ -104,10 +104,15 @@ server/
     deriving from `GTANetworkServer.Script` is instantiated and gets an `API` instance (`API.cs`, ~170 KB of
     server API: events, entities, chat, players, ...).
   * `<script src="x.js" type="client" lang="javascript"/>` - client scripts, hashed and streamed to players
-    over UDP or served by the HTTP file server (`Managers/FileServer.cs`, `GET /manifest.json`,
-    `GET /<resource>/<path>`).
-  * `<file src="..."/>` client files, `<map src="..."/>` map XML, `<include resource="..."/>` dependencies,
-    `<export function="..."/>` cross-resource calls, `<assembly ref="..."/>` extra references.
+    over UDP together with the map.
+  * `<file src="..."/>` - client files (CEF pages, images, sounds). With `<httpserver>true</httpserver>` the client
+    fetches them from the HTTP file server (`Managers/FileServer.cs`: `GET /manifest.json`,
+    `GET /<resource>/<path>`; the shared `ResourceFileDownloader` does the fetching), otherwise they are streamed
+    over UDP. They land in `<install dir>/resources/<resource>/<path>` on the client, client scripts start only
+    when all of them are there, and a CEF browser loads them as `https://<resource>/<path>`
+    (`API.loadPageCefBrowser(browser, "ui/index.html")`). `Server/resources/auth` is the reference example.
+  * `<map src="..."/>` map XML, `<include resource="..."/>` dependencies, `<export function="..."/>`
+    cross-resource calls, `<assembly ref="..."/>` extra references.
 * `Server/resources/example` is a minimal C# gamemode that is started by the default `settings.xml`.
 
 ## Building
@@ -167,7 +172,8 @@ packet the server pushes (entity creation, native calls, events) in readable for
 
 ```bash
 dotnet run --project Tools/GTANetwork.Bot -- --host 127.0.0.1 --port 4499 --name Tester --discover \
-  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5
+  --say "/help" --say "/veh adder" --say "/pos" --say "hello" --duration 5 \
+  --download-files /tmp/client-files   # optional: fetch the resources' <file>s the way the game does
 ```
 
 With `--interactive` the bot keeps reading chat lines and `/commands` from stdin until `/quit`, so you can

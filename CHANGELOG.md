@@ -16,6 +16,40 @@ Two version numbers exist side by side:
 
 Nothing yet.
 
+## [0.1.1] - 2026-09-04
+
+Resource files (`<file src="..."/>` in `meta.xml`: CEF pages, images, sounds) now actually reach the client, so
+browser UIs such as the `auth` login form can work. Found with the first in-game CEF test of 0.1.0: the browser
+was created, but `https://auth/ui/index.html` was "File does not exist" and nothing was drawn.
+
+### Fixed
+* **Client never downloaded resource files in HTTP file server mode** (`<httpserver>true</httpserver>`, the
+  default): the download thread was created but never started; a file in a sub-folder (`ui/index.html`) had no
+  folder to be written to; errors of the async download were dropped. The download now runs on a started
+  background thread, creates the folders, logs a summary to `Runtime.log` and shows the progress in the loading
+  prompt. An inherited upstream bug: the 2017 client had the same code.
+* **Client scripts started before the files arrived**: the end-of-transfer marker (UDP: map + scripts) now waits
+  for the HTTP download to finish before `onResourceStart` runs, both on connect and when a resource starts while
+  playing (`RedownloadManifest`). A failed download no longer blocks the scripts; it is reported instead.
+* **CEF overlay stayed off**: browsers and the cursor are drawn only while the global draw switch is on, and only
+  `API.setCefDrawState(true)` turned it on. `createCefBrowser` enables it now (`setCefDrawState(false)` still hides
+  everything); the `auth` script also calls it explicitly for older clients.
+* `waitUntilCefBrowserInit` gives up after 15 s with a log line instead of spinning forever.
+* The mime whitelist for downloaded files listed names the sniffer never produces (`audio/wav`, `video/avi`);
+  WAV, AVI, OGG and ICO files were always rejected. Both spellings are accepted now.
+* Downloads that would leave `resources/<resource>/` (`..`, rooted paths, drive letters) are refused on both the
+  UDP and the HTTP path.
+
+### Added
+* `GTANetworkShared.ResourceFileDownloader`: the manifest download shared by the game client and the headless
+  bot (`--download-files <dir>`), so CI runs the same code as the game.
+* `eng/integration-test-auth.sh` checks the HTTP file server directly (manifest lists the page, the three files
+  are served byte for byte, the server script and a path traversal are refused) and that the bot ends up with
+  complete copies of the `auth` UI files.
+
+### Docs
+* README (EN/UK): how resource files travel and where they land; `docs/ROADMAP.md` phase 0 status.
+
 ## [0.1.0] - 2026-09-04
 
 The first stable release of the revived GTA Network. It sums up the `0.1.0-alpha.1` … `0.1.0-alpha.24`

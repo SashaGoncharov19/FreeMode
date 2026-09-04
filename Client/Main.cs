@@ -471,6 +471,7 @@ namespace GTANetwork
             {
                 DEBUG_STEP = 1;
                 Watcher?.Tick();
+                DownloadManager.Pulse();
 
                 DEBUG_STEP = 2;
                 VehicleSyncManager?.Pulse();

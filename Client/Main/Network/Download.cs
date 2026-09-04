@@ -1,103 +1,93 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.Globalization;
+using System;
 using System.IO;
-using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Threading;
-using System.Windows.Forms;
 using GTA;
-using GTA.Math;
 using GTA.Native;
-using GTANetwork.GUI;
-using GTANetwork.Javascript;
-using GTANetwork.Misc;
 using GTANetwork.Streamer;
 using GTANetwork.Util;
 using GTANetworkShared;
 using Lidgren.Network;
-using Microsoft.Win32;
-using NativeUI;
-using NativeUI.PauseMenu;
-using Newtonsoft.Json;
-using ProtoBuf;
-using Control = GTA.Control;
-using Vector3 = GTA.Math.Vector3;
-using WeaponHash = GTA.WeaponHash;
-using VehicleHash = GTA.VehicleHash;
 
 namespace GTANetwork
 {
     internal partial class Main
     {
+        // Resource files (<file src="..."/> in meta.xml) when the server runs its HTTP file server: the map and the
+        // client scripts still arrive over UDP, the files come from GET /manifest.json + GET /<resource>/<path> and
+        // land in <install dir>\resources\<resource>\<path>, where CEF pages (https://<resource>/<path>) look for them.
         private Thread _httpDownloadThread;
-        private bool _cancelDownload;
+        private static volatile bool _cancelDownload;
+        private static int _httpDownloadGeneration;
+
+        /// <summary>True while resource files are being fetched over HTTP. The end-of-transfer handling (script start)
+        /// waits for it, otherwise a script could open a page that is not on disk yet.</summary>
+        internal static volatile bool HttpDownloadPending;
 
         private void StartFileDownload(string address)
         {
             _cancelDownload = false;
+            HttpDownloadPending = true;
 
-            _httpDownloadThread?.Abort();
-            _httpDownloadThread = new Thread((ThreadStart)delegate
+            var generation = Interlocked.Increment(ref _httpDownloadGeneration);
+            var previous = _httpDownloadThread;
+
+            _httpDownloadThread = new Thread(() => DownloadResourceFiles(address, generation, previous))
             {
-                try
-                {
-                    using (var wc = new WebClient())
-                    {
-                        var manifestJson = wc.DownloadString(address + "/manifest.json");
-
-                        var obj = JsonConvert.DeserializeObject<FileManifest>(manifestJson);
-
-                        wc.DownloadProgressChanged += (sender, args) =>
-                        {
-                            _threadsafeSubtitle = "Downloading " + args.ProgressPercentage;
-                        };
-
-                        foreach (var resource in obj.exportedFiles)
-                        {
-                            if (!Directory.Exists(FileTransferId._DOWNLOADFOLDER_ + resource.Key))
-                                Directory.CreateDirectory(FileTransferId._DOWNLOADFOLDER_ + resource.Key);
-
-                            for (var index = resource.Value.Count - 1; index >= 0; index--)
-                            {
-                                var file = resource.Value[index];
-                                if (file.type == FileType.Script) continue;
-
-                                var target = Path.Combine(FileTransferId._DOWNLOADFOLDER_, resource.Key, file.path);
-
-                                if (File.Exists(target))
-                                {
-                                    var newHash = DownloadManager.HashFile(target);
-
-                                    if (newHash == file.hash) continue;
-                                }
-
-                                wc.DownloadFileAsync(
-                                    new Uri($"{address}/{resource.Key}/{file.path}"), target);
-
-                                while (wc.IsBusy)
-                                {
-                                    Thread.Yield();
-                                    if (!_cancelDownload) continue;
-                                    wc.CancelAsync();
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogManager.LogException(ex, "HTTP FILE DOWNLOAD");
-                }
-            });
+                IsBackground = true,
+                Name = "GTAN resource files",
+            };
+            _httpDownloadThread.Start();
         }
 
-        public static void InvokeFinishedDownload(List<string> resources)
+        /// <summary>Stops the running download (checked between files); the thread ends on its own.</summary>
+        internal static void CancelFileDownload()
+        {
+            _cancelDownload = true;
+        }
+
+        private static void DownloadResourceFiles(string address, int generation, Thread previous)
+        {
+            try
+            {
+                // A second manifest (a resource started while we play) waits for the first pass instead of racing it.
+                if (previous != null && previous.IsAlive) previous.Join(TimeSpan.FromMinutes(2));
+
+                if (_cancelDownload || generation != _httpDownloadGeneration) return;
+
+                using (var wc = new WebClient())
+                {
+                    var downloader = new ResourceFileDownloader(address, FileTransferId._DOWNLOADFOLDER_, url => wc.DownloadData(url))
+                    {
+                        Accept = DownloadManager.IsAllowedFile,
+                        Cancelled = () => _cancelDownload || generation != _httpDownloadGeneration,
+                        Progress = (label, index, total) => _threadsafeSubtitle = "Downloading " + label + " (" + index + "/" + total + ")",
+                        Log = text => LogManager.RuntimeLog("Resource files: " + text),
+                    };
+
+                    var result = downloader.Run();
+                    LogManager.RuntimeLog("Resource files from " + address + ": " + result);
+
+                    if (result.Rejected > 0 || result.Failed.Count > 0)
+                        DownloadManager.NotifyOnMainThread("~r~Resource files: " + result.Rejected + " rejected, " + result.Failed.Count + " failed. See Runtime.log.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.LogException(ex, "HTTP FILE DOWNLOAD");
+                DownloadManager.NotifyOnMainThread("~r~Could not download the resource files from " + address + ".");
+            }
+            finally
+            {
+                if (generation == _httpDownloadGeneration)
+                {
+                    _threadsafeSubtitle = null;
+                    HttpDownloadPending = false;
+                }
+            }
+        }
+
+        public static void InvokeFinishedDownload(System.Collections.Generic.List<string> resources)
         {
             var confirmObj = Client.CreateMessage();
             confirmObj.Write((byte)PacketType.ConnectionConfirmed);
