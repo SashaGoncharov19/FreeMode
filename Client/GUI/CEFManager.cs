@@ -462,6 +462,8 @@ namespace GTANetwork.GUI
                     _cefInitialised = true;
                     StartFramePump();
                     SignalReady();
+                    // browsers closed while Chromium was still starting: the idle clock starts now, not when they closed
+                    if (BrowserCount == 0) ScheduleIdleExit();
                     return;
                 case CefHostProtocol.InitFailed:
                     LogManager.CefLog("CEF FAILED to initialise: " + m.Text + " (see logs\\CEF-host.log and logs\\CEF-chromium.log)");
@@ -621,7 +623,9 @@ namespace GTANetwork.GUI
             if (seconds <= 0) return;
             lock (InitLock)
             {
-                if (_host == null) return;
+                // Count the idle time from the moment the host is usable: a host that is still starting (Chromium took 42 s
+                // under swap pressure once) must not be stopped the instant it comes up. The ready handler schedules again.
+                if (_host == null || !_cefInitialised) return;
                 _idleTimer?.Dispose();
                 _idleTimer = new System.Threading.Timer(_ => IdleExit(seconds), null, seconds * 1000, Timeout.Infinite);
             }
