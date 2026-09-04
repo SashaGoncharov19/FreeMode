@@ -41,14 +41,15 @@ sync, chat, commands, vehicles, client-side JavaScript. The rest of the state:
 
 Goal: a `v0.1.0` release that a stranger can install and play on with friends.
 
-* [ ] Confirm alpha.19 in game: client-side JS chain ("Client-side script is running"), no stutter, pattern
-      fallbacks matched on 1.0.3889.
+* [x] Confirmed in game (alpha.24): client-side JS chain works (`API` members visible, probe in
+      `Runtime.log`), no stutter, pattern fallbacks matched on 1.0.3889, 60 fps.
 * [ ] Two real players on one server (not only bots): position, vehicles, chat, weapons.
 * [ ] Windows path verified once (installer + classic launcher or the cross-platform launcher).
+* [ ] CEF browser UI verified in game (enable the `auth` resource and log in through the form).
 * [ ] Missing patterns on 1.0.3889: "force offline" patch (decide whether it is still needed with
       `-scOfflineOnly`) and the euphoria functions (port the upstream NaturalMotion message implementation or
       drop the API).
-* [ ] Release process: merge to `master`, `build.yml` → `release_tag=v0.1.0`, changelog section becomes the
+* [x] Release process: merge to `master`, `build.yml` → `release_tag=v0.1.0`, changelog section becomes the
       release body.
 
 ## Phase 1 - platform: master server, updates, crash reports (weeks)

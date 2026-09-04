@@ -16,6 +16,49 @@ Two version numbers exist side by side:
 
 Nothing yet.
 
+## [0.1.0] - 2026-09-04
+
+The first stable release of the revived GTA Network. It sums up the `0.1.0-alpha.1` … `0.1.0-alpha.24`
+pre-releases listed below; nothing changed between alpha.24 and this tag.
+
+**Verified in game** on GTA V Legacy 1.0.3889 under Proton (Debian 13): install with one command, connect to a
+local server, player and vehicle sync, chat, commands, client-side JavaScript with the `API` object, 60 fps with
+2.5 ms of script time per frame. Multi-player relay and the server API are covered by the headless bot in CI.
+Not yet verified: two real players on one server, the Windows installer path, the CEF browser UI in game.
+
+### What you get
+* **Server** on .NET 8, native on Linux (and Windows): C#/VB resources compiled at startup with Roslyn,
+  `freeroam` gamemode, `example` resource, `auth` accounts resource (disabled by default), HTTP file server,
+  clean shutdown on signals.
+* **Client** for GTA V Legacy through ScriptHookV + a ScriptHookVDotNet fork that survives game updates
+  (missing memory patterns disable a feature instead of crashing; fallback patterns for builds since
+  1.0.3788), with a per-script profiler in the log.
+* **Cross-platform launcher** (Linux/Proton and Windows) that deploys the mod into the game folder with a
+  rollback manifest and restores it afterwards.
+* **Linux installer and updater** (`setup-linux.sh`): installs client, launcher, server and bot from a GitHub
+  release into `~/GTANetwork`, puts .NET Framework 4.8 and VC++ 2022 into the game's Proton prefix (all known
+  Proton pitfalls handled), and updates itself and everything else before every start.
+* **Headless bot** that joins a server over the real protocol; used by the CI integration tests.
+* **Docs**: README (EN/UK), architecture and flow, `docs/ROADMAP.md`, `docs/SYNC.md`, `docs/CEF-UPGRADE.md`.
+
+### Fixed since the 2019-2020 code base
+* Crash a few seconds after the main menu (dead master server answered with HTML on a background thread).
+* Client-side JavaScript never worked: the managed ClearScript, its native bridge and the V8 library were from
+  three different builds; the official ClearScript.V8 5.4.9 set is shipped now.
+* Once-per-second stutter (debug overlay pool scans, weapon sweep); thread hand-offs poll before blocking.
+* Server relay sent every packet to every player regardless of distance and dimension; near/far by distance.
+* Vehicles and peds were never deleted on stream-out; streaming died on the first exception; several
+  divisions by zero, clock mismatches and leaks in the remote player code (see `docs/SYNC.md`).
+* Server: broadcast native calls threw with two players, infinite recursion in one API overload, AFK players
+  leaked entities, race on the player list, `Client` without `GetHashCode`.
+
+### Known limitations
+* ScriptHookV is not redistributable: download it from dev-c.com yourself.
+* The master server (`master.gtanet.work`) is gone; the address is empty by default (issue #1).
+* The bundled browser is CEF 3.2987 (Chromium 57, 2017).
+* Two memory patterns are still missing on 1.0.3889 (euphoria, unused; "force offline" patch).
+* GTA V Enhanced is not supported.
+
 ## [0.1.0-alpha.24] - 2026-09-04
 
 ### Fixed
@@ -248,7 +291,8 @@ The first build of the revival. Everything below compares with the 2019-2020 cod
   recipient, so any `setEntityPosition`/`setTime`-style API call failed with two players online.
 * Server: the sync relay threw with an empty recipient list when a single player was online.
 
-[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0-alpha.24...HEAD
+[Unreleased]: https://github.com/SashaGoncharov19/FreeMode/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0
 [0.1.0-alpha.24]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.24
 [0.1.0-alpha.23]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.23
 [0.1.0-alpha.22]: https://github.com/SashaGoncharov19/FreeMode/releases/tag/v0.1.0-alpha.22
