@@ -38,13 +38,18 @@ now live in another process, so it returns nothing (fire and forget). `resourceE
 and `browser.eval()` from the client script are unchanged (`ExecuteScriptAsync`). New pages can also use
 `gtan.call(...)` / `gtan.eval(...)`.
 
-**Settings** (`settings.xml`): `<CefGpu>true</CefGpu>` keeps Chromium's GPU process (default off = software
-rendering like before, safest under Proton), `<CefFrameRate>30</CefFrameRate>` paints per second,
-`<CEFDevtool>true</CEFDevtool>` opens the remote debugger on port 9222 (http://localhost:9222), `<DebugMode>`
-also enables the V8 inspector of ClearScript.
+**Settings** (`settings.xml`): `<CefGpu>true</CefGpu>` lets Chromium use the GPU (default off = Chromium's
+display-compositor-only mode, `--disable-gpu --disable-gpu-compositing --use-gl=disabled
+--disable-software-rasterizer`: no ANGLE, D3D11, SwiftShader or Vulkan is initialised inside the game, which
+already runs DXVK on the same GPU; off-screen pages are composited in software anyway),
+`<CefInProcessGpu>false</CefInProcessGpu>` moves the GPU service out of the game into a
+`CefSharp.BrowserSubprocess.exe --type=gpu-process` (default: a thread inside the game, no extra process to launch
+under Wine), `<CefFrameRate>30</CefFrameRate>` paints per second, `<CEFDevtool>true</CEFDevtool>` opens the remote
+debugger on port 9222 (http://localhost:9222), `<DebugMode>` also enables the V8 inspector of ClearScript.
 
-**Logs**: `logs\CEF.log` (our side: initialisation line with the Chromium/CEF/CefSharp versions, browser
-creation, page loads, page console output, `resourceCall`s), `logs\CEF-chromium.log` (Chromium's own log).
+**Logs**: `logs\CEF.log` (our side: initialisation lines with the Chromium/CEF/CefSharp versions and the exact
+Chromium switches, a line every 5 s while `Cef.Initialize` runs, browser creation, page loads, page console
+output, `resourceCall`s), `logs\CEF-chromium.log` (Chromium's own log, verbose in debug mode).
 
 ## Packaging
 
@@ -76,8 +81,10 @@ VC++ 2022 x64 runtime (C++/CLI parts) — both already installed by `setup-linux
   clicking work, `CEF.log` shows `CEF initialised: Chromium 151...`, `Browser created!`, the page loads with
   `200`, `resourceCall authSubmit` when the form is submitted, and Task Manager (or `ps` in the prefix) shows
   `CefSharp.BrowserSubprocess.exe` processes.
-* If Chromium refuses to start under Wine: try `<CefGpu>false</CefGpu>` (default), then check
-  `logs\CEF-chromium.log`; `--no-sandbox` is already implied by CefSharp.
+* If Chromium refuses to start under Wine: `CEF.log` shows how far `Cef.Initialize` got (heartbeat lines) and
+  `logs\CEF-chromium.log` where Chromium stopped; try `<CefInProcessGpu>false</CefInProcessGpu>` (separate GPU
+  process) and the Wine log of the game process (`play.sh --debug`, `~/steam-271590.log`, `seh:dispatch_exception`
+  lines of the game's pid). `--no-sandbox` is already implied by CefSharp.
 
 ## Risks
 

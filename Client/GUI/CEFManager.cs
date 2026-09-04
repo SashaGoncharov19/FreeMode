@@ -434,6 +434,12 @@ namespace GTANetwork.GUI
             {
                 settings.CefCommandLineArgs.Add("disable-gpu");
                 settings.CefCommandLineArgs.Add("disable-gpu-compositing");
+                // Chromium's display-compositor-only mode: the GPU service runs without any GL at all, so neither
+                // ANGLE (D3D11 on top of DXVK's d3d11.dll), SwiftShader nor a second Vulkan instance is ever
+                // initialised inside the game, which already runs DXVK on the same GPU. Off-screen pages are
+                // composited in software either way, so nothing is lost.
+                settings.CefCommandLineArgs.Add("use-gl", "disabled");
+                settings.CefCommandLineArgs.Add("disable-software-rasterizer");
             }
             settings.CefCommandLineArgs.Add("disable-gpu-vsync");
             settings.CefCommandLineArgs.Add("autoplay-policy", "no-user-gesture-required");
@@ -456,10 +462,23 @@ namespace GTANetwork.GUI
             if (inProcessGpu) settings.CefCommandLineArgs.Add("in-process-gpu");
             if (Main.EnableMediaStream) settings.CefCommandLineArgs.Add("enable-media-stream");
 
-            LogManager.CefLog("--> Cef.Initialize (" + (gpu ? "GPU rendering" : "software rendering") + ", " + (inProcessGpu ? "GPU service in-process" : "GPU process") +
-                              ", cache " + settings.CachePath + ")");
+            LogManager.CefLog("--> Cef.Initialize (" + (gpu ? "GPU rendering" : "software rendering, GL disabled") + ", " +
+                              (inProcessGpu ? "GPU service in-process" : "GPU process") + ", cache " + settings.CachePath + ")");
+            LogManager.CefLog("--> CEF switches: " + string.Join(" ", settings.CefCommandLineArgs.Select(
+                kv => "--" + kv.Key + (string.IsNullOrEmpty(kv.Value) ? "" : "=" + kv.Value))));
             var started = System.Diagnostics.Stopwatch.StartNew();
-            var ok = Cef.Initialize(settings, false, (IBrowserProcessHandler)null);
+            var returned = false;
+            bool ok;
+            // A line every 5 s while Chromium starts: when the game dies during Cef.Initialize, CEF.log at least tells
+            // how far into the start-up it got.
+            using (new System.Threading.Timer(_ =>
+            {
+                if (!returned) LogManager.CefLog("--> Cef.Initialize still running after " + started.Elapsed.TotalSeconds.ToString("0", CultureInfo.InvariantCulture) + " s");
+            }, null, 5000, 5000))
+            {
+                ok = Cef.Initialize(settings, false, (IBrowserProcessHandler)null);
+                returned = true;
+            }
             LogManager.CefLog("--> Cef.Initialize returned " + ok + " after " + started.ElapsedMilliseconds + " ms");
             _cefInitialised = ok;
 

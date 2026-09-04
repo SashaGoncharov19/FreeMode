@@ -36,8 +36,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   in-process (fewer Windows-only subsystems and subprocess launches under Wine); its own log
   `logs/CEF-chromium.log` is kept at Info level while the port is being verified. Creating a browser never
   blocks the script (and with it the game) while Chromium starts: the browser appears when Chromium is up, a
-  page requested before that is loaded then. `Runtime.log` records a clean `ProcessExit` to tell an exit from a
-  crash. Details, mapping and the performance plan (dirty rectangles, shared textures): `docs/CEF-UPGRADE.md`.
+  page requested before that is loaded then. Without `<CefGpu>` Chromium runs in its display-compositor-only
+  mode (`--use-gl=disabled --disable-software-rasterizer`): no ANGLE, D3D11, SwiftShader or Vulkan is ever
+  initialised inside the game, which shares its process with DXVK's own D3D11 and Vulkan; off-screen pages are
+  composited in software anyway. `Runtime.log` records a clean `ProcessExit` to tell an exit from a crash, and
+  `CEF.log` gets the exact Chromium switches plus a line every 5 s while `Cef.Initialize` runs, so a crash during
+  start-up can be placed in time. Details, mapping and the performance plan (dirty rectangles, shared textures):
+  `docs/CEF-UPGRADE.md`.
 * **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page
   (also as `gtan.call`/`gtan.eval`) but are one-way now: the page runs in another process, so there is no return
   value. `browser.call()`/`browser.eval()` from client scripts are unchanged. Local browsers only see
