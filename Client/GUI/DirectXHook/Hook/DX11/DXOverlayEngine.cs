@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using GTANetwork.GUI.DirectXHook.Hook.Common;
 using GTANetworkShared;
+using GTANetwork.Util;
 using SharpDX;
 using SharpDX.Direct3D11;
 using Device = SharpDX.Direct3D11.Device;
@@ -142,6 +143,8 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         /// <summary>
         /// Draw the overlay(s)
         /// </summary>
+        private int _framesDrawn;
+
         public void Draw()
         {
             if (!_initialised) return;
@@ -150,8 +153,11 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
             try
             {
+                if (_framesDrawn < 3) LogFrame();
+
                 DrawElements();
                 End();
+                _framesDrawn++;
             }
             finally
             {
@@ -159,6 +165,38 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
                 _renderTargetView = null;
                 _renderTarget?.Dispose();
                 _renderTarget = null;
+            }
+        }
+
+        /// <summary>The geometry of the first frames, for the log: viewport, back buffer and every element.</summary>
+        private void LogFrame()
+        {
+            try
+            {
+                var desc = _renderTarget.Description;
+                var text = "CEF overlay frame " + (_framesDrawn + 1) + ": back buffer " + desc.Width + "x" + desc.Height + " " + desc.Format + ", elements:";
+                lock (_hook._overlayLock)
+                {
+                    for (var o = 0; o < Overlays.Count; o++)
+                    {
+                        foreach (var element in Overlays[o].Elements)
+                        {
+                            var image = element as ImageElement;
+                            var textElement = element as TextElement;
+                            if (image != null)
+                                text += " [overlay " + o + " image at " + image.Location.X + "," + image.Location.Y + " " +
+                                        (image.Bitmap != null ? image.Bitmap.Width + "x" + image.Bitmap.Height : (image.NextBitmap != null ? "pending " + image.NextBitmap.Width + "x" + image.NextBitmap.Height : "no bitmap")) +
+                                        (image.Hidden ? " hidden" : "") + "]";
+                            else if (textElement != null)
+                                text += " [overlay " + o + " text \"" + textElement.Text + "\"" + (textElement.Hidden ? " hidden" : "") + "]";
+                        }
+                    }
+                }
+                LogManager.RuntimeLog(text);
+            }
+            catch (Exception ex)
+            {
+                LogManager.RuntimeLog("CEF overlay frame log failed: " + ex.Message);
             }
         }
 
@@ -200,15 +238,12 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
         {
             if (DeferredContext)
             {
+                // Device.ImmediateContext is a wrapper cached inside the SharpDX device: it must not be disposed
+                // (alpha.2 did, and every later frame worked on a released wrapper).
                 using (var commandList = _deviceContext.FinishCommandList(true))
-                using (var immediate = _device.ImmediateContext)
                 {
-                    immediate.ExecuteCommandList(commandList, true);
+                    _device.ImmediateContext.ExecuteCommandList(commandList, true);
                 }
-
-                // Drop the bindings (render target view, textures) the deferred context still holds, so that nothing
-                // of ours references the back buffer between two frames.
-                _deviceContext.ClearState();
             }
         }
 

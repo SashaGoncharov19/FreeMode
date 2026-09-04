@@ -56,6 +56,15 @@ was created, but `https://auth/ui/index.html` was "File does not exist" and noth
 * Diagnostics: `Runtime.log` gets `CEF overlay: initialised on swap chain 0x... (feature level, back buffer,
   context)`, `CEF.log` the first three paints of a browser.
 
+### Fixed in alpha.3: black screen after joining with alpha.2
+* alpha.2 disposed the SharpDX wrapper of the immediate device context after the first frame; that wrapper is
+  cached inside the device object, so from the second frame on the overlay worked on a released wrapper. Not
+  disposed any more. The `ClearState` on the deferred context after each frame is gone as well (back to the
+  alpha.1 behaviour, which rendered correctly).
+* Diagnostics: `Runtime.log` gets the geometry of the first three overlay frames (back buffer, every element with
+  position and size) and `[PROFILE] Present hook overlay: ... errors so far` every 10 s; exceptions of the
+  overlay go to `Error.log` (first five).
+
 ### Added
 * `GTANetworkShared.ResourceFileDownloader`: the manifest download shared by the game client and the headless
   bot (`--download-files <dir>`), so CI runs the same code as the game.

@@ -427,8 +427,8 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             else if (now - _presentCostWindowStart >= System.Diagnostics.Stopwatch.Frequency * 10)
             {
                 var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame",
-                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick));
+                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far",
+                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick, _presentErrors));
                 _presentCostTicks = 0;
                 _presentCostMax = 0;
                 _presentCostFrames = 0;
@@ -523,9 +523,13 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                     if (OverlayEngine != null)
                     {
                         DebugMessage("ManualPresentHook:13");
+                        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
                         foreach (var overlay in OverlayEngine.Overlays)
                             overlay.Frame();
                         OverlayEngine.Draw();
+
+                        RecordPresentCost(System.Diagnostics.Stopwatch.GetTimestamp() - started);
                         DebugMessage("ManualPresentHook:14");
                     }
                     // ---LOOP---
@@ -535,12 +539,14 @@ namespace GTANetwork.GUI.DirectXHook.Hook
                 catch (Exception e)
                 {
                     // If there is an error we do not want to crash the hooked application, so swallow the exception
-                    LogManager.DebugLog("PresentHook: Exeception: " + e.GetType().FullName + ": " + e.ToString());
-                    LogManager.LogException(e, "PresentHook");
+                    _presentErrors++;
+                    if (_presentErrors <= 5) LogManager.LogException(e, "PresentHook (CEF overlay), error " + _presentErrors);
                     //return unchecked((int)0x8000FFFF); //E_UNEXPECTED
                 }
             }
         }
+
+        private long _presentErrors;
 
         public DXOverlayEngine OverlayEngine;
 
