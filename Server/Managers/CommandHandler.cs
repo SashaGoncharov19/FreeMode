@@ -279,6 +279,7 @@ namespace GTANetworkServer
 
             foreach (var engine in res.Engines)
             {
+                if (engine.GetAssembly == null) continue; // a TypeScript engine: its commands are handled by the runtime through chatCommand
                 var info = engine.GetAssembly.GetType();
                 var methods = info.GetMethods();
                 foreach (var method in methods.Where(ifo => ifo.CustomAttributes.Any(att =>

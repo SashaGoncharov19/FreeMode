@@ -84,6 +84,7 @@ Second thread: `Server/Managers/Streamer.cs:18` `MainThread` (every 100 ms; reco
 | `Resources.cs` (524) | `StartResource` :26 (meta.xml, includes, ACL, file hashing into `FileModule.ExportedFiles`, C#/VB/JS split), `StopResource` :425, `GetAllClientsideScripts` :480. |
 | `ResourceInfo.cs` (864) | `ScriptingEngine` (:22; compiled assembly + `Invoke*` dispatchers :213–:645), `Resource`, and the meta.xml schema from :688. |
 | `Managers/ScriptCompiler.cs` | Roslyn in-memory compilation of C#/VB resources, `Assembly.Load(bytes)`. |
+| `Runtime/RuntimeBridge.cs`, `RuntimeProcess.cs`, `ApiDispatcher.cs`, `StateMirror.cs`, `BridgeCodec.cs` | The bridge to the Bun runtime for TypeScript server resources (D-09): process supervision, Unix-socket/TCP connection with a token handshake, `call` → `API` member by reflection with argument conversion, `event` frames from `ScriptingEngine` (typescript mode), 10 Hz player-state deltas, frame codec. |
 | `Managers/Streamer.cs` | Near/far recipient sets per client. |
 | `Managers/NetEntityHandler.cs` | Server entity registry, handles, `UpdateMovements`, `CreateWorld`. |
 | `Managers/FileServer.cs` | `HttpListener` on the game port (TCP): `GET /manifest.json`, `GET /<resource>/<path>` for declared `<file>`s; traversal guard. |
@@ -147,6 +148,7 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 | `Launcher/Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | Deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, logging, the `--debug` system monitor. |
 | `Tools/GTANetwork.Bot/Program.cs` | Options (`--host`, `--port`, `--name`, `--password`, `--say`, `--expect`, `--duration`, `--no-sync`, `--discover`, `--download-files`, `-i`), one Lidgren connection, the protocol handshake and sync loop, chat assertions. Also compiles `Shv.NET/ref/Core/NativeHashes.g.cs`. |
 | `Map2Resource/` | Map Editor XML → resource. |
+| `runtime/main.ts`, `bridge.ts`, `msgpack.ts`, `state.ts`, `resources.ts`, `gtan/index.ts`, `gtan/api.generated.d.ts` | The Bun runtime: connects to the engine, loads each TypeScript resource's `default function main(gtan)`, dispatches events and commands, mirrors player state, hot-reloads on file changes; `gtan.api` is typed from the generated declarations. Shipped as `runtime/` next to the server. |
 | `Tools/GTANetwork.BridgeBench/Program.cs`, `runtime/bench/bench.ts`, `eng/bench-bridge.sh` | The engine ⇄ Bun bridge benchmark (T-006 stage 1): frame protocol `u32 length + msgpack [type, id, name, payload]`, one-way/round-trip/state-mirror measurements over a Unix socket and loopback TCP. `runtime/.bun-version` pins Bun. |
 
 ## 8. Network protocol (server ⇄ client)

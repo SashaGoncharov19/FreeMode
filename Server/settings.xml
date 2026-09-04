@@ -24,5 +24,6 @@
   <!-- Accounts with a login form (resources/auth): uncomment to require /register and /login before playing. -->
   <!-- <resource src="auth" /> -->
   <resource src="freeroam" />
+  <resource src="tsdemo" />
   <resource src="example" />
 </config>

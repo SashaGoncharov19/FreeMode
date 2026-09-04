@@ -45,8 +45,8 @@ jobs:
           dotnet run --project Tools/GTANetwork.TypeGen -c Release -- \
             --client "$(ls Client/bin/Release/net*/GTANetwork.dll | head -1)" \
             --server "$(ls Server/bin/Release/net*/GTANetworkServer.dll | head -1)" \
-            --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types
-          git diff --exit-code -- types/ || { echo "types/ is stale: run Tools/GTANetwork.TypeGen (types/README.md) and commit the result"; exit 1; }
+            --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types --runtime-lib runtime/gtan
+          git diff --exit-code -- types/ runtime/gtan/api.generated.d.ts || { echo "types/ is stale: run Tools/GTANetwork.TypeGen (types/README.md) and commit the result"; exit 1; }
 
       - uses: oven-sh/setup-bun@v2
         with:

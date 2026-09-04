@@ -1,4 +1,5 @@
 using System;
+using GTANetworkServer.Runtime;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -187,6 +188,8 @@ namespace GTANetworkServer
         public Dictionary<int, List<Client>> VehicleOccupants = new Dictionary<int, List<Client>>();
 
         public NetEntityHandler NetEntityHandler { get; set; }
+        /// <summary>The bridge to the Bun runtime; created by the first resource with TypeScript server scripts (Server/Runtime).</summary>
+        internal RuntimeBridge Runtime;
 
         public bool AllowDisplayNames { get; set; }
 
@@ -578,6 +581,8 @@ namespace GTANResource
                     }
 
                     ColShapeManager.Shutdown();
+                    Runtime?.Dispose();
+                    Runtime = null;
                     //FileServer.Dispose(); //Causes nullref on server termination
                     if (UseUPnP) Server.UPnP?.DeleteForwardingRule(Port);
                 }
@@ -586,6 +591,8 @@ namespace GTANResource
                 ReadyToClose = true;
                 return;
             }
+
+            Runtime?.Tick();
 
             if (Downloads.Count > 0)
             {

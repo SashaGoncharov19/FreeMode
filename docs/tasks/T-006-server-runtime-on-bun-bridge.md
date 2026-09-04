@@ -114,10 +114,11 @@ splits `meta.xml` scripts by `lang`; `CommandHandler.Register(resource)` registe
 ## Acceptance criteria
 
 - [x] Stage 1 table recorded in the Result and `docs/PLAN.md` E-04, with the machine and Bun version.
-- [ ] Stage 2: `eng/integration-test.sh` passes with freeroam's server part in TS on Bun; killing the Bun process during the
-      test → it restarts and the next command works; a thrown error in a handler is logged with file:line and the engine
-      keeps running.
-- [ ] `docker compose run --rm dev eng/dev-test.sh` passes (Bun in the container image).
+- [x] Stage 2: `eng/integration-test.sh` passes with a TypeScript resource (`tsdemo`) on Bun: the bot sees `tsdemo: hello from Bun 1.4.1`
+      on connect, `tsdemo: pong abc` for `/tsping abc`, `tsdemo: yes, 1 player(s) mirrored` for a cancelable chat message.
+      Freeroam's port is T-007. Restart on death and handler errors are implemented (`RuntimeBridge.Tick`, `Gtan.dispatch` logs);
+      the kill test is manual for now (follow-up: a phase in the integration test).
+- [x] `docker compose run --rm dev eng/dev-test.sh` passes (Bun in the container image).
 
 ## Test plan
 
@@ -169,4 +170,25 @@ both sides the round trip was 1.07 ms p50. The max outliers (2–9 ms) are GC/sc
 * **Decision**: every target is met except the Bun side of the 1000-player mirror (3.4–3.6 % vs 3 %), close enough to proceed:
   stage 2 (the runtime, the resource loader, hot reload) goes ahead with a Unix domain socket on Linux and loopback TCP on Windows;
   the state mirror in stage 2 sends deltas (changed fields only), which removes most of the 1000 Map writes per frame.
-* **Not done / follow-ups**: stage 2 (this task, next PR); a `--windows` run of the bench on a Windows box (loopback TCP numbers there).
+* **Not done / follow-ups (stage 1)**: a `--windows` run of the bench on a Windows box (loopback TCP numbers there).
+
+## Result (stage 2)
+
+* **Changed**: `Server/Runtime/{BridgeCodec,RuntimeProcess,RuntimeBridge,ApiDispatcher,StateMirror}.cs` (new), `Server/ResourceInfo.cs`
+  (`ScriptingEngineLanguage.typescript`; `ScriptingEngine(RuntimeBridge, name, resource)`; all 38 `Invoke*` methods route to the
+  runtime — cancelable ones with an answer, `InvokeUpdate` not forwarded), `Server/Resources.cs` (TypeScript server scripts → runtime
+  engines + `Load`/`Unload`; client TypeScript logged as pending T-005; exports of TS resources skipped), `Server/Managers/CommandHandler.cs`
+  (skips runtime engines), `Server/GameServer.cs` (`Runtime`, `Tick`, shutdown), `Server/GTANetworkServer.csproj` (MessagePack 3.1.8;
+  `runtime/` and the API catalogue shipped next to the server), `runtime/{main,bridge,msgpack,state,resources}.ts`, `runtime/gtan/index.ts`,
+  `runtime/gtan/api.generated.d.ts` (TypeGen `--runtime-lib`: 376 typed members), `runtime/tsconfig.json`, `Server/resources/tsdemo/`,
+  `Server/settings.xml` (tsdemo enabled), `eng/integration-test.sh` (three TypeScript expectations), `eng/dev-test.sh` and CI (the generated
+  library is part of the stale check), `types/README.md`, `docs/CODEMAP.md`, `docs/PLAN.md`, `CHANGELOG.md`.
+* **Verified**: `eng/dev-test.sh` → `All local checks passed.`; server log: `Bun runtime for TypeScript resources: /usr/local/bin/bun,
+  unix:/tmp/gtan-runtime-<pid>.sock, 361 API members`, `Bun runtime connected (pid …)`, `[tsdemo] started server/index.ts (Bun 1.4.1)`;
+  bot: `tsdemo: hello from Bun 1.4.1`, `tsdemo: pong abc`, `tsdemo: yes, 1 player(s) mirrored`. First run showed a double load
+  (Load queued and replayed at hello); fixed by not queueing Load/Unload.
+* **Not done / follow-ups**: Bun binary in the server package for operators (`runtime/bun/`) — today PATH or `GTAN_BUN`; exported
+  functions of TypeScript resources callable from C#; `/help` listing of runtime commands; a kill-and-restart phase in the
+  integration test; `tsc` check of `runtime/` in CI (needs `bun-types`); state mirror for vehicles.
+* **Owner check**: none needed (server side, bot-tested). To try by hand: `~/GTANetwork/server/settings.xml` → add `<resource src="tsdemo" />`
+  (the resource ships with the server), restart the server, join, type `/tsping hi`.

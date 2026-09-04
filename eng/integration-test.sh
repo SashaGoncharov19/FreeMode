@@ -34,7 +34,7 @@ grep -q "Started! Waiting for connections." "$server_dir/it-server.log" || { ech
 
 set +e
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name CIBot --discover \
-  --say "/help" --say "/players" --say "/veh adder" --say "/pos" --say "/weapon carbinerifle 250" --say "hello from the bot" --say "/nonexistent" \
+  --say "/help" --say "/players" --say "/veh adder" --say "/pos" --say "/weapon carbinerifle 250" --say "hello from the bot" --say "/nonexistent" --say "/tsping abc" --say "tsdemo?" \
   --expect "Welcome to GTA Network freeroam" \
   --expect "/veh [model]" \
   --expect "Online (1): CIBot" \
@@ -42,6 +42,9 @@ set +e
   --expect "Given CarbineRifle with 250 rounds" \
   --expect "CIBot: hello from the bot" \
   --expect "Command not found" \
+  --expect "hello from Bun" \
+  --expect "tsdemo: pong abc" \
+  --expect "tsdemo: yes" \
   --duration 3 --timeout 60 | tee "$server_dir/it-bot.log"
 rc=${PIPESTATUS[0]}
 set -e
