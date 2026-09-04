@@ -33,8 +33,9 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   Proton whatever the switches (details and the reproduction: `docs/CEF-UPGRADE.md`, `eng/cef-harness.sh`).
   The runtime (~350 MB) lives in `<install>/cef` and comes from NuGet; `libs/cef` and `libs/Xilium.CefGlue.dll`
   left the repository (144 MB). Settings: `<CefGpu>` (GPU in the host, default off = software rendering),
-  `<CefFrameRate>` (default 30), `<CEFDevtool>` (remote debugger on port 9222), `<CefInProcessGpu>` (GPU service
-  inside the host, default true; false = a further GPU process). Chromium runs with the Alloy runtime style, without
+  `<CefFrameRate>` (default 60), `<CEFDevtool>` (remote debugger on port 9222), `<CefInProcessGpu>` (GPU service
+  inside the host, default true; false = a further GPU process), `<CefSharedTexture>` (frames as D3D11 shared
+  textures with the GPU on, default true), `<CefIdleExitSeconds>` (stop the host without browsers, default 60). Chromium runs with the Alloy runtime style, without
   DirectComposition, window occlusion tracking, renderer code integrity, extensions, background networking and
   component updates, with the network service in-process and, without `<CefGpu>`, in display-compositor-only mode
   (`--use-gl=disabled --disable-software-rasterizer`). It is kept small: one renderer process for all pages
@@ -43,8 +44,8 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   processes (host, renderer, storage service) instead of eight. Under Proton the host runs without Wine tracing
   even when the game has it (`WINEDEBUG=-all`; `GTAN_CEF_WINEDEBUG` overrides). The host starts when a connection
   to a server is initiated, so a page opened on join is drawn at once. Logs: `logs/CEF.log` (game side),
-  `logs/CEF-host.log` (the host), `logs/CEF-chromium.log` (Chromium). If the host dies mid-session the browsers
-  freeze until the next game session.
+  `logs/CEF-host.log` (the host), `logs/CEF-chromium.log` (Chromium). If the host dies mid-session a new one is started
+  (below).
 * **Browser frames**: the host publishes only the changed rectangle of each paint; the game copies just that into a
   staging image and uploads it into one persistent texture (no bitmap and no texture re-creation per frame, as
   before); a frame is on screen within a few milliseconds. Browsers paint at 60 fps by default (`<CefFrameRate>`).
@@ -61,6 +62,17 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   Linux installs). Wine maps a DLL from disk only with page-aligned sections; Chromium's are linked with a 512-byte
   file alignment, so Wine used to read `libcef.dll` (272 MB) into every process separately. Chromium's resident memory
   for an idle page: 2.9 GB in alpha.5 → 0.86 GB (1.12 GB with the GPU on).
+* **Chromium leaves when it is not needed**: with no browser open for `<CefIdleExitSeconds>` (default 60; 0 = keep it)
+  the game stops the browser host, giving Chromium's ~0.9 GB back to a machine that may be short of it; the next
+  browser a resource creates starts a fresh host (a second or so). A host that dies mid-session no longer freezes
+  browsers for the rest of the session either: a new host is started and the open browsers are created again on it
+  with their pages (three times per session at most).
+* **Hitch diagnostics**: a frame that takes longer than 50 ms is logged in `logs/Runtime.log` as `[HITCH]` with the
+  millisecond, how much of it our overlay took, garbage collections and browser frames around it, so a freeze can be
+  told apart from the game's own stalls (ScriptHookVDotNet's log has the script side). The 10-second overlay profile in
+  debug mode counts frames over 33/50/100 ms. On Linux the launcher's `--debug` also writes `logs/hitch-monitor.log`:
+  one line per second with swap traffic, memory-pressure stall time, GTA5.exe page faults and memory, Chromium's
+  memory, CPU and GPU clocks and temperatures, to match against the hitch lines.
 * **Keyboard in pages**: Caps Lock no longer types a character; modifier, lock, function and navigation keys and
   Ctrl+letter shortcuts send no text; Caps Lock state goes through the keyboard layout (Shift+Caps Lock = lowercase).
 * **Page ↔ script bridge**: `resourceCall(name, ...args)` and `resourceEval(code)` still exist in every page

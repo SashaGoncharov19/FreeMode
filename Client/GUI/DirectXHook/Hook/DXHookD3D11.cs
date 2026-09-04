@@ -404,9 +404,16 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             return DXGISwapChain_PresentHook.Original(swapChainPtr, syncInterval, flags);
         }
 
-        // Cost of the overlay work inside Present (render thread), summarised every 10 s in Runtime.log:
-        // this is the part of the frame the script profiler cannot see.
+        // Cost of the overlay work inside Present (render thread), summarised every 10 s in Runtime.log (debug mode):
+        // this is the part of the frame the script profiler cannot see. The time between two Presents is the frame
+        // the player sees; a frame longer than HitchMs is a hitch, and the [HITCH] line (always on, at most one per
+        // second) says what our side was doing in it — overlay cost, garbage collections, browser frames — so a
+        // freeze can be told apart from the game's own stalls (shader compilation, streaming, swap). SHVDN's log has
+        // the script side ("held the game thread for N ms"), the launcher's hitch-monitor.log the machine's.
         private long _presentCostTicks, _presentCostMax, _presentCostFrames, _presentCostWindowStart;
+        private long _lastPresent, _worstInterval, _hitchLastLogged;
+        private int _framesOver33, _framesOver50, _framesOver100, _gc0, _gc1, _gc2;
+        private const double HitchMs = 50;
 
         private void RecordPresentCost(long ticks)
         {
@@ -415,19 +422,48 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             if (ticks > _presentCostMax) _presentCostMax = ticks;
 
             var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (_lastPresent != 0)
+            {
+                var interval = now - _lastPresent;
+                if (interval > _worstInterval) _worstInterval = interval;
+                var ms = interval * msPerTick;
+                if (ms > 33) _framesOver33++;
+                if (ms > 50) _framesOver50++;
+                if (ms > 100) _framesOver100++;
+                if (ms > HitchMs && now - _hitchLastLogged > System.Diagnostics.Stopwatch.Frequency)
+                {
+                    _hitchLastLogged = now;
+                    var gc0 = GC.CollectionCount(0);
+                    var gc1 = GC.CollectionCount(1);
+                    var gc2 = GC.CollectionCount(2);
+                    LogManager.RuntimeLog(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "[HITCH] {0}: frame took {1:F0} ms (our overlay {2:F2} ms of it; GC gen0/1/2 since the previous line {3}/{4}/{5}; browser frames in the last second {6}, browsers {7})",
+                        DateTime.Now.ToString("HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture), ms, ticks * msPerTick,
+                        gc0 - _gc0, gc1 - _gc1, gc2 - _gc2, CEFManager.FrameEventsLastSecond, CEFManager.BrowserCount));
+                    _gc0 = gc0;
+                    _gc1 = gc1;
+                    _gc2 = gc2;
+                }
+            }
+            _lastPresent = now;
+
             if (_presentCostWindowStart == 0)
             {
                 _presentCostWindowStart = now;
             }
             else if (now - _presentCostWindowStart >= System.Diagnostics.Stopwatch.Frequency * 10)
             {
-                var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                LogManager.VerboseLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far",
-                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick, _presentErrors));
+                LogManager.VerboseLog(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far; frames over 33/50/100 ms: {4}/{5}/{6}, longest {7:F0} ms",
+                    _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick, _presentErrors,
+                    _framesOver33, _framesOver50, _framesOver100, _worstInterval * msPerTick));
                 _presentCostTicks = 0;
                 _presentCostMax = 0;
                 _presentCostFrames = 0;
                 _presentCostWindowStart = now;
+                _framesOver33 = _framesOver50 = _framesOver100 = 0;
+                _worstInterval = 0;
             }
         }
 

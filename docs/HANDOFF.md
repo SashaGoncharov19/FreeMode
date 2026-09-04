@@ -43,9 +43,10 @@ rendering can only be verified in game by the owner.
   crashed (below). No PR open, no alpha.6 yet.
 * **Verified in game by the owner (4 Sept)**: the browser host starts on connect, the `auth` login form
   appears, typing/clicking work, the account registers ("все ідеально працює"). The GPU path with shared
-  textures also drew the form, but the inputs lagged — root cause and fix in the seventh step below; **that fix
-  is synced into `~/GTANetwork` and awaits the owner's next in-game run.** Memory: the page-alignment fix
-  (sixth step) is in the same install.
+  textures also drew the form, but the inputs lagged — root cause and fix in the seventh step below; the fixed
+  build then ran in game: "works adequately", with occasional micro-freezes the owner wants attributed (eighth
+  step). **Synced into `~/GTANetwork` and awaiting the owner's next run**: the hitch diagnostics, the idle exit
+  of the browser host, and the launcher republished with the system monitor.
 * Everything else is verified outside the game: `eng/cef-harness.sh` passes in both frame modes
   (shared memory and the shared-texture ring, with latency numbers), `eng/dev-test.sh` (the Linux CI checks)
   passes.
@@ -180,9 +181,33 @@ the game re-creates the browser with CPU frames). The game (`SharedTextureSurfac
 goes; the time-based eviction is gone. Harness: `--shared-texture` passes (4 stable handles, read-back OK),
 `--shared-texture --bench 8 --size 1280x720`: 60 texture events/s, 60 copies/s at 0.020 ms, host 5 % CPU; the
 harness now measures **latency** from an `eval` to the frame showing it: 8.2–8.7 ms median over the ring, 3.1 ms
-over shared memory (software) for a 420x480 page. Host process: 210 MB PSS with the extra device. **Awaiting the
-owner's in-game run** (`CEF.log` in debug mode: "Texture ring 420x480: 0x…", then "Texture frame …"; `CEF-host.log`:
-"texture relay: D3D11 …", "shared texture ring …"; no "shared textures unavailable").
+over shared memory (software) for a 420x480 page. Host process: 210 MB PSS with the extra device. Ran in game (21:19–21:23):
+`CEF.log` "Texture ring 420x480: 0x248C, …", no fallback; the owner: "все працює адекватно".
+
+**Eighth step (4 Sept, night): micro-freezes — whose?** The owner saw occasional micro-freezes while playing and wants
+to know whether they are ours. The logs of that session (`--debug`) say no: after the connect burst (resource start,
+JS engine, host start: Main 118 ms, MessagePump 178 ms, JavascriptHook 338 ms — one-off, at 21:20:59–21:21:00) no
+script tick exceeded 17.5 ms in 2.5 minutes of play (SHVDN logs every tick ≥ 20 ms as "held the game thread"); the
+overlay took ≤ 0.9 ms per frame; the browser was closed after login (21:21:19), so Chromium sat idle for the whole
+gameplay; no managed exception reached `Error.log`; DXVK's "Failed to open shared NT handle" warnings in the Wine log
+sit next to D3D11 *device creation* lines of GTA5.exe and Rockstar's launcher (a DXVK 3.0 init probe), not near our
+texture opens. What did move: the machine swapped — 457 MB swapped *in* and 1.7 GB out between 20:55 and 21:30 with 4 GB
+in swap, memory-pressure stall time growing (`/proc/pressure/memory`); Firefox (2.5 GB), Claude Desktop (1.1 GB) and
+Steam (0.6 GB) hold the rest of the 15 GB next to GTA V. Swap-ins during play are the classic micro-freeze; DXVK
+pipeline compilation (DXVK 3.0.2, "Found cache file") and the game's streaming are the other usual suspects. Since a
+log can only *exonerate* per hitch, the tooling now does that: the Present hook logs every frame over 50 ms as
+`[HITCH]` in `Runtime.log` (millisecond timestamp, our overlay's share, GC gen0/1/2 counts, browser frames in the last
+second, browsers open; the debug-mode 10 s profile counts frames over 33/50/100 ms), and the launcher's `--debug` on
+Linux runs `Launcher/HitchMonitor.cs`: one line per second in `logs/hitch-monitor.log` with swap in/out, memory-stall
+ms, MemAvailable, GTA5.exe RSS/swapped/major faults, Chromium RSS, CPU busy/MHz/°C, GPU MHz/°C/busy/throttle reasons.
+Reading a hitch: `[HITCH] 21:22:14.302: frame took 180 ms (our overlay 0.10 ms …)` + the monitor's 21:22:14 line
+with `swap in 40000 KB/s` or `mem stall 300 ms` = the machine; a GPU clock drop = thermals; nothing moved and SHVDN
+has no "held the game thread" at that second = the game (shaders, streaming). Also done, as the memory mitigation
+that is ours to make: `<CefIdleExitSeconds>` (default 60) — the game stops the browser host when no browser has
+existed for a minute (Chromium's ~0.9 GB go back), and the next browser starts a fresh host (~1 s); a host that dies
+mid-session is replaced too: the open browsers are created again on a new host with their pages (three restarts per
+session at most — plan item "host robustness", done). `CEF.log` shows "No browser for 60 s: stopping the browser host …" and later
+"Starting the browser host" again when a page opens.
 
 ## How to test in game (what to ask the owner for)
 
@@ -229,9 +254,10 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-1. **In-game verification of the shared-texture ring** by the owner (seventh step): typing in the login form must
-   react at once, no "shared textures unavailable" in `CEF.log`. If the GPU path still misbehaves,
-   `<CefGpu>false</CefGpu>` is the safe setting (software frames, 3 ms latency in the harness). Then cut
+1. **In-game run by the owner** with the eighth-step build: (a) hitches — read `[HITCH]` lines in `Runtime.log`
+   against `hitch-monitor.log` (with `play.sh --debug`) and SHVDN's log, as described above; (b) the idle exit —
+   after login the host must stop a minute later ("No browser for 60 s" in `CEF.log`) and a later page must start it
+   again and show. If the GPU path misbehaves, `<CefGpu>false</CefGpu>` is the safe setting. Then cut
    `v0.2.0-alpha.6` via the `build.yml` workflow_dispatch **only when the owner asks**.
 2. **Make the harness a CI gate**: the Windows job can run `CefHarness.exe --host <package>\cef\GTANetwork.CefHost.exe`
    against the assembled package — the acceptance test for the browser without a game.
@@ -246,8 +272,8 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
    set (`--disable-sync --metrics-recording-only --disable-domain-reliability
    --disable-client-side-phishing-detection`, matching `--disable-features`) to `Shared/CefLaunch.cs` and
    re-run the harness.
-5. **Host robustness**: if the host dies mid-session, browsers freeze until the next game session
-   (`CEFManager` logs it); a restart on demand would be nicer.
+5. ~~**Host robustness**~~ — done (eighth step): a dead host is replaced and its browsers re-created, three times per
+   session at most; the idle exit reuses the same path.
 6. Then the roadmap: client on modern .NET, Linux GUI launcher (Avalonia), CEF connect/loading screen.
 
 ## Hard rules (do not break)
@@ -275,7 +301,8 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 | Script engine bridge | `Client/Javascript/JavascriptHook.cs` (ClearScript, `createCefBrowser`, `waitUntilCefBrowserInit`, `loadPageCefBrowser`) |
 | Harness | `Tools/CefHarness/Program.cs` (in-process modes), `Tools/CefHarness/HostTest.cs` (host protocol test), `eng/cef-harness.sh` |
 | Resource file download | `Shared/ResourceFiles.cs` (`TryGetLocalPath`, used by the host too), `Client/Main/Network/Download.cs` |
-| Settings | `Shared/PlayerSettings.cs` (`CefGpu`, `CefInProcessGpu`, `CefFrameRate`, `CefPreload`, `CEFDevtool`, `DebugMode`) |
+| Settings | `Shared/PlayerSettings.cs` (`CefGpu`, `CefSharedTexture`, `CefInProcessGpu`, `CefFrameRate`, `CefPreload`, `CefIdleExitSeconds`, `CEFDevtool`, `DebugMode`) |
+| Hitch diagnostics | `Client/GUI/DirectXHook/Hook/DXHookD3D11.cs` (`RecordPresentCost`: `[HITCH]` lines), `Launcher/HitchMonitor.cs` (`--debug` system monitor) |
 | Build / packaging | `Directory.Build.props` (`CefSharpVersion`, `ClearScriptVersion`), `eng/package-client.ps1`, `eng/setup-linux.sh`, `Launcher/Deployment.cs` |
 | Dev loop | `.devcontainer/`, `docker-compose.yml`, `eng/dev-build-client.sh`, `eng/dev-sync-client.sh`, `eng/dev-test.sh`, `eng/cef-harness.sh` |
 | Docs | `docs/ROADMAP.md`, `docs/CEF-UPGRADE.md`, `docs/DEVCONTAINER.md`, `docs/SYNC.md`, `CHANGELOG.md` |

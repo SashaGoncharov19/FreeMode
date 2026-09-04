@@ -281,6 +281,9 @@ namespace GTANetwork.GUI
         private static readonly ManualResetEvent StopPump = new ManualResetEvent(false);
         private static bool _cefInitialised;
         private static bool _startAttempted;
+        private static System.Threading.Timer _idleTimer;
+        private static int _hostRestarts;
+        private static int _frameEventSecond, _frameEventsThisSecond, _frameEventsPreviousSecond;
         private static string _cefDirectory;
         private static int _nextBrowserId;
         private static int _sendErrorsLogged;
@@ -387,8 +390,9 @@ namespace GTANetwork.GUI
             host.EnableRaisingEvents = true;
             host.Exited += (sender, e) => OnHostExited(host);
 
-            _channel = new CefHostChannel(host.StandardOutput.BaseStream, host.StandardInput.BaseStream);
-            _reader = new Thread(ReadEvents) { IsBackground = true, Name = "GTAN CEF host events" };
+            var channel = new CefHostChannel(host.StandardOutput.BaseStream, host.StandardInput.BaseStream);
+            _channel = channel;
+            _reader = new Thread(() => ReadEvents(channel)) { IsBackground = true, Name = "GTAN CEF host events" };
             _reader.Start();
             _stderr = new Thread(() => ReadStderr(host)) { IsBackground = true, Name = "GTAN CEF host stderr" };
             _stderr.Start();
@@ -403,12 +407,12 @@ namespace GTANetwork.GUI
             else args.Append(value);
         }
 
-        private static void ReadEvents()
+        private static void ReadEvents(CefHostChannel channel)
         {
             try
             {
                 CefHostMessage message;
-                while ((message = _channel.Receive()) != null)
+                while ((message = channel.Receive()) != null)
                 {
                     try
                     {
@@ -427,7 +431,7 @@ namespace GTANetwork.GUI
             }
             finally
             {
-                HostGone();
+                HostGone(channel);
             }
         }
 
@@ -467,10 +471,42 @@ namespace GTANetwork.GUI
                     return;
             }
 
+            if (m.Type == CefHostProtocol.Frame || m.Type == CefHostProtocol.Texture) CountFrameEvent();
+
             Browser browser;
             lock (ById) ById.TryGetValue(m.Id, out browser);
             if (browser != null) browser.OnHostEvent(m);
             else if (m.Type != CefHostProtocol.Closed && m.Type != CefHostProtocol.Loading) LogManager.VerboseCefLog("-> Event " + m.Type + " for unknown browser " + m.Id);
+        }
+
+        // For the overlay's [HITCH] lines: how busy the browser side was around a long frame (event thread writes,
+        // render thread reads; a stale value now and then is fine).
+        private static void CountFrameEvent()
+        {
+            var second = Environment.TickCount / 1000;
+            if (second != _frameEventSecond)
+            {
+                _frameEventsPreviousSecond = second == _frameEventSecond + 1 ? _frameEventsThisSecond : 0;
+                _frameEventsThisSecond = 0;
+                _frameEventSecond = second;
+            }
+            _frameEventsThisSecond++;
+        }
+
+        /// <summary>Browser frames (shared-memory or texture events) received in roughly the last second.</summary>
+        internal static int FrameEventsLastSecond
+        {
+            get
+            {
+                var second = Environment.TickCount / 1000;
+                if (second == _frameEventSecond) return _frameEventsThisSecond + _frameEventsPreviousSecond;
+                return second == _frameEventSecond + 1 ? _frameEventsThisSecond : 0;
+            }
+        }
+
+        internal static int BrowserCount
+        {
+            get { lock (ById) return ById.Count; }
         }
 
         private static void Fail(string reason)
@@ -500,13 +536,37 @@ namespace GTANetwork.GUI
             LogManager.CefLog("--> The browser host exited with code " + code);
         }
 
-        private static void HostGone()
+        private static void HostGone(CefHostChannel channel)
         {
-            var wasUp = _cefInitialised;
-            _cefInitialised = false;
-            StopPump.Set();
-            if (wasUp) LogManager.CefLog("--> The browser host is gone; browsers are frozen until the next game session");
-            SignalReady();
+            lock (InitLock)
+            {
+                // A channel we closed ourselves (idle exit, game exit) or one of an earlier host: nothing to do.
+                if (channel != _channel) return;
+                var wasUp = _cefInitialised;
+                _cefInitialised = false;
+                StopPump.Set();
+                if (wasUp) LogManager.CefLog("--> The browser host is gone");
+                // Forget it, so the next browser starts a fresh host; browsers still waiting for a "ready" stay queued.
+                _host = null;
+                _channel = null;
+                _startAttempted = false;
+                _framePump = null;
+                CefReady.Reset();
+            }
+
+            // Browsers that were showing pages are created again on a new host, a few times per session at most (a
+            // host that dies at once every time would otherwise restart forever).
+            Browser[] open;
+            lock (ById) open = ById.Values.ToArray();
+            if (open.Length == 0) return;
+            var restarts = Interlocked.Increment(ref _hostRestarts);
+            if (restarts > 3)
+            {
+                LogManager.CefLog("--> Not starting another browser host (3 restarts this session); " + open.Length + " browser(s) stay frozen");
+                return;
+            }
+            LogManager.CefLog("--> Starting a new browser host for " + open.Length + " open browser(s) (restart " + restarts + " of 3 this session)");
+            foreach (var browser in open) browser.Reattach();
         }
 
         /// <summary>Sends a command to the host; silently dropped when the host is not there (CEF disabled or gone).</summary>
@@ -532,11 +592,92 @@ namespace GTANetwork.GUI
         internal static void Register(Browser browser)
         {
             lock (ById) ById[browser.Id] = browser;
+            lock (InitLock)
+            {
+                _idleTimer?.Dispose();
+                _idleTimer = null;
+            }
         }
 
         internal static void Unregister(Browser browser)
         {
-            lock (ById) ById.Remove(browser.Id);
+            int left;
+            lock (ById)
+            {
+                ById.Remove(browser.Id);
+                left = ById.Count;
+            }
+            if (left == 0) ScheduleIdleExit();
+        }
+
+        /// <summary>
+        /// No browser is left: unless &lt;CefIdleExitSeconds&gt; is 0, stop the host (Chromium's processes, ~0.9 GB of a
+        /// 15 GB machine) after that many seconds without one. The next browser starts a fresh host (a second or so).
+        /// </summary>
+        private static void ScheduleIdleExit()
+        {
+            var seconds = Main.PlayerSettings != null ? Main.PlayerSettings.CefIdleExitSeconds : 60;
+            if (seconds <= 0) return;
+            lock (InitLock)
+            {
+                if (_host == null) return;
+                _idleTimer?.Dispose();
+                _idleTimer = new System.Threading.Timer(_ => IdleExit(seconds), null, seconds * 1000, Timeout.Infinite);
+            }
+        }
+
+        private static void IdleExit(int seconds)
+        {
+            Process host;
+            CefHostChannel channel;
+            lock (InitLock)
+            {
+                _idleTimer?.Dispose();
+                _idleTimer = null;
+                lock (ById) if (ById.Count > 0) return;
+                host = _host;
+                channel = _channel;
+                if (host == null) return;
+                LogManager.CefLog("--> No browser for " + seconds + " s: stopping the browser host to give Chromium's memory back; the next browser starts it again");
+                ResetHostState();
+            }
+            StopHost(host, channel);
+        }
+
+        /// <summary>Forget the current host (under InitLock): a later browser starts a new one.</summary>
+        private static void ResetHostState()
+        {
+            _host = null;
+            _channel = null;
+            _startAttempted = false;
+            _cefInitialised = false;
+            _framePump = null;
+            CefReady.Reset();
+            StopPump.Set();
+        }
+
+        private static void StopHost(Process host, CefHostChannel channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    try { channel.Send(new CefHostMessage(CefHostProtocol.Shutdown)); } catch { }
+                }
+                if (!host.WaitForExit(3000))
+                {
+                    LogManager.CefLog("--> The browser host did not exit in 3 s; killing it");
+                    host.Kill();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.CefLog(ex, "CEF HOST SHUTDOWN");
+            }
+            finally
+            {
+                channel?.Dispose();
+            }
         }
 
         /// <summary>Starts CEF if needed and waits until it is up (or has definitely failed).</summary>
@@ -601,7 +742,8 @@ namespace GTANetwork.GUI
         private static void FramePump()
         {
             var errorsLogged = 0;
-            while (!StopPump.WaitOne(4))
+            var me = Thread.CurrentThread;
+            while (!StopPump.WaitOne(4) && _framePump == me)
             {
                 Browser[] snapshot;
                 lock (Browsers) snapshot = Browsers.ToArray();
@@ -626,39 +768,15 @@ namespace GTANetwork.GUI
             CefHostChannel channel;
             lock (InitLock)
             {
+                _idleTimer?.Dispose();
+                _idleTimer = null;
                 host = _host;
                 channel = _channel;
-                _host = null;
-                _channel = null;
-                _startAttempted = false;
-                _cefInitialised = false;
-                _framePump = null;
-                CefReady.Reset();
+                ResetHostState();
             }
-            StopPump.Set();
+            lock (ById) ById.Clear();
             if (host == null) return;
-
-            try
-            {
-                if (channel != null)
-                {
-                    try { channel.Send(new CefHostMessage(CefHostProtocol.Shutdown)); } catch { }
-                }
-                if (!host.WaitForExit(3000))
-                {
-                    LogManager.CefLog("--> The browser host did not exit in 3 s; killing it");
-                    host.Kill();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogManager.CefLog(ex, "CEF HOST SHUTDOWN");
-            }
-            finally
-            {
-                channel?.Dispose();
-                lock (ById) ById.Clear();
-            }
+            StopHost(host, channel);
         }
 
         internal static void Dispose()
@@ -933,6 +1051,24 @@ namespace GTANetwork.GUI
             CEFManager.Send(new CefHostMessage(CefHostProtocol.Create, Id) { W = _size.Width, H = _size.Height, Local = _localMode, Fps = fps, Shared = false });
             var url = _lastUrl;
             if (url != null) CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = url });
+        }
+
+        /// <summary>The host died: create this browser again on the next host and reload its page.</summary>
+        internal void Reattach()
+        {
+            if (_closed) return;
+            _created = false;
+            _render?.DropSharedTexture(); // the old host's textures are gone; the new host announces its own ring
+            CEFManager.RunWhenReady(() =>
+            {
+                if (_closed) return;
+                var fps = Main.PlayerSettings != null && Main.PlayerSettings.CefFrameRate > 0 ? Math.Min(60, Main.PlayerSettings.CefFrameRate) : 60;
+                var shared = CEFManager.WantSharedTextures;
+                LogManager.CefLog("--> Browser " + Id + ": creating again on the new host" + (shared ? " (shared textures)" : ""));
+                CEFManager.Send(new CefHostMessage(CefHostProtocol.Create, Id) { W = _size.Width, H = _size.Height, Local = _localMode, Fps = fps, Shared = shared });
+                var url = _lastUrl;
+                if (url != null) CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = url });
+            });
         }
 
         internal void OnHostEvent(CefHostMessage m)

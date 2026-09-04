@@ -36,6 +36,9 @@ namespace GTANetworkShared
         /// <summary>With <see cref="CefGpu"/>: pages arrive as D3D11 shared textures copied GPU-side into the overlay instead of
         /// CPU frames through shared memory (default true; the client falls back by itself if a texture cannot be opened).</summary>
         public bool CefSharedTexture { get; set; }
+        /// <summary>Stop the browser host (Chromium, ~0.9 GB) when no browser has existed for this many seconds; it starts again
+        /// with the next browser a resource creates (a second or so). 0 keeps it for the whole session (default 60).</summary>
+        public int CefIdleExitSeconds { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -85,6 +88,7 @@ namespace GTANetworkShared
             CefPreload = false;
             CefInProcessGpu = true;
             CefSharedTexture = true;
+            CefIdleExitSeconds = 60;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";

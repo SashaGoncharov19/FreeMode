@@ -33,7 +33,9 @@ Options:
   --save                   write the effective --game-path/--method/--steam/--proton/--prefix into settings.xml
   --debug                  debug mode: GTAN_DEBUG=1 for the in-game client (diagnostic lines in Runtime.log and
                            CEF.log) and PROTON_LOG=1 for Proton (Wine log with exceptions and module loads in
-                           ~/steam-271590.log; GTAN_WINEDEBUG overrides the channels). Costs frame rate: not for playing.
+                           ~/steam-271590.log; GTAN_WINEDEBUG overrides the channels). On Linux also a per-second
+                           system monitor (swap, memory stalls, GTA5 page faults, Chromium memory, CPU/GPU clocks)
+                           in logs/hitch-monitor.log, to match against [HITCH] lines in Runtime.log. Costs frame rate.
   -h, --help               this text
 ";
 
@@ -174,7 +176,11 @@ Options:
             }
 
             Log.Ok("GTA5.exe is running. Waiting for it to exit ...");
-            GameProcess.WaitForExit("GTA5.exe", cancel.Token);
+            // --debug on Linux: a per-second picture of the machine next to the game's own hitch lines (HitchMonitor).
+            using (_debug && OperatingSystem.IsLinux() ? HitchMonitor.Start(Path.Combine(paths.InstallDir, "logs", "hitch-monitor.log")) : null)
+            {
+                GameProcess.WaitForExit("GTA5.exe", cancel.Token);
+            }
 
             if (cancel.IsCancellationRequested)
                 Log.Warn("Interrupted. Restoring the game folder; the game may still be running.");
