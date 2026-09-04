@@ -5,7 +5,7 @@ Epic: E-09 Voice
 Size: L
 Branch: task/T-016-voice-client from the integration branch
 Depends on: T-015
-PR: no
+PR: yes
 
 ## Goal
 

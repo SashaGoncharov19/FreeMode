@@ -5,7 +5,7 @@ Epic: E-03 Scale
 Size: L
 Branch: task/T-003-interest-management from the integration branch
 Depends on: T-002
-PR: no
+PR: yes
 
 ## Goal
 

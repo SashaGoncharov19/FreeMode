@@ -23,7 +23,7 @@ done
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
 | [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | ready | E-04 TypeScript | none (T-001 preferred first) |
 | [T-005-client-typescript-resources](T-005-client-typescript-resources.md) | Client resources in TypeScript: `lang="typescript"` bundled by the server with Bun | ready | E-04 TypeScript | T-004 |
-| [T-006-server-typescript-runtime-clearscript](T-006-server-typescript-runtime-clearscript.md) | Server-side TypeScript/JavaScript resources on ClearScript V8 with hot reload | ready | E-04 TypeScript | T-001, T-004 |
+| [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | ready | E-04 TypeScript | T-001, T-004 |
 | [T-007-gamemode-template-and-freeroam-in-typescript](T-007-gamemode-template-and-freeroam-in-typescript.md) | Gamemode template (`gtanetwork create`) and freeroam fully in TypeScript | ready | E-04 TypeScript | T-005, T-006 |
 | [T-008-typed-rpc-server-client-cef](T-008-typed-rpc-server-client-cef.md) | Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits | ready | E-05 RPC and protocol security | T-004 |
 | [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | ready | E-05 RPC and protocol security | T-008 |
@@ -31,13 +31,15 @@ done
 | [T-011-master-list-service-and-server-browser](T-011-master-list-service-and-server-browser.md) | Master list service, server announce, server list in the client menu | ready | E-07 Master list | T-001 |
 | [T-012-cef-loader-from-connect-to-spawn](T-012-cef-loader-from-connect-to-spawn.md) | CEF loading screen from "connect" until spawn | ready | E-12 CEF UI | none |
 | [T-013-cef-main-menu-server-browser](T-013-cef-main-menu-server-browser.md) | In-game CEF main menu: server list, favourites, direct connect, settings (replaces the NativeUI server browser) | ready | E-12 CEF UI | T-011, T-012 |
-| [T-014-dlc-packs-manifest-and-launcher-install](T-014-dlc-packs-manifest-and-launcher-install.md) | Custom DLC packs: server manifest, launcher download and install-time overlay (design + first implementation) | draft | E-08 DLC packs | T-010 (launcher core), decision Q-04 |
+| [T-014-dlc-packs-manifest-and-launcher-install](T-014-dlc-packs-manifest-and-launcher-install.md) | Custom DLC packs: server manifest, launcher download and install-time overlay (design + first implementation) | ready | E-08 DLC packs | T-010 (launcher core) |
 | [T-015-voice-protocol-and-bot-test](T-015-voice-protocol-and-bot-test.md) | Voice chat protocol: Opus frames over Lidgren, server relay by range, bot test | ready | E-09 Voice | T-003 (range sets) preferred; none required |
 | [T-016-voice-client-capture-playback](T-016-voice-client-capture-playback.md) | Voice chat in the client: capture, encode, positional playback, push-to-talk, indicator | ready | E-09 Voice | T-015 |
 | [T-017-anti-cheat-baseline](T-017-anti-cheat-baseline.md) | Anti-cheat baseline: server-side validation, cheat events, client integrity report, signed manifest | ready | E-10 Anti-cheat | T-002 (to tune thresholds under load) |
 | [T-018-sync-instrumentation](T-018-sync-instrumentation.md) | Sync instrumentation: per-entity error overlay, packet-age stats, bot route replay | ready | E-11 Sync quality | none |
 | [T-019-3d-browsers](T-019-3d-browsers.md) | 3D browsers: pages placed in the world, depth-tested | draft | E-12 CEF UI | T-012 |
 | [T-020-remove-dead-code-and-unused-binaries](T-020-remove-dead-code-and-unused-binaries.md) | Remove dead code and unused binaries | ready | E-02 Agent framework (hygiene) | none |
+| [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
+| [T-022-dlc-in-game-download-and-restart-to-apply](T-022-dlc-in-game-download-and-restart-to-apply.md) | DLC packs in game: download for the next server, restart-to-apply through the launcher, auto-join | ready | E-08 DLC packs | T-014, T-012 |
 
 ## Rules
 

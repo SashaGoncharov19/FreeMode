@@ -17,6 +17,8 @@ description: Take a task from docs/tasks (or the one the owner names) and execut
 6. Test; copy the result lines and numbers into the task's Result. Update `CHANGELOG.md` for user-visible changes,
    `docs/HANDOFF.md` if the project state changed, `docs/CODEMAP.md` if layout changed.
 7. If the game is needed to verify: write the Owner check (steps + grep lines), set `needs owner`. Otherwise `done`.
-8. Commit with the format in `docs/agents/conventions.md` (no model identifiers; trailers from the session). Do not push
-   unless the task or the owner says so. Run `code-review-graph update`.
+8. Commit with the format in `docs/agents/conventions.md` (no model identifiers; trailers from the session). Push the task
+   branch and open one PR against the integration branch: title `T-NNN: <title>`, body = the task's Result + link to the
+   task file + the footer the session specifies (`gh pr create --base <integration> --head task/T-NNN-<slug> …`). Run
+   `code-review-graph update`.
 9. Report to the owner in Ukrainian: what changed, the numbers, what they must check in game, what is next.

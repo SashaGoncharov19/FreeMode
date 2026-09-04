@@ -5,7 +5,7 @@ Epic: E-11 Sync quality
 Size: M
 Branch: task/T-018-sync-metrics from the integration branch
 Depends on: none
-PR: no
+PR: yes
 
 ## Goal
 

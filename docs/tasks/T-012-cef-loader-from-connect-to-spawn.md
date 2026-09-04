@@ -5,7 +5,7 @@ Epic: E-12 CEF UI
 Size: M
 Branch: task/T-012-cef-loader from the integration branch
 Depends on: none
-PR: no
+PR: yes
 
 ## Goal
 

@@ -1,19 +1,19 @@
 # T-014 — Custom DLC packs: server manifest, launcher download and install-time overlay (design + first implementation)
 
-Status: draft
+Status: ready
 Epic: E-08 DLC packs
 Size: L
 Branch: task/T-014-dlc-packs from the integration branch
-Depends on: T-010 (launcher core), decision Q-04
-PR: no
+Depends on: T-010 (launcher core)
+PR: yes
 
 ## Goal
 
-A server lists DLC packs in `settings.xml` (`<dlcpack name url sha256 size/>`); the launcher (GUI or CLI `prepare
-<server>`) downloads missing packs into `~/GTANetwork/dlcpacks/<name>/`, applies them for the next game start (a
-`dlclist.xml` with the packs and a file overlay so the game folder is never modified permanently), and restores after the
-game exits. The client sends the installed pack set at connect; the server refuses players missing a required pack with a
-message naming the packs.
+A server lists DLC packs in `settings.xml` (`<dlcpack name url sha256 size/>`) and serves the list as `GET /dlcpacks.json`;
+the launcher (GUI or CLI `prepare <server>`) downloads missing packs into `~/GTANetwork/dlcpacks/<name>/`, applies them for
+the next game start (a `dlclist.xml` with the packs and a file overlay so the game folder is never modified permanently),
+and restores after the game exits. The client sends the mounted pack set at connect; the server refuses players missing a
+required pack with a message naming the packs. In-game download and restart-to-apply are T-022 (D-10).
 
 ## Files
 
@@ -38,7 +38,8 @@ message naming the packs.
 
 ## Log
 
-* 2026-09-04 22:10 agent — created as draft: waits for Q-04 and the design answers.
+* 2026-09-04 22:10 agent — created as draft.
+* 2026-09-04 23:00 agent — ready: D-10 decided (download anywhere, apply at game start); the overlay question stays inside this task.
 
 ## Result
 

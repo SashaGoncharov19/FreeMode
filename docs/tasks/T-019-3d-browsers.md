@@ -5,7 +5,7 @@ Epic: E-12 CEF UI
 Size: L
 Branch: task/T-019-3d-browsers from the integration branch
 Depends on: T-012
-PR: no
+PR: yes
 
 ## Goal
 

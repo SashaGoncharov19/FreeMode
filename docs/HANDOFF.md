@@ -40,9 +40,11 @@ rendering can only be verified in game by the owner.
   release verified working in game (auth login form, account registered).
 * **`claude/agent-framework`** (branched from `claude/modernize-deps-4d8uyn` on 4 Sept, night): the agent
   operating framework — `AGENTS.md`, `docs/agents/`, `docs/tasks/` (T-000…T-020), `docs/PLAN.md`, `docs/DECISIONS.md`,
-  `docs/CODEMAP.md`, the code graph (`.mcp.json`, `.claude/`). To be merged into the integration branch; agents then take
-  tasks from `docs/tasks/`. The **integration branch** for tasks is `claude/modernize-deps-4d8uyn` until the owner merges
-  it into `master`.
+  `docs/CODEMAP.md`, the code graph (`.mcp.json`, `.claude/`). The owner's decisions of 4 Sept (night) are recorded as
+  D-09…D-12 in `docs/DECISIONS.md`: Bun runtime for server gamemode scripts (bridge spike T-006 first), DLC packs
+  downloadable anywhere and applied at game start, M1 = platform then UI, one PR per task. To be merged into the
+  integration branch; agents then take tasks from `docs/tasks/` in the order of `docs/PLAN.md` §4. The **integration
+  branch** for tasks is `claude/modernize-deps-4d8uyn` until the owner merges it into `master`.
 * **`claude/modernize-deps-4d8uyn`** (working branch of the modernisation, **not pushed** since the
   browser-host work started — seven commits ahead of origin): CefSharp 151 **in its own process**, ClearScript
   7.5, debug mode, dev container. Pre-releases `v0.2.0-alpha.1 … alpha.5` ran Chromium *inside* the game and

@@ -5,7 +5,7 @@ Epic: E-09 Voice
 Size: M
 Branch: task/T-015-voice-protocol from the integration branch
 Depends on: T-003 (range sets) preferred; none required
-PR: no
+PR: yes
 
 ## Goal
 

@@ -5,7 +5,7 @@ Epic: E-01 Platform upgrade
 Size: M
 Branch: task/T-001-dotnet-10 from the integration branch
 Depends on: none
-PR: no
+PR: yes
 
 ## Goal
 

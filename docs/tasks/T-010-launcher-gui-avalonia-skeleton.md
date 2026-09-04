@@ -5,7 +5,7 @@ Epic: E-06 Launcher
 Size: L
 Branch: task/T-010-launcher-gui from the integration branch
 Depends on: T-001
-PR: no
+PR: yes
 
 ## Goal
 

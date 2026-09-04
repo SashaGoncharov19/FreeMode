@@ -5,13 +5,16 @@ Epic: E-04 TypeScript
 Size: M
 Branch: task/T-004-typegen from the integration branch
 Depends on: none (T-001 preferred first)
-PR: no
+PR: yes
 
 ## Goal
 
-`Tools/GTANetwork.TypeGen` reads the built `GTANetworkServer.dll` and `GTANetwork.dll` and writes `types/server.d.ts`,
-`types/client.d.ts`, `types/shared.d.ts` (enums, `Vector3`, entity property types); `types/cef.d.ts` is hand-written.
-CI runs the generator and `tsc --noEmit` over a sample resource that uses the types; the `types/` folder ships with every release.
+`Tools/GTANetwork.TypeGen` reads the built `GTANetworkServer.dll` and `GTANetwork.dll` and writes `types/client.d.ts`,
+`types/shared.d.ts` (enums, `Vector3`, entity property types) and, for the server, the **Bun library** `runtime/gtan/`
+(`index.ts` with a function per `API` member that sends a bridge frame, plus its `.d.ts`; see T-006 and D-09) from the API
+catalogue (`Server/Runtime/ApiCatalogue.cs`, reflection over `Server/API.cs` with a `needsResult` flag per member);
+`types/cef.d.ts` is hand-written. CI runs the generator and `tsc --noEmit` over a sample resource; the `types/` folder ships
+with every release.
 
 ## Why
 
@@ -45,8 +48,11 @@ the client `ScriptContext` (`Client/Javascript/JavascriptHook.cs:586`) plus even
    `Client`/`Vehicle`/… → interfaces from `Server/Elements`; `NetHandle` → interface; delegates → function types.
    Overloads → TS overload signatures. .NET events → `{ connect(handler: (…) => void): void; disconnect(handler): void }`
    (ClearScript's shape; the client already uses `API.onUpdate.connect`).
-2. Server: `declare class API { … }`, `declare abstract class Script { API: API }`; client: `declare const API: ScriptContext`,
-   `declare const resource: …`, `declare const exported: …`.
+2. Server: the `runtime/gtan/` library — one exported function per `API` member; members whose return type is not `void`
+   or whose name reads state that is not mirrored (`ApiCatalogue.needsResult`) return `Promise<T>`; mirrored reads
+   (`getEntityPosition`, `getPlayerHealth`, …) become synchronous getters on `players`/`vehicles`; events become
+   `gtan.on("playerConnected", (player) => …)` with typed payloads. Client: `declare const API: ScriptContext`,
+   `declare const resource: …`, `declare const exported: …`, events as `{ connect(handler): void }` (ClearScript's shape).
 3. Doc comments: copy `<summary>` XML docs where present (the build has `GenerateDocumentationFile=false` — enable it for
    `Server` and `Client` in Release so the XML exists next to the DLL; the generator reads it).
 4. Sample resource compiles with `tsc --noEmit`; the generator run is idempotent (byte-identical output for the same DLLs).

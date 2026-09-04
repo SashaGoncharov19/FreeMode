@@ -5,7 +5,7 @@ Epic: E-07 Master list
 Size: L
 Branch: task/T-011-master-list from the integration branch
 Depends on: T-001
-PR: no
+PR: yes
 
 ## Goal
 

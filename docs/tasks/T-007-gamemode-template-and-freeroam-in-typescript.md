@@ -5,7 +5,7 @@ Epic: E-04 TypeScript
 Size: M
 Branch: task/T-007-template from the integration branch
 Depends on: T-005, T-006
-PR: no
+PR: yes
 
 ## Goal
 

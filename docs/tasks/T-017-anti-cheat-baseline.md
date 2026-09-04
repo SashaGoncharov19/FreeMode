@@ -5,7 +5,7 @@ Epic: E-10 Anti-cheat
 Size: L
 Branch: task/T-017-anticheat from the integration branch
 Depends on: T-002 (to tune thresholds under load)
-PR: no
+PR: yes
 
 ## Goal
 

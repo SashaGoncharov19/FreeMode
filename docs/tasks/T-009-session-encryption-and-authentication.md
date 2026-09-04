@@ -5,7 +5,7 @@ Epic: E-05 RPC and protocol security
 Size: M
 Branch: task/T-009-session-crypto from the integration branch
 Depends on: T-008
-PR: no
+PR: yes
 
 ## Goal
 

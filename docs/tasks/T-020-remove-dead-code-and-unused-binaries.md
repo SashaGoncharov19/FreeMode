@@ -5,7 +5,7 @@ Epic: E-02 Agent framework (hygiene)
 Size: S
 Branch: task/T-020-cleanup from the integration branch
 Depends on: none
-PR: no
+PR: yes
 
 ## Goal
 

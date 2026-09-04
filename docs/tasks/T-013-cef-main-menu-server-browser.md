@@ -5,7 +5,7 @@ Epic: E-12 CEF UI
 Size: L
 Branch: task/T-013-cef-menu from the integration branch
 Depends on: T-011, T-012
-PR: no
+PR: yes
 
 ## Goal
 

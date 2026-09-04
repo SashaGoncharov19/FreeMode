@@ -5,7 +5,7 @@ Epic: E-03 Scale
 Size: L
 Branch: task/T-002-load-harness from the integration branch
 Depends on: none (T-001 preferred first)
-PR: no
+PR: yes
 
 ## Goal
 

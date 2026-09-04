@@ -1,0 +1,102 @@
+# T-006 — Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload
+
+Status: ready
+Epic: E-04 TypeScript
+Size: L (two stages; stop after stage 1 if the numbers are missed and re-plan)
+Branch: task/T-006-bun-runtime from the integration branch
+Depends on: T-001, T-004
+PR: yes (one PR per stage)
+
+## Goal
+
+Stage 1 (spike): a Bun process and the .NET engine exchange MessagePack frames over a Unix domain socket (loopback TCP
+on Windows) and the numbers in `docs/PLAN.md` E-04 are measured: one-way `call` ≤ 5 µs amortised, round trip p50 ≤ 60 µs /
+p99 ≤ 300 µs, ≥ 200 000 one-way calls/s, state mirror of 1000 players at 10 Hz ≤ 3 % of one core per side.
+Stage 2: `<script src="server/index.ts" type="server" lang="typescript"/>` runs in `runtime/main.ts` (Bun) against the
+generated `gtan` library; `freeroam` gets a TS server part; hot reload; the engine supervises the runtime.
+
+## Why
+
+D-09: the owner wants Bun's built-in APIs (`Bun.sql`, `Bun.redis`, `Bun.s3`) in gamemodes without third-party modules,
+with performance that does not make thousands of API calls per second a problem. In-process V8 would be faster per call
+but has no Bun APIs; the bridge design (state mirror, one-way setters, batched frames) is what makes the sidecar viable —
+the spike proves or refutes it before any gamemode code depends on it.
+
+## Scope
+
+* In: the bridge (both sides), the frame protocol, the state mirror, the runtime process and its supervision, the resource
+  loader for TS server scripts, hot reload, freeroam's server part, Bun shipping, docs.
+* Out: npm packages beyond Bun's built-ins (allowed, not our concern), sandboxing between resources (trusted code, as today).
+
+## Files
+
+* New: `Server/Runtime/RuntimeBridge.cs` (socket server, frame codec, batching, `state` publisher at 10 Hz from
+  `Server/Managers/NetEntityHandler.cs` and `Server/Elements/Client.cs`, event fan-in from `ScriptingEngine.Invoke*`),
+  `Server/Runtime/ApiCatalogue.cs` (reflection over `Server/API.cs` → `{name, params, returns, needsResult}` JSON used by
+  T-004's generator and by the dispatcher), `Server/Runtime/RuntimeProcess.cs` (start `bun run runtime/main.ts --socket …`,
+  restart with back-off, kill on shutdown; mirrors the browser-host watchdog in `Client/GUI/CEFManager.cs`),
+  `runtime/main.ts`, `runtime/bridge.ts` (msgpackr codec, frame batching, promise table for `call` with id),
+  `runtime/state.ts` (entity mirror: `players`, `vehicles` maps updated from `state` frames), `runtime/gtan/` (generated
+  library: functions → `call` frames; events → `EventEmitter`-style `on(...)`), `runtime/.bun-version`, `runtime/package.json`,
+  `runtime/bench/` (stage 1: `bench.ts` + `Server/Runtime/Bench.cs` behind `GTANetworkServer --bench-bridge`),
+  `eng/bench-bridge.sh` (runs the spike and prints the table).
+* Change: `Server/GTANetworkServer.csproj` (`MessagePack` 3.x), `Server/ResourceInfo.cs` (`lang="typescript"` server scripts →
+  runtime), `Server/Resources.cs` (start/stop: tell the runtime to load/unload the resource's `server/index.ts`),
+  `Server/Managers/CommandHandler.cs` (commands registered from the runtime), `Server/API.cs` (`registerCommand` for the
+  runtime; `exported` across runtimes = through the runtime), `Server/resources/freeroam/server/index.ts` (port `/players`,
+  `/pos`, spawn), `eng/package-client.ps1`/the server publish steps in `.github/workflows/build.yml` (ship `bun` for
+  linux-x64 and win-x64 from `https://github.com/oven-sh/bun/releases/download/bun-v<ver>/…`, checksum verified),
+  `eng/setup-linux.sh` (server install), `docs/CODEMAP.md` §4 and §9, `docs/PLAN.md` (record the numbers), `CHANGELOG.md`.
+* Read: `Server/ResourceInfo.cs:213–:645` (the `Invoke*` list the bridge must forward), `Server/Program.cs:179` (tick loop:
+  the bridge flushes and dispatches results on the tick thread), `Server/GameServer.cs:559`.
+
+## Approach
+
+Stage 1 — spike (one PR, numbers in the Result and in `docs/PLAN.md`):
+1. `Server/Runtime/Bench.cs`: a socket server that accepts frames and echoes `call`-with-id as `result`; publishes fake
+   `state` for N players at 10 Hz.
+2. `runtime/bench/bench.ts`: measures (a) one-way calls/s and µs per call amortised with batching, (b) round trip p50/p99
+   with 1, 16, 256 in-flight calls, (c) CPU of both processes at N = 100 / 1000 players of `state`.
+3. Compare Unix socket vs loopback TCP on Linux; record; choose per platform.
+4. Decision line in `docs/DECISIONS.md` D-09: numbers met → stage 2; not met → fallback (ClearScript in-process for
+   gameplay, Bun for services) and this task is re-planned.
+
+Stage 2 — implementation:
+5. Frame protocol: `[u32 length][msgpack {t: "event"|"call"|"result"|"state"|"log", id?, name, args|data}]`, one connection,
+   in-order; batching: the sender appends frames to a buffer and flushes every 1 ms or at 64 KB.
+6. Engine side: `RuntimeBridge` runs its socket I/O on its own thread; `call` frames are applied on the tick thread from a
+   queue drained in `GameServer.Tick` (so `API` stays single-threaded as today); `result`s go back from the same place.
+7. Runtime side: `gtan` library generated by T-004 from the API catalogue: setters and fire-and-forget functions send
+   frames; functions marked `needsResult` return promises; reads of mirrored state are synchronous local reads.
+8. Events: every `Invoke*` in `ScriptingEngine` also emits an `event` frame; handlers in TS are `gtan.on("playerConnected", p => …)`.
+9. Supervision: `RuntimeProcess` restarts Bun on exit (back-off 1, 2, 5 s; give up after 5 in a minute and log); after a
+   restart the engine replays the entity snapshot as `state` and emits `runtimeRestarted`.
+10. Hot reload: `runtime/main.ts` watches each resource folder (`fs.watch`), re-imports with a cache-busting query, calls
+    `onResourceStop`/`onResourceStart`.
+11. Freeroam server part in TS; `eng/integration-test.sh` chat replies come from the Bun runtime.
+
+## Acceptance criteria
+
+- [ ] Stage 1 table recorded in the Result and `docs/PLAN.md` E-04, with the machine and Bun version.
+- [ ] Stage 2: `eng/integration-test.sh` passes with freeroam's server part in TS on Bun; killing the Bun process during the
+      test → it restarts and the next command works; a thrown error in a handler is logged with file:line and the engine
+      keeps running.
+- [ ] `docker compose run --rm dev eng/dev-test.sh` passes (Bun in the container image).
+
+## Test plan
+
+`eng/bench-bridge.sh` (stage 1); `eng/dev-test.sh`; manual hot-reload run; `kill -9 <bun pid>` during `eng/integration-test.sh`.
+
+## Risks and notes
+
+Windows: Unix domain sockets exist since Windows 10 1803 but Bun's support is not guaranteed — loopback TCP with a random
+port and a token in the environment. Ordering between `state` and `event`: one connection, one order — never two sockets.
+
+## Log
+
+* 2026-09-04 22:10 agent — created (ClearScript variant).
+* 2026-09-04 23:00 agent — rewritten for D-09 (Bun runtime with a bridge spike first).
+
+## Result
+
+(empty)

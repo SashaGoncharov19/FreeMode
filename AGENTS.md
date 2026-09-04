@@ -25,11 +25,12 @@ owner on Debian 13 + GTA V Legacy 1.0.3889 under Proton; there is no Windows mac
 
 ## 3. Rules
 
-* **Branches**: work on the branch the task names (default: a `task/T-NNN-<slug>` branch from the integration branch
-  named in `docs/HANDOFF.md`). Never commit to `master` directly, never push tags (403 by design), never force-push,
-  never push to a branch the task or the owner did not name.
-* **No pull requests, no releases** unless the owner asks. Releases only through `build.yml` workflow_dispatch with
-  `release_tag` (`.claude/skills/release/SKILL.md`).
+* **Branches and pull requests** (D-11): work on `task/T-NNN-<slug>`, created from the integration branch named in
+  `docs/HANDOFF.md`; push only that branch; finish with one pull request against the integration branch (format in
+  `docs/agents/workflow.md`). Never commit to `master` or the integration branch directly, never push tags (403 by
+  design), never force-push, never merge your own PR.
+* **No releases** unless the owner asks. Releases only through `build.yml` workflow_dispatch with `release_tag`
+  (`.claude/skills/release/SKILL.md`).
 * **ScriptHookV is not redistributable**: never commit it. Nothing from the owner's game folder enters the repository.
 * **No model identifiers** in code, docs, commit messages or PR text. Attribution trailers exactly as the session gives them.
 * **Language**: code, comments, docs, commits in English; chat with the owner in Ukrainian.
@@ -52,8 +53,9 @@ owner on Debian 13 + GTA V Legacy 1.0.3889 under Proton; there is no Windows mac
 5. Test; record commands and result lines in the task's Result.
 6. Record: task file (Result, Status, Log) → `CHANGELOG.md` (user-visible change) → `docs/HANDOFF.md` (state) →
    `docs/DECISIONS.md` (decisions) → `docs/CODEMAP.md` (layout).
-7. Commit on the task branch (format: `docs/agents/conventions.md`). Push only if told to.
-8. Needs the game? Write the Owner check (steps + `grep` lines) and set `needs owner`.
+7. Commit on the task branch (format: `docs/agents/conventions.md`), push it, open the PR (`docs/agents/workflow.md`,
+   "Pull request"). The owner merges; then set the task `done`.
+8. Needs the game? Write the Owner check (steps + `grep` lines) into the task and the PR and set `needs owner`.
 
 ## 5. Commands
 

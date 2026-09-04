@@ -5,7 +5,7 @@ Epic: <E-N name from docs/PLAN.md>
 Size: S (hours) | M (a day) | L (several days; consider splitting)
 Branch: <task/T-NNN-slug from <integration branch>, or the branch the owner named>
 Depends on: <T-NNN, …> or none
-PR: no (the owner merges) | yes
+PR: yes (one PR per task against the integration branch, D-11)
 
 ## Goal
 

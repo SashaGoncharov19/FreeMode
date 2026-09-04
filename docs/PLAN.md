@@ -33,7 +33,7 @@ Targets that decide "done" (each has a task that measures it):
 | C# compiler for server resources (Roslyn) | Microsoft.CodeAnalysis 4.14.0 | 5.9.0 | With E-01. |
 | Browser | CefSharp.OffScreen 151.3.240 (Chromium 151) in `cef/GTANetwork.CefHost.exe` | keep current; bump per CefSharp release | `docs/CEF-UPGRADE.md`. |
 | Client JS engine | ClearScript 7.5.1 (V8 12) | 7.5.1.1; also the **server** TS runtime (Q-01) | |
-| TypeScript toolchain | none | Bun (latest stable) for `bun build`/bundling, `typescript` for `.d.ts` checks | E-04. Bun is tooling, not the gameplay runtime (Q-01/Q-02). |
+| Bun | none | 1.4.1 pinned in `runtime/.bun-version`, shipped with the server package | E-04 (D-09): the server gamemode runtime and the TS bundler; the client keeps V8. |
 | Network | Lidgren fork (`libs/Lidgren.Network.dll` 2012.1.7) | keep until E-03 numbers say otherwise (Q-10); LiteNetLib 2.1.4 is the alternative | |
 | Serialisation | protobuf-net 2.4.9, Newtonsoft.Json 13.0.4 | protobuf-net 3.4.21 evaluated in E-01 (wire-compatible; API changes), Newtonsoft stays on net48 | |
 | DirectX overlay | SharpDX 4.0.1 (unmaintained since 2019), EasyHook 2.7.5870 | stays for the MVP; Vortice.Direct3D11 3.8.3 + MinHook with E-13 | Both work today; a rewrite only pays with the .NET 10 client. |
@@ -76,23 +76,35 @@ processing off the client's game thread, (5) allocation-free packet paths, (6) o
 **Tasks**: T-002 (harness + baseline), T-003 (interest management), later tasks from the numbers. **Risks**: the
 Lidgren fork's single socket thread; GC pauses at 1000 connections (use `Server GC`, pooled buffers).
 
-### E-04 TypeScript on both sides, with typings
+### E-04 TypeScript on both sides: Bun runtime on the server, V8 in the game, typings for both
 
-**Goal**: a gamemode is written in TS for the server and the client against `@gtanetwork/types` (generated from the C#
-API), built with Bun, hot-reloaded on the server. **Exists**: server resources in C#/VB compiled by Roslyn at start
-(`Server/Resources.cs`, `Server/API.cs`: 381 public members); client JS resources on ClearScript V8
-(`Client/Javascript/JavascriptHook.cs`, `ScriptContext`: 403 public members); resource `meta.xml` and file download
-(`Shared/ResourceFiles.cs`). **Approach**: (1) `Tools/GTANetwork.TypeGen`: reflection over `Server/API.cs` and
-`ScriptContext` + the shared entity/enum types → `types/server.d.ts`, `types/client.d.ts`, `types/cef.d.ts`, published
-with each release and checked in CI (`tsc --noEmit` against the freeroam resource); (2) client: TS files in a resource
-are bundled by the server at resource load (`bun build --target=browser`-like ES2020 output for V8 12) and served as
-today's JS; (3) server: ClearScript V8 hosted in the server process (`Microsoft.ClearScript.V8` +
-`Microsoft.ClearScript.V8.Native.linux-x64`), the `API` object exposed as `API`, events routed like C# handlers, file
-watcher for hot reload; (4) a `gtanetwork create <name>` template (server + client + CEF page in TS). **Decisions**:
-Q-01, Q-02, Q-03. **Tasks**: T-004 (typings), T-005 (client TS bundling), T-006 (server TS runtime), T-007 template.
-**Risks**: the C# API has overloads and `dynamic`/`object` parameters that do not map to TS cleanly — the generator
-emits unions and marks the rest `unknown`; Bun on the *server* host is a build-time dependency that the Linux and
-Windows installers must ship or download.
+**Goal**: a gamemode is written in TS against `@gtanetwork/server` (Bun) and `@gtanetwork/client` (V8 in game) with
+generated typings; server code may use Bun's built-in APIs (`Bun.sql`, `Bun.redis`, `Bun.s3`, `fetch`, WebSocket)
+without third-party modules; resources hot-reload on the server. **Exists**: server resources in C#/VB compiled by
+Roslyn at start (`Server/Resources.cs`, `Server/API.cs`: 381 public members); client JS on ClearScript V8
+(`Client/Javascript/JavascriptHook.cs`, `ScriptContext`: 403 members); resource `meta.xml` and file download
+(`Shared/ResourceFiles.cs`). **Decision D-09**: the .NET server stays the *engine*; gamemode scripts run in a **Bun
+process** started by the engine; the client keeps V8 in-process; Bun bundles TS for both.
+
+**Approach**: (1) `Tools/GTANetwork.TypeGen` generates `types/client.d.ts` (reflection over `ScriptContext`) and the
+server package `runtime/gtan/` (TS client library + `.d.ts`) from an API catalogue the engine exports (each `API`
+function: name, parameters, return, whether it needs an answer). (2) **Bridge** (T-006 spike, then implementation):
+engine ⇄ Bun over a Unix domain socket (Linux) or loopback TCP (Windows), length-prefixed MessagePack frames
+(`MessagePack-CSharp` / `msgpackr`): `event` (engine → runtime: connections, chat, commands, client events, colshapes,
+RPC requests), `call` (runtime → engine; carries an id only when a result is needed), `result`, `state` (engine →
+runtime: entity create/delete and 10 Hz deltas of position, rotation, velocity, health, armour, vehicle/seat,
+dimension for every player and vehicle, so `player.position` is a local read), `log`. Frames are batched and flushed
+every millisecond or at 64 KB. (3) Runtime: `runtime/main.ts` loads every resource's `server/index.ts` as an ES module
+in one Bun process (trusted code, as C# resources are today), routes events to handlers, watches files for hot reload,
+restarts on crash (the engine keeps players connected; handlers see `onRuntimeRestarted`). (4) Client TS: bundled by the
+engine at resource start with `bun build` and delivered as today's JS (T-005). (5) A `gtanetwork create` template and
+`freeroam` ported (T-007). **Bun** is pinned in `runtime/.bun-version` (1.4.1 at the time of writing) and shipped with the
+server package for Linux and Windows (Bun is MIT-licensed, ~100 MB). **Numbers the spike must reach** (T-006): one-way
+`call` ≤ 5 µs amortised, round trip p50 ≤ 60 µs / p99 ≤ 300 µs on the owner's machine, ≥ 200 000 one-way calls/s,
+state mirror at 1000 players × 10 Hz ≤ 3 % of one core on each side. Below that, gameplay scripts use ClearScript
+in-process and Bun keeps the services (the fallback in D-09). **Tasks**: T-004, T-005, T-006, T-007. **Risks**: two
+processes to supervise (the engine already does this for the browser host — same watchdog pattern); ordering between
+`state` and `event` frames (one connection, one order); operators need Bun (shipped).
 
 ### E-05 RPC and protocol security (server ⇄ client ⇄ CEF)
 
@@ -134,13 +146,19 @@ pings the announced port before listing.
 
 ### E-08 Custom `dlc.rpf` packs
 
-**Goal**: a server declares DLC packs (vehicles, clothes, MLOs); the launcher downloads and installs them before the
-game starts; the client refuses to join if a required pack is missing. **Exists**: nothing. **Approach (Q-04 default)**:
-server manifest (`dlcpacks` in `settings.xml`: name, URL, SHA256, size); launcher fetches into
-`~/GTANetwork/dlcpacks/<server>/`, builds a `mods`-style overlay and a `dlclist.xml` with the packs, starts the game
-with the overlay active, restores after. The overlay mechanism (own `fiDevice` redirect ASI vs. an existing ASI) is
-decided in the design task. **Tasks**: T-011 (design + manifest + launcher download), then the loader task. **Risks**:
-Rockstar launcher integrity checks; per-server restarts; pack size.
+**Goal**: a server declares DLC packs (vehicles, clothes, MLOs); players get them from the launcher before the game
+starts **or** in game when connecting, and packs of the next server can be fetched while playing; a server refuses
+players missing a required pack. **Exists**: nothing. **Decision D-10**: download anywhere, apply at game start; when the
+mounted set differs, the client offers "restart with packs" and the launcher relaunches with the new overlay and
+auto-joins; runtime mounting is a later spike. **Approach**: server manifest (`dlcpacks` in `settings.xml`: name,
+URL, SHA256, size; also served as `GET /dlcpacks.json` and announced to the master list); launcher fetches into
+`~/GTANetwork/dlcpacks/<name>/`, applies an overlay and a `dlclist.xml` with the packs, starts the game, restores after
+exit; in game the CEF loader (E-12) downloads missing packs into the same folder and, if a restart is needed, hands the
+launcher (which waits on `GTA5.exe`) a "relaunch with packs X, auto-join server Y" request through the existing
+`gtan://` auto-join channel (`Shared/GTANSchemeListener.cs`). The overlay mechanism (own `fiDevice` redirect in the
+SHVDN shell vs. an existing ASI) is the design question inside T-014. **Tasks**: T-014 (manifest, launcher download,
+overlay), T-022 (in-game download + restart-to-apply), T-021 (runtime mounting spike, draft). **Risks**: Rockstar
+launcher/Steam integrity checks with an overlay; pack sizes; a restart per server switch until T-021.
 
 ### E-09 Voice chat
 
@@ -193,18 +211,18 @@ T-017 (menu), T-018 (3D). **Risks**: `CefPreload` costs ~0.9 GB from game start 
 Proton prefix. **Exists**: the plan in `docs/ROADMAP.md`'s "Client on modern .NET" note (`/clr:netcore`, `ijwhost`,
 AssemblyLoadContext). Not before the MVP (D-04); it unblocks Vortice/MinHook and modern C#.
 
-## 4. Order
+## 4. Order (D-12: platform first, then UI; scale M2; gameplay M3)
 
 | Milestone | Epics / tasks | Exit criterion |
 | --- | --- | --- |
-| M0 (now) | E-02 merged; the owner's in-game checks of the texture ring, hitch tooling, idle exit (`docs/tasks/T-000`) | one task executed by an agent from the docs alone |
-| M1 foundation | E-01 (T-001); E-03 T-002 baseline numbers; E-04 T-004 typings; E-12 T-016 loader; E-07 T-010 master list; E-06 T-009 launcher skeleton | .NET 10 everywhere; numbers for 100/300/1000 bots; `types/*.d.ts` published; loader visible on connect |
-| M2 platform | E-04 T-005/T-006/T-007; E-05 T-008; E-12 T-017 menu; E-06 updater + server list; E-03 T-003 interest management | a TS gamemode runs on both sides; RPC used by the freeroam resource; NativeUI server browser gone; 1000 bots within the tick budget |
-| M3 gameplay | E-11 T-015 then sync tasks; E-09 T-012/T-013; E-08 T-011 + loader; E-10 T-014 | sync targets met with 2+ real players; voice works; a DLC vehicle spawns; cheat hooks fire |
-| M4 | remaining E-03 numbers at 1000 with real packet mix; E-12 T-018 3D browsers; E-13 starts | MVP release |
+| M0 (now) | E-02 merged; the owner's in-game checks of the texture ring, hitch tooling, idle exit (T-000) | one task executed by an agent from the docs alone, delivered as a PR |
+| M1 platform + UI | E-01 T-001; E-04 T-004, T-006 (spike first, then the bridge), T-005, T-007; E-05 T-008, T-009; E-12 T-012, T-013; E-06 T-010; E-07 T-011 | .NET 10 everywhere; a TS gamemode runs in Bun against the engine within the spike's numbers; RPC used by `auth`; the loader shows on connect; the CEF menu lists servers from the master; the GUI launcher plays |
+| M2 scale + content | E-03 T-002 (baseline), T-003; E-08 T-014, T-022; E-06 updater + server list in the GUI | 1000 bots within the tick and bandwidth budget; a DLC vehicle spawns after a launcher- or in-game download |
+| M3 gameplay | E-11 T-018 then sync tasks; E-09 T-015, T-016; E-10 T-017 | sync targets met with 2+ real players; voice works; cheat hooks fire |
+| M4 | remaining E-03 numbers with the real packet mix; E-12 T-019 3D browsers; E-08 T-021 spike; E-13 starts | MVP release |
 
-The order inside a milestone is by dependency; tasks without dependencies run in parallel by different agents when their
-Files do not overlap (`docs/agents/workflow.md`).
+Inside a milestone the order is by dependency; tasks without dependencies run in parallel by different agents when
+their Files do not overlap (`docs/agents/workflow.md`). Every task ends in a pull request (D-11).
 
 ## 5. What is deliberately not in the MVP
 

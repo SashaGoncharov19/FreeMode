@@ -24,12 +24,20 @@ decisions and (b) verifying in game what cannot be verified without GTA V.
 3. Set `Status: in progress` and append to the Log: `YYYY-MM-DD HH:MM <agent> — started`. Commit that change
    first (one line), so a second agent sees the claim.
 
-## Branch
+## Branch and pull request (D-11)
 
-* The task header names the branch (`Branch:`). Default: a branch `task/T-NNN-<slug>` created from the
-  integration branch named in `docs/HANDOFF.md` ("Current state"). Never work on `master` directly.
-* Commit to that branch only. Push only if the task or the owner says so. Never push tags. Never force-push.
-* Pull requests are opened by the owner or when the task says `PR: yes`.
+* The task header names the branch (`Branch:`). Default: `task/T-NNN-<slug>` created from the integration branch named
+  in `docs/HANDOFF.md` ("Current state"). Never work on `master` or the integration branch directly.
+* Commit to that branch only; push only that branch. Never push tags. Never force-push a branch someone else may have
+  fetched (the owner reviews your PR from it).
+* When the work is done (or `needs owner`): push and open **one pull request** against the integration branch:
+  * title: `T-NNN: <task title>`;
+  * body: the task's Result — Goal (one paragraph), Changed (files), Verified (commands and result lines with numbers),
+    Owner check (if the game is needed), Not done / follow-ups; a link to `docs/tasks/T-NNN-….md`; the attribution
+    footer the session specifies. No model identifiers.
+  * `gh pr create --base <integration branch> --head task/T-NNN-<slug> --title … --body-file …` (or the platform's tool).
+* The owner reviews and merges. Address review comments on the same branch. After the merge, set the task `done`
+  (a one-line commit on the integration branch is fine, or the next task's PR carries it).
 
 ## Doing the work
 
@@ -65,7 +73,8 @@ Then:
    about the order). Keep HANDOFF under ~250 lines: history goes to the task files and `CHANGELOG.md`.
 2. `docs/CODEMAP.md` — if you added or moved a project, directory or an entry point.
 3. Set `Status: done` (or `needs owner`), add the Log line, commit. Commit message format: `docs/agents/conventions.md`.
-4. Run `code-review-graph update` so the graph matches the tree (the Claude Code hook does this automatically).
+4. Push the task branch and open the pull request (above).
+5. Run `code-review-graph update` so the graph matches the tree (the Claude Code hook does this automatically).
 
 ## Writing a new task
 

@@ -5,7 +5,7 @@ Epic: E-05 RPC and protocol security
 Size: L
 Branch: task/T-008-rpc from the integration branch
 Depends on: T-004
-PR: no
+PR: yes
 
 ## Goal
 

@@ -5,7 +5,7 @@ Epic: E-04 TypeScript
 Size: M
 Branch: task/T-005-client-ts from the integration branch
 Depends on: T-004
-PR: no
+PR: yes
 
 ## Goal
 
