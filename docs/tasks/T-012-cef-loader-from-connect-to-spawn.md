@@ -1,6 +1,6 @@
 # T-012 — CEF loading screen from "connect" until spawn
 
-Status: ready
+Status: in progress
 Epic: E-12 CEF UI
 Size: M
 Branch: task/T-012-cef-loader from the integration branch
@@ -47,6 +47,7 @@ brand it (logo/background URL from `SharedSettings`).
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 00:20 agent — started on task/T-012-cef-loader (worktree).
 
 ## Result
 
