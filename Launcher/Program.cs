@@ -31,6 +31,8 @@ Options:
   --no-offline             do not add -scOfflineOnly to commandline.txt
   --no-wait                start the game and exit immediately (files stay deployed; run ""restore"" later)
   --save                   write the effective --game-path/--method/--steam/--proton/--prefix into settings.xml
+  --debug                  debug mode: GTAN_DEBUG=1 for the in-game client (diagnostic lines in Runtime.log and
+                           CEF.log) and PROTON_LOG=1 for Proton (Wine log with crash backtraces in ~/steam-271590.log)
   -h, --help               this text
 ";
 
@@ -51,6 +53,9 @@ Options:
             return 1;
         }
     }
+
+    /// <summary>--debug: diagnostics on in the client (GTAN_DEBUG=1) and the Wine log for Proton (PROTON_LOG=1).</summary>
+    private static bool _debug;
 
     private static int Run(string[] args)
     {
@@ -75,6 +80,7 @@ Options:
                 case "--no-offline": noOffline = true; break;
                 case "--no-wait": noWait = true; break;
                 case "--save": save = true; break;
+                case "--debug": _debug = true; break;
                 case "-h": case "--help": case "help": Console.WriteLine(Usage); return 0;
                 default: throw new LauncherException($"Unknown argument: {args[i]}{Environment.NewLine}{Usage}");
             }
@@ -194,6 +200,7 @@ Options:
         {
             case "steam":
             {
+                if (_debug) Log.Warn("--debug cannot pass GTAN_DEBUG through Steam; set <DebugMode>true</DebugMode> in settings.xml instead.");
                 if (!OperatingSystem.IsWindows())
                 {
                     Log.Info("Reminder: the Steam launch options of GTA V must contain  WINEDLLOVERRIDES=\"dinput8=n,b\" %command%");
@@ -250,6 +257,12 @@ Options:
                 psi.Environment["SteamGameId"] = Steam.GtaVAppId.ToString();
                 psi.Environment["WINEDLLOVERRIDES"] = "dinput8=n,b";
                 psi.Environment["GTAN_INSTALL_DIR"] = Paths.ToWindowsPath(paths.InstallDir);
+                if (_debug)
+                {
+                    psi.Environment["GTAN_DEBUG"] = "1";
+                    psi.Environment["PROTON_LOG"] = "1";
+                    Log.Info("Debug mode: GTAN_DEBUG=1 (client diagnostics) and PROTON_LOG=1 (Wine log: ~/steam-271590.log)");
+                }
 
                 Log.Info($"Starting through Proton: {psi.FileName} run {exe}");
                 Log.Info("(Steam should be running in the background for Steam builds of the game.)");
@@ -263,6 +276,7 @@ Options:
                 var exe = new[] { "PlayGTAV.exe", "GTAVLauncher.exe" }
                     .Select(n => Path.Combine(gameDir, n)).FirstOrDefault(File.Exists)
                     ?? throw new LauncherException("No game launcher executable found in " + gameDir);
+                if (_debug) Environment.SetEnvironmentVariable("GTAN_DEBUG", "1"); // inherited by the game process
                 Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = gameDir, UseShellExecute = true });
                 Log.Ok("Started " + exe);
                 break;

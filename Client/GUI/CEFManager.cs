@@ -706,7 +706,13 @@ namespace GTANetwork.GUI
                 if (args.Frame != null && args.Frame.IsMain) LogManager.CefLog("-> End: " + args.Url + ", " + args.HttpStatusCode);
             };
             _browser.LoadError += (sender, args) => LogManager.CefLog("-> Load error " + args.ErrorCode + " (" + args.ErrorText + ") for " + args.FailedUrl);
-            _browser.ConsoleMessage += (sender, args) => LogManager.CefLog("-> Page console [" + args.Level + "] " + args.Message + " (" + args.Source + ":" + args.Line + ")");
+            _browser.ConsoleMessage += (sender, args) =>
+            {
+                // Errors and warnings of the page always, everything else in debug mode.
+                var text = "-> Page console [" + args.Level + "] " + args.Message + " (" + args.Source + ":" + args.Line + ")";
+                if (args.Level == LogSeverity.Error || args.Level == LogSeverity.Fatal || args.Level == LogSeverity.Warning) LogManager.CefLog(text);
+                else LogManager.VerboseCefLog(text);
+            };
             _browser.JavascriptMessageReceived += OnJavascriptMessage;
 
             LogManager.CefLog("--> Browser: Creating Browser");
@@ -735,7 +741,7 @@ namespace GTANetwork.GUI
 
                     var args = (argsObj as IEnumerable<object>)?.ToArray() ?? new object[0];
 
-                    if (_messagesLogged < 5)
+                    if (_messagesLogged < 5 && LogManager.Verbose)
                     {
                         _messagesLogged++;
                         LogManager.CefLog("-> resourceCall " + name + " (" + args.Length + " argument(s))");

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -93,6 +93,26 @@ namespace GTANetwork.Util
             {
                 Console.WriteLine(e.ToString());
             }
+        }
+
+        /// <summary>
+        /// Debug mode: keeps the diagnostic log lines (API probe, overlay frames, paint and request traces, present
+        /// cost) in the code and switches them on per build or per player instead of adding and removing them.
+        /// On in Debug builds, with &lt;DebugMode&gt;true&lt;/DebugMode&gt; in settings.xml, or with GTAN_DEBUG=1 in the
+        /// environment (the launcher's --debug sets it).
+        /// </summary>
+        public static bool Verbose;
+
+        /// <summary>Runtime.log line that is only written in debug mode.</summary>
+        public static void VerboseLog(string text)
+        {
+            if (Verbose) RuntimeLog(text);
+        }
+
+        /// <summary>CEF.log line that is only written in debug mode.</summary>
+        public static void VerboseCefLog(string text)
+        {
+            if (Verbose) CefLog(text);
         }
 
         public static void RuntimeLog(string text)

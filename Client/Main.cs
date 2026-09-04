@@ -285,6 +285,13 @@ namespace GTANetwork
             GameSettings = Misc.GameSettings.LoadGameSettings();
             PlayerSettings = Util.Util.ReadSettings(GTANInstallDir + "\\settings.xml");
 
+#if DEBUG
+            LogManager.Verbose = true;
+#else
+            LogManager.Verbose = PlayerSettings.DebugMode || Environment.GetEnvironmentVariable("GTAN_DEBUG") == "1";
+#endif
+            LogManager.RuntimeLog("Debug mode: " + (LogManager.Verbose ? "on" : "off") + " (settings DebugMode=" + PlayerSettings.DebugMode + ", GTAN_DEBUG=" + (Environment.GetEnvironmentVariable("GTAN_DEBUG") ?? "unset") + ")");
+
             CefUtil.DISABLE_CEF = PlayerSettings.DisableCEF;
             DebugInfo.ShowFps = PlayerSettings.ShowFPS;
             EnableMediaStream = PlayerSettings.MediaStream;

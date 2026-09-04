@@ -433,7 +433,8 @@ namespace GTANetwork.Javascript
 
             // One line in Runtime.log that says whether the API events and methods are visible from JavaScript,
             // next to a trivial host object, so that "ClearScript exposes nothing" and "ScriptContext is special"
-            // can be told apart from the log alone.
+            // can be told apart from the log alone. Debug mode only: it costs an extra evaluation per script.
+            if (LogManager.Verbose)
             try
             {
                 scriptEngine.AddHostObject("probeHost", new ProbeHost());

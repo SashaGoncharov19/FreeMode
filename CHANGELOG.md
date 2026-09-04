@@ -38,6 +38,15 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   (ES2023) in client scripts. The V8 inspector (port 9222) is only opened with `<DebugMode>true</DebugMode>`.
 * Closing a browser removes its image from the overlay (it used to be added a second time).
 
+### Added
+* **Debug mode**: one switch for all diagnostic log lines (client-script API probe, overlay frame geometry,
+  `[PROFILE] Present hook overlay`, CEF paints, request traces, `resourceCall`s, page console output below
+  warning level). On in Debug builds, with `<DebugMode>true</DebugMode>` in `settings.xml` (also the "Enable
+  Debug mode" checkbox in the in-game settings) or with `GTAN_DEBUG=1` in the environment. The launcher's
+  `--debug` sets `GTAN_DEBUG=1` and, through Proton, `PROTON_LOG=1` (Wine log with crash backtraces in
+  `~/steam-271590.log`), so a crash report no longer needs log lines to be added and removed by hand.
+  `Runtime.log` starts with a `Debug mode: on/off` line.
+
 ### Not yet
 * Server, launcher and bot stay on .NET 8; the client stays on .NET Framework 4.8 (ScriptHookVDotNet hosts the
   desktop CLR). The route to .NET 10 for the client is in `docs/ROADMAP.md`.

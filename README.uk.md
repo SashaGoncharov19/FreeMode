@@ -128,6 +128,15 @@ cd ~/gtan-server && ./GTANetworkServer
 `eng/smoke-test-server.sh <dir>` запускає опублікований сервер, перевіряє компіляцію прикладу, `/manifest.json`
 і зупинку по `SIGTERM`; CI робить це на кожен push.
 
+### Режим відладки
+
+Діагностичні рядки логів (проба API клієнтських скриптів, геометрія кадрів оверлею, вартість Present, CEF-пейнти
+і запити, `resourceCall`) лишаються в коді і вмикаються на рівні збірки або гравця: у Debug-збірках завжди, у
+Release з `<DebugMode>true</DebugMode>` у `settings.xml` (чекбокс «Enable Debug mode» у внутрішньоігрових
+налаштуваннях) або зі змінною середовища `GTAN_DEBUG=1`. `GTANetwork.Launcher --debug` (на Linux `play.sh
+--debug`) виставляє `GTAN_DEBUG=1` і, якщо гра йде через Proton, `PROTON_LOG=1`, тож у `~/steam-271590.log`
+з'являється лог Wine із бектрейсами падінь. `Runtime.log` починається з рядка `Debug mode: on/off`.
+
 ### Спробувати сервер без гри: headless-бот
 
 `GTANetwork.Bot` — консольний клієнт, що реалізує клієнтську сторону протоколу (Lidgren UDP, protobuf-пакети з

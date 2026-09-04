@@ -138,7 +138,7 @@ namespace GTANetwork.GUI
 
                 _imageElement.SetBitmap(copy);
 
-                if (_paintsLogged < 3)
+                if (_paintsLogged < 3 && LogManager.Verbose)
                 {
                     _paintsLogged++;
                     LogManager.CefLog("-> Paint " + width + "x" + height + " (dirty " + dirtyRect.Width + "x" + dirtyRect.Height + " at " + dirtyRect.X + "," + dirtyRect.Y + ")");
@@ -218,7 +218,7 @@ namespace GTANetwork.GUI
                 // data:/about: pages (loadHtmlCefBrowser, blank pages) do not touch the disk.
                 if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || url.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return null;
 
-                LogManager.CefLog("-> [Local mode] Uri: " + url);
+                LogManager.VerboseCefLog("-> [Local mode] Uri: " + url);
 
                 Uri uri;
                 if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http"))
@@ -234,7 +234,7 @@ namespace GTANetwork.GUI
                     return ResourceHandler.ForErrorMessage("Bad path", HttpStatusCode.Forbidden);
                 }
 
-                LogManager.CefLog("-> Loading: " + file);
+                LogManager.VerboseCefLog("-> Loading: " + file);
 
                 if (!File.Exists(file))
                 {
@@ -293,7 +293,7 @@ namespace GTANetwork.GUI
         public void OnContextCreated(IWebBrowser chromiumWebBrowser, IBrowser browser, IFrame frame)
         {
             if (frame == null) return;
-            if (frame.IsMain) LogManager.CefLog("-> Main context created: " + frame.Url);
+            if (frame.IsMain) LogManager.VerboseCefLog("-> Main context created: " + frame.Url);
             frame.ExecuteJavaScriptAsync(Shim, "gtan://bridge", 0);
         }
 

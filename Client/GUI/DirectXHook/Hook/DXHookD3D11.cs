@@ -422,7 +422,7 @@ namespace GTANetwork.GUI.DirectXHook.Hook
             else if (now - _presentCostWindowStart >= System.Diagnostics.Stopwatch.Frequency * 10)
             {
                 var msPerTick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                LogManager.RuntimeLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far",
+                LogManager.VerboseLog(string.Format("[PROFILE] Present hook overlay: {0} frames, avg {1:F2} ms, max {2:F1} ms per frame, {3} errors so far",
                     _presentCostFrames, _presentCostTicks * msPerTick / _presentCostFrames, _presentCostMax * msPerTick, _presentErrors));
                 _presentCostTicks = 0;
                 _presentCostMax = 0;

@@ -163,6 +163,15 @@ Docker) and `SIGHUP` stop it cleanly. The public master server (`master.gtanet.w
 `eng/smoke-test-server.sh <dir>` starts a published server, checks that the example resource compiles and
 runs, that `/manifest.json` answers and that the process exits on `SIGTERM`; CI runs it on every push.
 
+### Debug mode
+
+The diagnostic log lines (client-script API probe, overlay frame geometry, present cost, CEF paints and request
+traces, `resourceCall`s) stay in the code and are switched on per build or per player: Debug builds always,
+Release builds with `<DebugMode>true</DebugMode>` in `settings.xml` (the "Enable Debug mode" checkbox in the
+in-game settings) or with `GTAN_DEBUG=1` in the environment. `GTANetwork.Launcher --debug` (or `play.sh --debug`
+on Linux) sets `GTAN_DEBUG=1` and, when the game runs through Proton, `PROTON_LOG=1`, so `~/steam-271590.log`
+gets the Wine log with crash backtraces. `Runtime.log` starts with `Debug mode: on/off`.
+
 ### Trying a server without the game: the headless bot
 
 `GTANetwork.Bot` is a console client that implements the client side of the protocol (Lidgren UDP,

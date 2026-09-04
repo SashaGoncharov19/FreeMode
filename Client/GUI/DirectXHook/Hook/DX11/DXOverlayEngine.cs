@@ -153,7 +153,7 @@ namespace GTANetwork.GUI.DirectXHook.Hook.DX11
 
             try
             {
-                if (_framesDrawn < 3) LogFrame();
+                if (_framesDrawn < 3 && LogManager.Verbose) LogFrame();
 
                 DrawElements();
                 End();
