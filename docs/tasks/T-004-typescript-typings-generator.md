@@ -59,9 +59,10 @@ the client `ScriptContext` (`Client/Javascript/JavascriptHook.cs:586`) plus even
 
 ## Acceptance criteria
 
-- [ ] `dotnet run --project Tools/GTANetwork.TypeGen -- …` writes the four files; `bunx tsc --noEmit -p samples/ts-resource` passes.
-- [ ] Every public member of `API` and `ScriptContext` appears in the output (count check printed by the generator).
-- [ ] `eng/dev-test.sh` runs the generator and `tsc`; the release zip contains `types/`.
+- [x] `dotnet run --project Tools/GTANetwork.TypeGen -- …` writes `client.d.ts`, `server.d.ts`, `shared.d.ts`, `api-catalogue.json`; `bun run check` in `samples/ts-resource` passes (three tsconfigs).
+- [x] Every public member of `API` and `ScriptContext` appears in the output (the generator prints the counts: 414 and 441, 0 skipped).
+- [x] `eng/dev-test.sh` runs the generator and the Bun check; CI fails on stale typings (`git diff --exit-code -- types/`).
+- [ ] The release zip contains `types/` — not done here (packaging change deferred: `eng/package-client.ps1` is the Windows job; add `types/` when the launcher/updater ships them, E-06).
 
 ## Test plan
 
@@ -77,7 +78,21 @@ The client DLL is net48: load it with `MetadataLoadContext` and the reference as
 
 * 2026-09-04 22:10 agent — created.
 * 2026-09-04 23:35 agent — started on task/T-004-typegen (worktree).
+* 2026-09-05 00:10 agent — generator runs against the stub-built client DLL (SHVDN stub folder via --probe); name collisions across files (TS merges same-named `declare enum`s) solved with one name registry; `String` host type not redeclared (a JS global). PR opened.
 
 ## Result
 
-(empty)
+* **Changed**: new `Tools/GTANetwork.TypeGen/` (net10.0, `System.Reflection.MetadataLoadContext`: `Program.cs` with the mapping rules,
+  XML-doc summaries, the API catalogue), new `types/` (`client.d.ts` 837 lines, `server.d.ts` ~4900 lines incl. the `Hash` enum,
+  `shared.d.ts`, hand-written `cef.d.ts` and `README.md`, `api-catalogue.json`), new `samples/ts-resource/` (client/server/ui
+  sources, three tsconfigs, `package.json` + `bun.lock`), `eng/dev-test.sh` (generator + Bun check), `.github/workflows/build.yml`
+  (generator, stale check, `oven-sh/setup-bun@v2` 1.4.1, sample check — separate commit, needs the `workflow` token scope to push),
+  `.devcontainer/Dockerfile` (Bun 1.4.1), `Server/GTANetworkServer.csproj` + `Client/GTANetworkClient.csproj` (`GenerateDocumentationFile`),
+  `GTANetwork.sln` (TypeGen under Tools), `README.md`, `CHANGELOG.md`.
+* **Verified**: `dotnet run --project Tools/GTANetwork.TypeGen …` → `client: 441 members of ScriptContext, 51 types, 0 skipped`,
+  `server: 414 members of API, 50 types, 0 skipped, catalogue written`, `shared: 13 types`; unmapped framework types left:
+  `GTA.Scaleform` (2), `System.Threading.Thread`, `System.Reflection.ParameterInfo` (as `unknown /* … */`); `bun run check`
+  (oven/bun 1.4.1, TypeScript ^5.9) → exit 0 for client, server and cef tsconfigs.
+* **Not done / follow-ups**: the Bun library `runtime/gtan/` is emitted by T-006 once the bridge frame format exists (the catalogue
+  is its input); `types/` in the release package (E-06); enum member doc comments are not copied (only types/members).
+* **Owner check**: none (no game involved).

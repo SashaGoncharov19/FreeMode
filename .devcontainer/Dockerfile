@@ -42,5 +42,13 @@ ENV DOTNET_NOLOGO=1 \
     NUGET_XMLDOC_MODE=skip \
     GTAN_INSTALL=/gtanetwork
 
+# Bun (pinned): bundles TypeScript resources and type-checks samples/ts-resource in eng/dev-test.sh. Best-effort offline.
+ARG BUN_VERSION=1.4.1
+RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" -o /tmp/bun.zip \
+ && unzip -q /tmp/bun.zip -d /tmp \
+ && install -m 0755 /tmp/bun-linux-x64/bun /usr/local/bin/bun \
+ && rm -rf /tmp/bun.zip /tmp/bun-linux-x64 \
+ || echo "Bun not installed (offline build?); the TypeScript sample check will be skipped."
+
 USER ${USERNAME}
 WORKDIR /workspace

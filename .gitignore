@@ -230,3 +230,7 @@ Server/bans.xml
 .gtan-install/
 # Added by code-review-graph
 .code-review-graph/
+
+# core dumps of crashed tools
+core
+core.*

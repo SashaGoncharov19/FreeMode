@@ -1,0 +1,11 @@
+{
+  "name": "gtan-ts-resource-sample",
+  "private": true,
+  "description": "A GTA Network resource written in TypeScript against the generated typings (types/).",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.client.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.cef.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9"
+  }
+}
