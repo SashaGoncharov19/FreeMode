@@ -73,6 +73,13 @@ Payload as JSON inside protobuf is a compromise (MessagePack later if size matte
 * 2026-09-04 22:10 agent — created.
 * 2026-09-05 agent — implemented on `task/T-008-rpc`; `eng/dev-test.sh` green; PR opened.
 
+* 2026-09-05 owner's runs 1–3: RPC from the `auth` page never answered in game while the bot proved the server. The JavaScript
+  trace added in #18 showed `send threw: Error: Invalid generic type argument`: the helper called `String(name)`, and in the
+  game's engine `String` is the host type `System.String` (`AddHostType("String", typeof(string))` in `StartScript`), so
+  ClearScript read the call as a generic type argument; the rejection handler used `String(...)` too and threw unseen. Fixed on
+  `task/T-008-client-helper-string` (`str()` instead of `String()`), reproduced and verified in ClearScript with `String`
+  registered the same way, then in game with the new autotest (`Client/Util/AutoTest.cs`).
+
 ## Result
 
 * **Changed**: `Shared/Packets.cs` (`PacketType.RpcRequest = 41`, `RpcResponse = 42`; `ConnectionChannel.Rpc = 12`), new

@@ -21,6 +21,8 @@ namespace GTANetwork.Javascript
         // respond(id, ok, json, code, message) for answers to the server's calls.
         internal const string HelperSource = @"(function () {
   var pending = {}, handlers = {}, send = null, respond = null, log = null;
+  // no String(x) here: in the game's engine String is the host type System.String (AddHostType), and calling it means a generic type argument
+  function str(v) { return v === null || v === undefined ? '' : '' + v; }
   function trace(text) { try { if (log) log(text); } catch (e) { } }
   function fail(reject, code, message) { var e = new Error(message || code || 'rpc failed'); e.code = code || 'handler'; reject(e); }
   function parse(json) { return json === null || json === undefined || json === '' ? undefined : JSON.parse(json); }
@@ -30,7 +32,7 @@ namespace GTANetwork.Javascript
       var json = JSON.stringify(args === undefined ? null : args);
       if (json.length > 65536) { fail(reject, 'size', 'arguments over 64 KB'); return; }
       var id;
-      try { id = send(String(name), json, timeoutMs === undefined || timeoutMs === null ? 0 : (timeoutMs | 0)); }
+      try { id = send(str(name), json, timeoutMs === undefined || timeoutMs === null ? 0 : (timeoutMs | 0)); }
       catch (e) { trace('send threw: ' + e); throw e; }
       trace('send returned #' + id);
       if (id === 0) { fail(reject, 'disconnected', 'not connected to a server'); return; }
@@ -46,7 +48,7 @@ namespace GTANetwork.Javascript
   function run(fn, json, done) {
     var finished = false;
     function ok(v) { if (finished) return; finished = true; done(true, JSON.stringify(v === undefined ? null : v), null, null); }
-    function bad(e) { if (finished) return; finished = true; done(false, null, (e && e.code) || 'handler', String((e && e.message) || e)); }
+    function bad(e) { if (finished) return; finished = true; done(false, null, (e && e.code) || 'handler', str((e && e.message) || e)); }
     try {
       var r = fn(parse(json));
       if (r && typeof r.then === 'function') r.then(ok, bad); else ok(r);
@@ -63,14 +65,14 @@ namespace GTANetwork.Javascript
     if (fn) { run(fn, json, function (ok, out, code, message) { pageRespond(id, ok, out, code, message); }); return; }
     call(name, parse(json), timeoutMs).then(
       function (v) { trace('fromPage #' + id + ' resolved'); pageRespond(id, true, JSON.stringify(v === undefined ? null : v), null, null); },
-      function (e) { trace('fromPage #' + id + ' rejected: ' + e); pageRespond(id, false, null, (e && e.code) || 'handler', String((e && e.message) || e)); });
+      function (e) { trace('fromPage #' + id + ' rejected: ' + e); pageRespond(id, false, null, (e && e.code) || 'handler', str((e && e.message) || e)); });
     trace('fromPage #' + id + ' waiting');
   }
   return {
     bind: function (s, r, l) { send = s; respond = r; log = l || null; trace('bound: send ' + typeof send + ', respond ' + typeof respond); },
     call: call,
-    register: function (name, fn) { if (typeof fn !== 'function') throw new Error('rpc.register: the handler must be a function'); handlers[String(name)] = fn; },
-    unregister: function (name) { delete handlers[String(name)]; },
+    register: function (name, fn) { if (typeof fn !== 'function') throw new Error('rpc.register: the handler must be a function'); handlers[str(name)] = fn; },
+    unregister: function (name) { delete handlers[str(name)]; },
     has: function (name) { return typeof handlers[name] === 'function'; },
     settle: settle, invoke: invoke, fromPage: fromPage
   };

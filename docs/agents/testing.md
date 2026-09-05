@@ -1,5 +1,15 @@
 # Testing — what runs where, and what to record
 
+## In-game autotest (no person at the keyboard)
+
+`GTAN_AUTOTEST=127.0.0.1:4499 ~/GTANetwork/play.sh --debug` starts the game through the launcher; once the game is ready the
+client connects to that server by itself, waits for the client scripts, calls `freeroam:ping` over RPC from a client script and
+from a CEF page (`ui/autotest/index.html`), logs every step as `autotest: …` in `~/GTANetwork/logs/Runtime.log` (`RESULT: OK` or
+`RESULT: FAILED`) and quits the game, so the launcher returns and the folder is restored. `GTAN_AUTOTEST_QUIT=0` keeps the game
+open. Steam must be running (Proton), the local server too; a run takes 2–4 minutes on the owner's machine. Never run it, or
+container builds, while the owner is playing (`pgrep -x 'GTA5.ex[e]'`). Implementation: `Client/Util/AutoTest.cs`; the launcher
+passes the two variables through (`Launcher.Core/LaunchSession.cs`).
+
 There is no GTA V in CI and no Windows machine. Everything that can be tested without the game is tested
 without the game; the rest is verified by the owner from a checklist the agent writes.
 
