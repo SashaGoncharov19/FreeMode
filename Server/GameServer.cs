@@ -117,6 +117,7 @@ namespace GTANetworkServer
             AnnounceSelf = conf.Announce;
             // the 2016 master (master.gtanet.work) is gone: announce only to the master in settings.xml (<master>, T-011)
             MasterServer = (conf.MasterServer ?? "").Trim().TrimEnd('/');
+            RelayThreads = conf.RelayThreads;
             if (AnnounceSelf && MasterServer.Length == 0) AnnounceSelf = false;
             AnnounceToLAN = conf.AnnounceToLan;
             UseUPnP = conf.UseUPnP;
@@ -163,6 +164,7 @@ namespace GTANetworkServer
         public string MasterServer { get; set; }
         public bool AnnounceSelf { get; set; }
         public int LogLevel { get; set; }
+        public int RelayThreads { get; set; }
         public bool AnnounceToLAN { get; set; }
         internal AccessControlList ACL { get; set; }
         public bool IsClosing { get; set; }
@@ -219,6 +221,10 @@ namespace GTANetworkServer
             try
             {
                 Server.Start();
+                var relayThreads = RelayThreads > 0 ? Math.Min(RelayThreads, 16) : Math.Max(1, Math.Min(4, Environment.ProcessorCount - 2));
+                Relay = new RelaySealer(Server, relayThreads);
+                Relay.Start();
+                Program.Output("Relay workers: " + relayThreads + " thread(s) seal and enqueue the per-player copies (T-023).", LogCat.Info);
             }
             catch (SocketException ex)
             {
@@ -609,23 +615,45 @@ namespace GTANResource
 
         // ---- sending (T-009): every message to a client with a session is encrypted with that session's cipher ----
 
-        /// <summary>Sends to one connection; encrypted when that client has a session.</summary>
+        /// <summary>The workers that seal and enqueue the per-recipient copies (T-023); null until Start, null again when closing.</summary>
+        internal RelaySealer Relay { get; private set; }
+
+        /// <summary>Sends to one connection; encrypted when that client has a session. Goes through the relay workers when they run.</summary>
         internal void Send(NetOutgoingMessage msg, NetConnection connection, NetDeliveryMethod method, int channel)
         {
             if (msg == null || connection == null) return;
+            var relay = Relay;
+            if (relay != null && relay.Running)
+            {
+                var length = msg.LengthBytes;
+                var payload = new byte[length];
+                Buffer.BlockCopy(msg.Data, 0, payload, 0, length);
+                Metrics.PacketsOut(1, length);
+                relay.Enqueue(connection, payload, length, method, channel);
+                return;
+            }
             var session = (connection.Tag as Client)?.Session;
             if (session != null) msg.Encrypt(session);
             Metrics.PacketsOut(1, msg.LengthBytes);
             Server.SendMessage(msg, connection, method, channel);
         }
 
-        /// <summary>Sends to several connections: one encrypted copy per client with a session (each session has its own counter), the original to the rest.</summary>
+        /// <summary>Sends to several connections: one copy per recipient, sealed with that client's session by the relay workers (each session has its own counter).</summary>
         internal void Send(NetOutgoingMessage msg, IList<NetConnection> recipients, NetDeliveryMethod method, int channel)
         {
             if (msg == null || recipients == null || recipients.Count == 0) return;
-            List<NetConnection> plain = null;
             var length = msg.LengthBytes;
             Metrics.PacketsOut(recipients.Count, length);
+            var relay = Relay;
+            if (relay != null && relay.Running)
+            {
+                var payload = new byte[length];
+                Buffer.BlockCopy(msg.Data, 0, payload, 0, length);
+                relay.Enqueue(recipients, payload, length, method, channel);
+                return;
+            }
+            // no workers (starting or closing): the synchronous path
+            List<NetConnection> plain = null;
             for (var i = 0; i < recipients.Count; i++)
             {
                 var connection = recipients[i];
@@ -681,6 +709,9 @@ namespace GTANResource
                 }
                 catch(Exception e) { Program.Output(e.ToString()); }
 
+                var relay = Relay;
+                Relay = null;
+                relay?.Stop();
                 ReadyToClose = true;
                 return;
             }

@@ -28,6 +28,10 @@ namespace GTANetworkShared
         /// <summary>The master list to announce to (Tools/GTANetwork.Master), e.g. https://master.example.org; empty = announce nowhere (T-011).</summary>
         [XmlElement("master")]
         public string MasterServer { get; set; }
+
+        /// <summary>Threads that seal and enqueue the per-recipient copies of every message off the tick thread (T-023); 0 = cores minus two, between 1 and 4.</summary>
+        [XmlElement("relaythreads")]
+        public int RelayThreads { get; set; }
         
         [XmlElement("upnp")]
         public bool UseUPnP { get; set; }
@@ -107,6 +111,7 @@ namespace GTANetworkShared
             LogToFile = true;
             Announce = true;
             MasterServer = "";
+            RelayThreads = 0;
             UseACL = true;
             AnnounceToLan = true;
             AutoUpdateMinClientVersion = true;

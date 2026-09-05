@@ -88,6 +88,7 @@ Second thread: `Server/Managers/Streamer.cs:18` `MainThread` (every 100 ms; reco
 | `Managers/Streamer.cs` | Near/far recipient sets per client. |
 | `Managers/NetEntityHandler.cs` | Server entity registry, handles, `UpdateMovements`, `CreateWorld`. |
 | `Managers/FileServer.cs` | `HttpListener` on the game port (TCP): `GET /manifest.json`, `GET /<resource>/<path>` for declared `<file>`s; traversal guard; `GET /metrics.json` (T-002). |
+| `Managers/RelaySealer.cs` | The relay workers (T-023): `GameServer.Send` hands one payload and the recipients to 1–4 threads (`<relaythreads>`, default cores−2) that make the per-connection copy, seal it with that session's cipher (`SessionCipher.SealInto`, no allocation) and enqueue it in Lidgren; a connection always maps to the same worker (order kept); full queue → unreliable messages dropped (counted in `/metrics.json` `relay`), reliable ones wait. |
 | `Managers/Metrics.cs` | The server's counters (T-002): the last 600 tick durations (p50/p99/max), packets and bytes in/out, GC counts, near-set sizes, players, RSS; sampled once a second from `GameServer.Tick`, served as `/metrics.json`, read by `eng/load-test.sh`. |
 | `Managers/CommandHandler.cs` | `[Command]` attribute + reflection dispatch. |
 | `Managers/DeltaCompressor.cs`, `AccessControlList.cs`, `Bans.cs`, `ColShape.cs`, `PickupManager.cs`, `UnoccupiedVehicleManager.cs`, `StressTest.cs` | Delta reconstruction, ACL (`acl.xml`), bans, colshapes, pickups, unoccupied vehicles, a disabled synthetic load helper. |

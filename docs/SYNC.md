@@ -186,6 +186,8 @@ loop asks for 60 ticks/s (`Thread.Sleep(1000/60)` after each tick).
 | 300 (plaintext) | 300 | 1.09 / 6.98 / 10.2 | 56 | 10.5, 0.5 | 2621.8, 125.7 | 37711.8 | 500/74/9 | 250 / 250 | 135 | 129 |
 | 1000 (bots on 4 pump threads, sending ~1.5 pkt/s each) | 1000 | 42.6 / 354.0 / 1251 | 14 | 1.5, 0.1 | 570.7, 18.0 | 13314 | 366/162/13 | 244 / 250 | 350 | 808 |
 | 1000 (10 pump threads; loaded phase, before the collapse) | 973 | 66.6 / 814 / 80861 | ~13 | 1.0, 0.1 | ~527, ~25 | ~24500 | 668/245/108 | ~240 / 250 | 870 | 6353 |
+| 300, after T-023 (relay workers) | 300 | 0.52 / 19.63 / 29.0 | 51 | 10.1, 0.7 | 2512.5, 120.2 | 36058.7 | 258/212/14 | 250 / 250 | 191 | 138 |
+| 1000, after T-023 (6 pump threads) | 1000 | 3.37 / 16.61 / 75.1 | 49 | 2.2, 0.1 | 713.4, 25.3 | 15756.3 | 414/171/17 | 243 / 250 | 285 | 981 |
 
 What the numbers say:
 
@@ -218,6 +220,16 @@ What the numbers say:
   recipient cuts: drop stale pure sync instead of relaying it (proposal E) and bound the work per tick. Memory: the server
   reached 870 MB; the bot process 6.3 GB — its Lidgren send queues while the server stalled — so the harness needs a cap on
   queued sends (or unreliable-only sending) before the next 1000 run.
+
+**After T-023 (relay workers, same day)** — the per-recipient copy and AES-GCM call run on 1–4 relay threads instead of the
+tick thread (`Server/Managers/RelaySealer.cs`; the per-client order is kept because a connection always maps to one worker;
+a full worker queue drops unreliable sync instead of stalling the tick). 300 encrypted players: tick p50 0.52 ms (was 66), p99 19.6 ms (was 135), 51 ticks/s (was 11); the server emits the full
+2512 packets/s per player like plaintext. The receivers got 1667 of them: Lidgren refused **26 M of the ~105 M** relayed messages
+at its 64-message unreliable send window per connection (`relay.lidgrenDropped` in `/metrics.json`) — its one socket thread does
+not drain 750 k messages/s. 1000 players: all join and the tick stays at 3.4 ms p50 / 16.6 ms p99 (49 ticks/s) — the tick
+collapse is gone — but 437 connections time out during the 120 s at ~16 MB/s of relay. The transport (one socket thread,
+per-connection windows) is the visible limit now: that is Q-10's question, to be decided after T-003 cuts the message count.
+The relay workers dropped 2324 messages at their own queues (0.002 %).
 
 Reproduce: `docker compose run --rm dev eng/load-test.sh 100 120` (then 300, 1000); `LOAD_NO_ENCRYPTION=1` runs the same
 with plaintext sessions (`--no-encryption`, `RequireEncryption` off) to isolate the cipher's share. Samples and reports land in

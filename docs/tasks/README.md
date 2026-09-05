@@ -40,4 +40,4 @@ done
 | [T-020-remove-dead-code-and-unused-binaries](T-020-remove-dead-code-and-unused-binaries.md) | Remove dead code and unused binaries | ready | E-02 Agent framework (hygiene) | none |
 | [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
 | [T-022-dlc-in-game-download-and-restart-to-apply](T-022-dlc-in-game-download-and-restart-to-apply.md) | DLC packs in game: download for the next server, restart-to-apply through the launcher, auto-join | ready | E-08 DLC packs | T-014, T-012 |
-| [T-023-encrypted-relay-cost](T-023-encrypted-relay-cost.md) | Encrypted relay cost: pooled buffers, and a per-server relay key (Q-14) | ready | E-03 Scale | T-002 |
+| [T-023-encrypted-relay-cost](T-023-encrypted-relay-cost.md) | Encrypted relay cost: pooled buffers, and a per-server relay key (Q-14) | done | E-03 Scale | T-002 |
