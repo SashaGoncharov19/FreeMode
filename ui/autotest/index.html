@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>GTA Network autotest</title>
+<style>html,body{margin:0;background:#0f1216;color:#e8e8e8;font:14px "Segoe UI",sans-serif}#r{padding:12px}</style>
+</head>
+<body><div id="r">autotest page: calling the server…</div>
+<script>
+// The client's in-game autotest (Client/Util/AutoTest.cs) opens this page in a browser owned by a client script and waits for
+// resourceCall("autotest:page", result): gtan.rpc.call goes page -> host -> the owning script's API.rpc -> server -> back here.
+(function () {
+  var r = document.getElementById("r");
+  function report(text) { r.textContent = "autotest page: " + text; if (typeof resourceCall === "function") resourceCall("autotest:page", text); }
+  if (typeof gtan === "undefined" || !gtan.rpc) { report("failed: no gtan.rpc in this page"); return; }
+  gtan.rpc.call("freeroam:ping", { from: "autotest page" }).then(
+    function (v) { report("ok " + JSON.stringify(v)); },
+    function (e) { report("failed " + (e && e.code) + " " + (e && e.message)); });
+})();
+</script>
+</body>
+</html>

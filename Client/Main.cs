@@ -437,6 +437,9 @@ namespace GTANetwork
 
         }
 
+        /// <summary>The game has loaded and the client finished its first-tick setup.</summary>
+        internal bool Initialised => _init;
+
         private void Init()
         {
             if (_init) return;
@@ -477,6 +480,7 @@ namespace GTANetwork
             Init();
 
             CefMenu.Tick();
+            AutoTest.Tick(this);
             PauseMenu();
             _mainWarning?.Draw();
 
