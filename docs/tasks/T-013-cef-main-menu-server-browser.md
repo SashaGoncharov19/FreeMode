@@ -40,6 +40,13 @@ today), Quit. NativeUI remains for the pause-menu tabs until they are ported.
   `CefMenu.Prepare()` at client start (page loads concealed while the game loads), `Conceal()` instead of `Hide()` for the
   classic menu, `rpc:` log lines for the RPC path the owner reported as silent.
 
+* 2026-09-05 owner's second run (with #17): `session: encrypted …` fine; the menu came up in 1 s and took input; the owner
+  wants a loading screen from the client start until the game is ready — done on `task/T-013-startup-loader-rpc-trace`
+  (`CefMenu.Prepare` shows the page as a loading screen, `Show()` from Init turns it into the menu). The auth page's RPC still
+  got no answer: `rpc: page #1 auth:login -> the server (auth)` is the last hop logged; the JavaScript side never called the
+  `send` delegate (no `rpc: -> server` line) and no exception surfaced — the same call shape works in ClearScript on .NET 10;
+  the helper now traces its steps from JavaScript into `Runtime.log` for the next run.
+
 ## Result
 
 * **Changed**: new `Client/GUI/CefMenu.cs` (the client-owned full-screen browser, its state, the page's actions run on Main's tick,

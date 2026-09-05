@@ -20,20 +20,27 @@ namespace GTANetwork.Javascript
         // bind(send, respond) receives two host delegates: send(name, json, timeoutMs) -> request id (0 = not connected) and
         // respond(id, ok, json, code, message) for answers to the server's calls.
         internal const string HelperSource = @"(function () {
-  var pending = {}, handlers = {}, send = null, respond = null;
+  var pending = {}, handlers = {}, send = null, respond = null, log = null;
+  function trace(text) { try { if (log) log(text); } catch (e) { } }
   function fail(reject, code, message) { var e = new Error(message || code || 'rpc failed'); e.code = code || 'handler'; reject(e); }
   function parse(json) { return json === null || json === undefined || json === '' ? undefined : JSON.parse(json); }
   function call(name, args, timeoutMs) {
+    trace('call ' + name + ' (send is ' + typeof send + ')');
     return new Promise(function (resolve, reject) {
       var json = JSON.stringify(args === undefined ? null : args);
       if (json.length > 65536) { fail(reject, 'size', 'arguments over 64 KB'); return; }
-      var id = send(String(name), json, timeoutMs === undefined || timeoutMs === null ? 0 : (timeoutMs | 0));
+      var id;
+      try { id = send(String(name), json, timeoutMs === undefined || timeoutMs === null ? 0 : (timeoutMs | 0)); }
+      catch (e) { trace('send threw: ' + e); throw e; }
+      trace('send returned #' + id);
       if (id === 0) { fail(reject, 'disconnected', 'not connected to a server'); return; }
       pending[id] = { resolve: resolve, reject: reject };
     });
   }
   function settle(id, ok, json, code, message) {
-    var p = pending[id]; if (!p) return; delete pending[id];
+    var p = pending[id];
+    trace('settle #' + id + ' ' + (ok ? 'ok' : 'error ' + code) + (p ? '' : ' (no pending call)'));
+    if (!p) return; delete pending[id];
     if (ok) p.resolve(parse(json)); else fail(p.reject, code, message);
   }
   function run(fn, json, done) {
@@ -51,14 +58,16 @@ namespace GTANetwork.Javascript
     run(fn, json, function (ok, out, code, message) { respond(id, ok, out, code, message); });
   }
   function fromPage(id, name, json, timeoutMs, pageRespond) {
+    trace('fromPage #' + id + ' ' + name + ' (' + typeof json + ', ' + (json === null || json === undefined ? 'no args' : json.length + ' chars') + ')');
     var fn = handlers[name];
     if (fn) { run(fn, json, function (ok, out, code, message) { pageRespond(id, ok, out, code, message); }); return; }
     call(name, parse(json), timeoutMs).then(
-      function (v) { pageRespond(id, true, JSON.stringify(v === undefined ? null : v), null, null); },
-      function (e) { pageRespond(id, false, null, (e && e.code) || 'handler', String((e && e.message) || e)); });
+      function (v) { trace('fromPage #' + id + ' resolved'); pageRespond(id, true, JSON.stringify(v === undefined ? null : v), null, null); },
+      function (e) { trace('fromPage #' + id + ' rejected: ' + e); pageRespond(id, false, null, (e && e.code) || 'handler', String((e && e.message) || e)); });
+    trace('fromPage #' + id + ' waiting');
   }
   return {
-    bind: function (s, r) { send = s; respond = r; },
+    bind: function (s, r, l) { send = s; respond = r; log = l || null; trace('bound: send ' + typeof send + ', respond ' + typeof respond); },
     call: call,
     register: function (name, fn) { if (typeof fn !== 'function') throw new Error('rpc.register: the handler must be a function'); handlers[String(name)] = fn; },
     unregister: function (name) { delete handlers[String(name)]; },
@@ -81,7 +90,7 @@ namespace GTANetwork.Javascript
         internal void Attach(V8ScriptEngine engine)
         {
             _helper = engine.Evaluate("gtan-rpc.js", HelperSource);
-            _helper.bind(new Func<string, string, int, uint>(Send), new Action<uint, bool, string, string, string>(Respond));
+            _helper.bind(new Func<string, string, int, uint>(Send), new Action<uint, bool, string, string, string>(Respond), new Action<string>(Trace));
         }
 
         /// <summary>The script stops: handlers and unanswered calls are dropped; the engine is about to be disposed.</summary>
@@ -145,12 +154,27 @@ namespace GTANetwork.Javascript
         {
             if (_helper == null) { LogManager.RuntimeLog("rpc: page #" + id + " " + name + ": the owning script has no rpc helper"); respond(id, false, null, RpcCodes.Unknown, "the owning script is gone"); return; }
             LogManager.RuntimeLog("rpc: page #" + id + " " + name + " -> " + (has(name) ? "this script" : "the server") + " (" + ResourceName + ")");
-            _helper.fromPage(id, name, payload, timeoutMs, respond);
+            try
+            {
+                _helper.fromPage(id, name, payload, timeoutMs, respond);
+                LogManager.RuntimeLog("rpc: page #" + id + " handed to the script");
+            }
+            catch (Exception ex)
+            {
+                LogManager.RuntimeLog("rpc: page #" + id + " fromPage threw " + ex.GetType().Name + ": " + ex.Message);
+                throw;
+            }
         }
 
         private uint Send(string name, string payload, int timeoutMs)
         {
+            LogManager.RuntimeLog("rpc: send delegate entered for " + name);
             return RpcRouter.Send(this, name, payload, timeoutMs);
+        }
+
+        private void Trace(string text)
+        {
+            LogManager.RuntimeLog("rpc: [js " + ResourceName + "] " + text);
         }
 
         private void Respond(uint id, bool ok, string payload, string code, string message)

@@ -53,6 +53,8 @@ namespace GTANetwork.GUI
         private static int _shown;
         /// <summary>The browser exists but the page is hidden (the classic menu is on top); Show() brings it back without a new page.</summary>
         private static bool _concealed;
+        /// <summary>False until Main.Init passed: the page shows "the game is loading" instead of the server list and takes no input.</summary>
+        private static bool _gameReady;
 
         /// <summary>The CEF menu is switched on and CEF is available.</summary>
         internal static bool Enabled
@@ -74,26 +76,41 @@ namespace GTANetwork.GUI
         }
 
         /// <summary>
-        /// Client start-up: create the browser and load the page now, concealed, so that the menu is on screen the moment the
-        /// game has loaded (Show() only un-conceals it). Needs the screen size, so it runs after Main.screen is known.
+        /// Client start-up: the page comes up at once as "the game is loading" (over the game's own loading screen, no input);
+        /// Show() from Main.Init turns the same page into the server list. Needs the screen size, so it runs after Main.screen is known.
         /// </summary>
         internal static void Prepare()
         {
             if (!Enabled) return;
             lock (Lock) if (_browser != null) return;
-            Show();
-            Conceal("prepared at start-up");
+            Show(gameReady: false);
         }
 
-        /// <summary>Main's script thread: show the page (the browser host is started when it is not running yet).</summary>
-        internal static void Show()
+        /// <summary>Main's script thread: show the menu (the browser host is started when it is not running yet). With
+        /// <paramref name="gameReady"/> false the page is the start-up loading screen.</summary>
+        internal static void Show(bool gameReady = true)
         {
             if (!Enabled || Suspended) return;
-            Browser kept = null;
+            Browser kept = null, visible = null;
+            var becameReady = false;
             lock (Lock)
             {
-                if (_browser != null && !_concealed) return;
-                if (_browser != null) { kept = _browser; _concealed = false; }
+                if (gameReady && !_gameReady) { _gameReady = true; becameReady = true; }
+                if (_browser != null && !_concealed)
+                {
+                    if (!becameReady) return;
+                    visible = _browser; // the loading screen turns into the menu: same browser, same page
+                }
+                else if (_browser != null) { kept = _browser; _concealed = false; }
+            }
+            if (visible != null)
+            {
+                CefController.ShowCursor = true;
+                if (Main.MainMenu != null) Main.MainMenu.Visible = false;
+                LogManager.RuntimeLog("menu: the game has loaded; the loading screen becomes the menu");
+                Push();
+                Refresh();
+                return;
             }
             if (kept != null)
             {
@@ -101,9 +118,10 @@ namespace GTANetwork.GUI
                 kept.Headless = false;
                 kept.SetFrameRate(Main.PlayerSettings?.CefFrameRate > 0 ? Main.PlayerSettings.CefFrameRate : 60);
                 CEFManager.Draw = true;
-                CefController.ShowCursor = true;
+                CefController.ShowCursor = _gameReady;
                 if (Main.MainMenu != null) Main.MainMenu.Visible = false;
                 LogManager.RuntimeLog("menu: shown again (kept browser)");
+                Push();
                 Refresh();
                 return;
             }
@@ -127,10 +145,10 @@ namespace GTANetwork.GUI
                 _shown++;
             }
             CEFManager.Draw = true;
-            CefController.ShowCursor = true;
+            CefController.ShowCursor = _gameReady;
             if (Main.MainMenu != null) Main.MainMenu.Visible = false;
-            LogManager.RuntimeLog("menu: shown (" + Main.screen.Width + "x" + Main.screen.Height + ", " + (_shown == 1 ? "first time" : "again") + ")");
-            Refresh();
+            LogManager.RuntimeLog("menu: shown (" + Main.screen.Width + "x" + Main.screen.Height + ", " + (_shown == 1 ? "first time" : "again") + (_gameReady ? "" : ", as the loading screen while the game loads") + ")");
+            if (_gameReady) Refresh();
         }
 
         /// <summary>
@@ -300,6 +318,7 @@ namespace GTANetwork.GUI
         private static void Fallback()
         {
             lock (Lock) if (_browser == null || _pageReady) return;
+            if (!_gameReady) { lock (Lock) _fallbackTimer = new Timer(_ => Fallback(), null, PageTimeoutMs, Timeout.Infinite); return; } // the game itself is still loading: wait more
             LogManager.RuntimeLog("menu: the page did not come up within " + PageTimeoutMs + " ms; the classic menu takes over (press the pause key for it any time)");
             Hide("timeout");
             Actions.Enqueue(OpenNativeMenu);
@@ -329,6 +348,7 @@ namespace GTANetwork.GUI
             return new
             {
                 version = Main.CurrentVersion.ToString(),
+                loading = !_gameReady,
                 status = _status,
                 servers = Servers.Values
                     .OrderByDescending(r => r.Online).ThenByDescending(r => favorites.Contains(r.Address)).ThenByDescending(r => r.Players).ThenBy(r => r.Name)
