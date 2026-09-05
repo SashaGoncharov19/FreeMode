@@ -1,9 +1,9 @@
 # T-002 — Bot load harness: N simulated players, server metrics, baseline numbers at 100/300/1000
 
-Status: ready
+Status: in progress
 Epic: E-03 Scale
 Size: L
-Branch: task/T-002-load-harness from the integration branch
+Branch: task/T-002-bot-load-harness-and-baseline from the integration branch
 Depends on: none (T-001 preferred first)
 PR: yes
 
@@ -72,6 +72,7 @@ The Lidgren fork's `MaxPlayers` and per-connection buffers; 1000 connections fro
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 06:45 agent — started.
 
 ## Result
 
