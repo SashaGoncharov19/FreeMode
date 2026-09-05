@@ -1,6 +1,6 @@
 # T-018 — Sync instrumentation: per-entity error overlay, packet-age stats, bot route replay
 
-Status: ready
+Status: in progress
 Epic: E-11 Sync quality
 Size: M
 Branch: task/T-018-sync-metrics from the integration branch
@@ -30,6 +30,7 @@ timestamps) so the same movement can be compared before and after a sync change.
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 18:40 agent — started.
 
 ## Result
 
