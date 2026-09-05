@@ -12,6 +12,8 @@ interface API {
     readonly onChatCommand: HostEvent<APICommandEvent>;
     readonly onPlayerBeginConnect: HostEvent<APIPlayerConnectingEvent>;
     readonly onPlayerConnected: HostEvent<APIPlayerEvent>;
+    /** T-017: the anti-cheat found something; the gamemode decides what else to do (the server acts per <anticheat action>). */
+    readonly onCheatDetected: HostEvent<APICheatEvent>;
     /** T-015: the player's first voice frame after silence. */
     readonly onPlayerStartTalking: HostEvent<APIPlayerEvent>;
     /** T-015: 300 ms without a voice frame from the player. */
@@ -350,6 +352,9 @@ interface API {
     unbanPlayer(socialClubHandle: string): void;
     random(): number;
     setEntityPosition(netHandle: NetHandle, newPosition: Vector3): void;
+    /** T-017: what the server does after a cheat finding: "log", "kick" or "ban" (settings.xml <anticheat action>). */
+    setAnticheatAction(action: string): void;
+    getAnticheatAction(): string;
     moveEntityPosition(netHandle: NetHandle, target: Vector3, duration: number): void;
     moveEntityRotation(netHandle: NetHandle, target: Vector3, duration: number): void;
     attachEntityToEntity(entity: NetHandle, entityTarget: NetHandle, bone: string, positionOffset: Vector3, rotationOffset: Vector3): void;
@@ -446,6 +451,8 @@ type APIChatEvent = (sender: Client, message: string, cancel: GTANetworkServerCa
 type APICommandEvent = (sender: Client, command: string, cancel: GTANetworkServerCancelEventArgs) => void;
 type APIPlayerConnectingEvent = (player: Client, cancelConnection: GTANetworkServerCancelEventArgs) => void;
 type APIPlayerEvent = (player: Client) => void;
+/** T-017: a check found something; kind = speed | teleport | health | armour | integrity. */
+type APICheatEvent = (player: Client, kind: string, evidence: string) => void;
 type APIPlayerDisconnectedEvent = (player: Client, reason: string) => void;
 type APIPlayerKilledEvent = (player: Client, entityKiller: NetHandle, weapon: number) => void;
 type APIServerEventTrigger = (sender: Client, eventName: string, ...arguments_: unknown[]) => void;

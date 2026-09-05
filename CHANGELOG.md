@@ -167,6 +167,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Anti-cheat baseline** (T-017): the server checks every claimed position against speed and teleport limits (60 m/s on foot,
+  the vehicle's MaxSpeed × 1.3 for drivers, a jump over 200 m between two packets), health and armour against the game's maxima,
+  and the client's binaries against `manifest.json` next to the server (written into every client package by
+  `eng/package-client.ps1`; no manifest = no check). A finding raises `API.onCheatDetected(player, kind, evidence)` (`cheatDetected`
+  in TypeScript) at most once per kind per 5 s and the server acts per `<anticheat action="log|kick|ban" … integrity="off|report|kick"/>`
+  (default: log). Connect, respawn and a server teleport get a grace period. The bot misbehaves on request (`--cheat speed|teleport|health`);
+  `eng/integration-test-anticheat.sh` checks the kick and that an honest bot is left alone. Five minutes of 300 honest bots: no finding.
 * **Voice chat protocol** (T-015): `PacketType.Voice` carries 20 ms Opus frames (48 kHz mono, 24 kbit/s; at most 400 bytes and
   60 frames/s per player) on an unreliable channel; the server relays them without decoding — channel 0 is proximity voice within
   `<voicerange>` (40 m; `API.setPlayerVoiceRange` per player), a channel above 0 is a radio heard by everyone on it

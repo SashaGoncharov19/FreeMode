@@ -401,6 +401,29 @@ namespace GTANetworkShared
         /// <summary>T-014: the custom DLC packs mounted for this game session (names); null or empty = none.</summary>
         [ProtoMember(10)]
         public List<string> DlcPacks { get; set; }
+
+        /// <summary>T-017: SHA-256 of the client's binaries, compared with the release manifest by the server; null on old clients and bots.</summary>
+        [ProtoMember(11)]
+        public IntegrityReport Integrity { get; set; }
+    }
+
+    [ProtoContract]
+    public class IntegrityReport
+    {
+        [ProtoMember(1)]
+        public string Version { get; set; }
+        [ProtoMember(2)]
+        public List<FileHash> Files { get; set; }
+    }
+
+    [ProtoContract]
+    public class FileHash
+    {
+        /// <summary>Path relative to the install folder with forward slashes, e.g. bin/scripts/GTANetwork.dll.</summary>
+        [ProtoMember(1)]
+        public string Name { get; set; }
+        [ProtoMember(2)]
+        public string Sha256 { get; set; }
     }
 
     

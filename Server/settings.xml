@@ -16,6 +16,9 @@
        player receives at most "budget" bytes/s of others' sync (farther tiers dropped first; 0 = unlimited); "cell" is the grid cell. -->
   <!-- Voice chat (T-015): metres a talker is heard within on the proximity channel; scripts can set per-player ranges and radio channels. -->
   <voicerange>40</voicerange>
+  <!-- Anti-cheat (T-017): "action" = log | kick | ban after a speed, teleport, health or armour finding; movement limits in m/s and metres;
+       "integrity" = off | report | kick when a client's binaries differ from manifest.json next to the server (no manifest = no check). -->
+  <anticheat action="log" footspeed="60" speedfactor="1.3" teleport="200" integrity="report"/>
   <interest cell="200" full="50" medium="200" range="2000" budget="30720" maxfull="64" maxnear="250" />
   <upnp>false</upnp>
   <announce_lan>true</announce_lan>

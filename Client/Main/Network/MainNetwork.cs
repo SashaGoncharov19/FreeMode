@@ -207,6 +207,7 @@ namespace GTANetwork
             obj.MediaStream = EnableMediaStream;
             obj.ClientPublicKey = _handshakeKey.PublicKey;
             obj.DlcPacks = Util.DlcPacks.Mounted();   // T-014: what the launcher applied for this session
+            obj.Integrity = Util.Integrity.Report;     // T-017: hashes of the client's binaries (null until computed)
 
             if (passProtected)
             {

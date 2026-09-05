@@ -72,6 +72,7 @@ export interface ServerApi {
     getAllWeaponComponents(weapon: number /* WeaponHash */): Promise<number /* WeaponComponent */[]>;
     getAllWorldData(): Promise<string[]>;
     getAllWorldSyncedData(): Promise<string[]>;
+    getAnticheatAction(): Promise<string>;
     getBlipColor(blip: Handle): Promise<number>;
     getBlipName(blip: Handle): Promise<string>;
     getBlipPosition(blip: Handle): Promise<Vec3>;
@@ -296,6 +297,8 @@ export interface ServerApi {
     sendNotificationToPlayer(player: Handle /* Client */, message: string, flashing?: boolean): Promise<void>;
     sendPictureNotificationToAll(body: string, pic: string, flash: number, iconType: number, sender: string, subject: string): Promise<void>;
     sendPictureNotificationToPlayer(player: Handle /* Client */, body: string, pic: string, flash: number, iconType: number, sender: string, subject: string): Promise<void>;
+    /** T-017: what the server does after a cheat finding: "log", "kick" or "ban" (settings.xml <anticheat action>). */
+    setAnticheatAction(action: string): Promise<void>;
     setBlipColor(blip: Handle, color: number): Promise<void>;
     setBlipName(blip: Handle, name: string): Promise<void>;
     setBlipPosition(blip: Handle, newPos: Vec3): Promise<void>;

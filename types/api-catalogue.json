@@ -5834,6 +5834,28 @@
       "needsResult": false
     },
     {
+      "name": "setAnticheatAction",
+      "parameters": [
+        {
+          "name": "action",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "getAnticheatAction",
+      "parameters": [],
+      "returns": "System.String",
+      "returnsTs": "string",
+      "needsResult": true
+    },
+    {
       "name": "moveEntityPosition",
       "parameters": [
         {
@@ -8092,6 +8114,26 @@
           "name": "player",
           "type": "GTANetworkServer.Client",
           "ts": "Client"
+        }
+      ]
+    },
+    {
+      "name": "onCheatDetected",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client"
+        },
+        {
+          "name": "kind",
+          "type": "System.String",
+          "ts": "string"
+        },
+        {
+          "name": "evidence",
+          "type": "System.String",
+          "ts": "string"
         }
       ]
     },

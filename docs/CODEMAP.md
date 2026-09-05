@@ -252,9 +252,13 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
   radio channels > 0, mutes, 400 B and 60 frames/s caps, start/stop-talking events), `API.setPlayerVoiceChannel/Range`,
   `mutePlayerFor`; the bot encodes test audio with Concentus (`Tools/GTANetwork.Bot/VoiceTest.cs`). Capture and playback in the
   game: T-016 (the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`, is unrelated).
-* **Anti-cheat**: native allow-list (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path
-  traversal guards, server ACL/bans/whitelist/minimum version; the client integrity check is compiled out
-  (`Client/Main/Misc.cs:409`, `#if INTEGRITYCHECK`).
+* **Anti-cheat**: `Server/Managers/Anticheat.cs` (T-017): speed and teleport per pure sync packet (on foot `<footspeed>`, drivers the
+  model's MaxSpeed × `<speedfactor>` from `vehicleData.json`, a jump over `<teleport>` m), health ≤ 200 and armour ≤ 100, the client's
+  `IntegrityReport` (SHA-256 of `bin/scripts/*.dll`, the browser host, libcef; `Client/Util/Integrity.cs`) against `manifest.json`
+  next to the server (`eng/package-client.ps1` writes it into the package); a finding raises `API.onCheatDetected` and acts per
+  `<anticheat action>`; grace after connect, respawn and `setEntityPosition`. Also from before: the native allow-list
+  (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path traversal guards, server ACL/bans/whitelist/minimum
+  version.
 * **DLC/RPF**: none; `_ENABLE_MP_DLC_MAPS`/`_LOAD_MP_DLC_MAPS` at `Client/Main.cs:354`, `EnableMpVehiclesGlobal` setting.
 
 ## 11. Build, CI, scripts, tests

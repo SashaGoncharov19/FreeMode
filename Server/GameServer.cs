@@ -120,6 +120,7 @@ namespace GTANetworkServer
             RelayThreads = conf.RelayThreads;
             Interest = conf.Interest ?? new InterestSettings();
             Voice = new VoiceRouter(this) { DefaultRange = conf.VoiceRange > 0 ? conf.VoiceRange : 40f };
+            Anticheat = new Anticheat(this, conf.Anticheat, Path.Combine(AppContext.BaseDirectory, "manifest.json"));
             if (conf.DlcPacks != null)
             {
                 foreach (var pack in conf.DlcPacks)
@@ -181,6 +182,8 @@ namespace GTANetworkServer
         public InterestSettings Interest { get; set; }
         /// <summary>Voice frames relay (T-015).</summary>
         internal VoiceRouter Voice { get; private set; }
+        /// <summary>The anti-cheat baseline (T-017).</summary>
+        internal Anticheat Anticheat { get; private set; }
         /// <summary>The custom DLC packs of settings.xml (T-014), as served by /dlcpacks.json.</summary>
         public List<DlcPackInfo> DlcPacks { get; set; } = new List<DlcPackInfo>();
         public bool AnnounceToLAN { get; set; }

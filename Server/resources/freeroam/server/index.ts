@@ -55,6 +55,11 @@ export default function main(gtan: Gtan) {
 
   gtan.on("playerRespawn", (player: number) => spawn(player));
 
+  // T-017: the server's anti-cheat found something; it acts per settings.xml <anticheat action>, the gamemode logs it
+  gtan.on("cheatDetected", (player: number, kind: string, evidence: string) => {
+    console.log(`[freeroam] cheat detected: ${kind} by #${player}: ${evidence}`);
+  });
+
   // Sent by client/index.ts once the client-side script runs on that player's game.
   gtan.on("clientEventTrigger", (player: number, eventName: string) => {
     if (eventName === "freeroam:clientReady") say(player, "~g~Client-side script is running.");

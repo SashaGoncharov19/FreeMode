@@ -90,6 +90,7 @@ jobs:
           dotnet publish Tools/GTANetwork.Master/GTANetwork.Master.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true -o artifacts/master-linux-x64
           eng/integration-test-master.sh artifacts/server-linux-x64 artifacts/master-linux-x64
           eng/integration-test-dlc.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot artifacts/launcher-linux-x64/GTANetwork.Launcher
+          eng/integration-test-anticheat.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
 
       - uses: actions/upload-artifact@v4
         with:
