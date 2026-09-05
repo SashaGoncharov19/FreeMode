@@ -48,6 +48,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Launcher.Core` (shared by the window and the command line launcher, whose behaviour is unchanged). `eng/setup-linux.sh`
   installs the window into `<install>/gui/` and points the desktop entry at it; `--self-test` builds the window without a
   display, which CI and `eng/dev-test.sh` run.
+* **Fix: RPC from client scripts and CEF pages did nothing in game.** The client's RPC helper used `String(x)`, which in the
+  game's script engine is the host type `System.String` (registered with `AddHostType`), so calling it made ClearScript throw
+  "Invalid generic type argument" inside the promise; the error handler used `String(x)` too and died silently. The helper avoids
+  the name now. Found with the new **in-game autotest**: `GTAN_AUTOTEST=host:port[#serverkey][;password]` in the launcher's
+  environment (passed to the game by the Proton and direct launch methods) makes the client connect by itself once the game is
+  ready, run an RPC from a client script and from a CEF page (`ui/autotest/index.html`), write `autotest: …` lines to
+  `Runtime.log` and quit (`GTAN_AUTOTEST_QUIT=0` keeps it running) — the browser and the game can be exercised without a person.
 * **Encrypted, authenticated sessions** (T-009): every connection does an X25519 key exchange in the hail (the client sends an
   ephemeral public key, the approval carries the server's static key from `server.key`, created at the first start and shown in
   the banner) and derives a session key with HKDF-SHA256; every data message after that is AES-256-GCM with a per-direction

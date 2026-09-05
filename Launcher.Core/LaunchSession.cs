@@ -236,6 +236,11 @@ public static class LaunchSession
                 psi.Environment["SteamGameId"] = Steam.GtaVAppId.ToString();
                 psi.Environment["WINEDLLOVERRIDES"] = "dinput8=n,b";
                 psi.Environment["GTAN_INSTALL_DIR"] = Paths.ToWindowsPath(paths.InstallDir);
+                foreach (var name in new[] { "GTAN_AUTOTEST", "GTAN_AUTOTEST_QUIT" }) // the in-game smoke test (Client/Util/AutoTest.cs)
+                {
+                    var value = Environment.GetEnvironmentVariable(name);
+                    if (!string.IsNullOrEmpty(value)) { psi.Environment[name] = value; Log.Info(name + "=" + value + " passed to the game"); }
+                }
                 if (debug)
                 {
                     psi.Environment["GTAN_DEBUG"] = "1";

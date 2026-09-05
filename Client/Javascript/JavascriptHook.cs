@@ -422,7 +422,6 @@ namespace GTANetwork.Javascript
             var context = new ScriptContext(scriptEngine);
             //scriptEngine.AddHostObject("host", new HostFunctions()); // Disable an exploit where you could get reflection
             scriptEngine.AddHostObject("API", context);
-            context.rpc.Attach(scriptEngine);
             scriptEngine.AddHostType("Enumerable", typeof(Enumerable));
             scriptEngine.AddHostType("List", typeof(List<>));
             scriptEngine.AddHostType("Dictionary", typeof(Dictionary<,>));
@@ -466,6 +465,7 @@ namespace GTANetwork.Javascript
             }
 
             context.ParentResourceName = script.ResourceParent;
+            context.rpc.Attach(scriptEngine); // after the name: its trace lines carry the resource
 
             try
             {
