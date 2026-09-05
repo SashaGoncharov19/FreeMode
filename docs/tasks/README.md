@@ -26,7 +26,7 @@ done
 | [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | done (follow-ups listed under Result, stage 2 → Not done) | E-04 TypeScript | T-001, T-004 |
 | [T-007-gamemode-template-and-freeroam-in-typescript](T-007-gamemode-template-and-freeroam-in-typescript.md) | Gamemode template (`gtanetwork create`) and freeroam fully in TypeScript | done | E-04 TypeScript | T-005, T-006 |
 | [T-008-typed-rpc-server-client-cef](T-008-typed-rpc-server-client-cef.md) | Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits | done | E-05 RPC and protocol security | T-004 |
-| [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | ready | E-05 RPC and protocol security | T-008 |
+| [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | done | E-05 RPC and protocol security | T-008 |
 | [T-010-launcher-gui-avalonia-skeleton](T-010-launcher-gui-avalonia-skeleton.md) | Launcher GUI (Avalonia 12): Play, settings, log viewer; the CLI becomes a thin front end | ready | E-06 Launcher | T-001 |
 | [T-011-master-list-service-and-server-browser](T-011-master-list-service-and-server-browser.md) | Master list service, server announce, server list in the client menu | ready | E-07 Master list | T-001 |
 | [T-012-cef-loader-from-connect-to-spawn](T-012-cef-loader-from-connect-to-spawn.md) | CEF loading screen from "connect" until spawn | needs owner | E-12 CEF UI | none |

@@ -135,6 +135,14 @@ Client streaming
     churn at the budget boundary. `StreamInVehicle` issues ~100 `REMOVE_VEHICLE_MOD` natives per stock car.
 14. `NetToEntity(IStreamedItem)` and `UnoccupiedVehSync` use recycled game handles of streamed-out items.
 
+### Encryption overhead (T-009, 5 Sept 2026)
+
+Every data message after the handshake carries 8 bytes of counter and a 16-byte GCM tag: +24 bytes per message (a pure ped
+sync packet of ~90 bytes grows by about a quarter). CPU: the server encrypts once per recipient with hardware AES
+(`AesGcm`, AES-NI), well under a microsecond per sync packet; the in-game client encrypts its own ~10–100 messages per second
+with BouncyCastle (managed, a few microseconds each). The 300-bot measurement waits for the load harness (T-002); the
+two-bot integration phase runs with encryption on and shows no change in the relayed packet counts.
+
 ## 5. Proposals
 
 A. **Snapshot interpolation.** Add a server timestamp (`uint16` ms) to pure sync; keep the last N snapshots

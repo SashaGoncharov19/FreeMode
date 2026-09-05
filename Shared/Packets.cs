@@ -171,6 +171,14 @@ namespace GTANetworkShared
 
         [ProtoMember(3)]
         public string ServerVersion { get; set; }
+
+        /// <summary>T-009: the server's static X25519 public key (32 bytes) when the session is encrypted; the client pins it.</summary>
+        [ProtoMember(4)]
+        public byte[] ServerPublicKey { get; set; }
+
+        /// <summary>T-009: identifies this session (16 random bytes); for reconnects later.</summary>
+        [ProtoMember(5)]
+        public byte[] SessionToken { get; set; }
     }
 
     [ProtoContract]
@@ -381,6 +389,10 @@ namespace GTANetworkShared
 
         [ProtoMember(8)]
         public bool MediaStream { get; set; }
+
+        /// <summary>T-009: the client's ephemeral X25519 public key (32 bytes); absent on clients before the encrypted session.</summary>
+        [ProtoMember(9)]
+        public byte[] ClientPublicKey { get; set; }
     }
 
     

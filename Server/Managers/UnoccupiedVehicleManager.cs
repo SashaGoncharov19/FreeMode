@@ -166,7 +166,7 @@ namespace GTANetworkServer.Managers
             packet.Write(vehicle);
             packet.Write(status);
 
-            Program.ServerInstance.Server.SendMessage(packet, player.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+            Program.ServerInstance.Send(packet, player.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
             //Console.WriteLine("[DEBUG MESSAGE] [+] Setting veh sync + " + status + " for: " + player.Name + " | Vehicle: " + vehicle);
 
             if(status)

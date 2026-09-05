@@ -16,6 +16,7 @@ using System.Xml.Serialization;
 using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
+using GTANetworkShared.Crypto;
 using Lidgren.Network;
 using Newtonsoft.Json;
 using ProtoBuf;
@@ -64,6 +65,7 @@ namespace GTANetworkServer
     {
         public GameServer(ServerSettings conf)
         {
+            RequireEncryption = conf.RequireEncryption;
             Clients = new List<Client>();
             Downloads = new List<StreamingClient>();
             RunningResources = new List<Resource>();
@@ -190,6 +192,10 @@ namespace GTANetworkServer
         public NetEntityHandler NetEntityHandler { get; set; }
         /// <summary>The bridge to the Bun runtime; created by the first resource with TypeScript server scripts (Server/Runtime).</summary>
         internal RuntimeBridge Runtime;
+        /// <summary>The server's static X25519 key (server.key), offered to every client in the approval hail (T-009).</summary>
+        internal ServerKey ServerKey;
+        /// <summary>Clients that send no key are refused (settings.xml RequireEncryption, default true).</summary>
+        internal bool RequireEncryption;
         /// <summary>Request/response calls between scripts (T-008).</summary>
         internal readonly RpcDispatcher Rpc = new RpcDispatcher();
 
@@ -561,6 +567,49 @@ namespace GTANResource
             return Clients.FirstOrDefault(c => c.Name.ToLower().StartsWith(name.ToLower()));
         }
 
+        // ---- sending (T-009): every message to a client with a session is encrypted with that session's cipher ----
+
+        /// <summary>Sends to one connection; encrypted when that client has a session.</summary>
+        internal void Send(NetOutgoingMessage msg, NetConnection connection, NetDeliveryMethod method, int channel)
+        {
+            if (msg == null || connection == null) return;
+            var session = (connection.Tag as Client)?.Session;
+            if (session != null) msg.Encrypt(session);
+            Server.SendMessage(msg, connection, method, channel);
+        }
+
+        /// <summary>Sends to several connections: one encrypted copy per client with a session (each session has its own counter), the original to the rest.</summary>
+        internal void Send(NetOutgoingMessage msg, IList<NetConnection> recipients, NetDeliveryMethod method, int channel)
+        {
+            if (msg == null || recipients == null || recipients.Count == 0) return;
+            List<NetConnection> plain = null;
+            var length = msg.LengthBytes;
+            for (var i = 0; i < recipients.Count; i++)
+            {
+                var connection = recipients[i];
+                if (connection == null) continue;
+                var session = (connection.Tag as Client)?.Session;
+                if (session == null)
+                {
+                    (plain ?? (plain = new List<NetConnection>())).Add(connection);
+                    continue;
+                }
+                var copy = Server.CreateMessage(length + SessionCipher.Overhead);
+                copy.Write(msg.Data, 0, length);
+                copy.Encrypt(session);
+                Server.SendMessage(copy, connection, method, channel);
+            }
+            if (plain != null) Server.SendMessage(msg, plain, method, channel);
+        }
+
+        /// <summary>Sends to every connected client but <paramref name="exclude"/>.</summary>
+        internal void Broadcast(NetOutgoingMessage msg, NetConnection exclude, NetDeliveryMethod method, int channel)
+        {
+            var recipients = Server.Connections;
+            if (exclude != null) recipients.Remove(exclude);
+            Send(msg, recipients, method, channel);
+        }
+
         public void Tick()
         {
             if (IsClosing)
@@ -633,7 +682,7 @@ namespace GTANResource
                         updateObj.Write(Downloads[i].Files[0].Data, (int)Downloads[i].Files[0].BytesSent, sendBytes);
                         Downloads[i].Files[0].BytesSent += sendBytes;
 
-                        Server.SendMessage(updateObj, Downloads[i].Parent.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
+                        Send(updateObj, Downloads[i].Parent.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
 
                         if (remaining - sendBytes > 0) continue;
 
@@ -641,7 +690,7 @@ namespace GTANResource
                         endObject.Write((byte)PacketType.FileTransferComplete);
                         endObject.Write(Downloads[i].Files[0].Id);
 
-                        Server.SendMessage(endObject, Downloads[i].Parent.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
+                        Send(endObject, Downloads[i].Parent.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
                         Downloads[i].Files.RemoveAt(0);
                     }
                     else

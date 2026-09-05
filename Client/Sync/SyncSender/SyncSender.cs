@@ -51,7 +51,7 @@ namespace GTANetwork.Streamer
 
                         //try
                         //{
-                            Main.Client.SendMessage(msg, NetDeliveryMethod.UnreliableSequenced, (int) ConnectionChannel.PureSync);
+                            Main.Send(msg, NetDeliveryMethod.UnreliableSequenced, (int) ConnectionChannel.PureSync);
                         //}
                         //catch (Exception ex)
                         //{
@@ -73,7 +73,7 @@ namespace GTANetwork.Streamer
                             lightMsg.Write(lightBin);
                             //try
                             //{
-                                Main.Client.SendMessage(lightMsg, NetDeliveryMethod.ReliableSequenced, (int) ConnectionChannel.LightSync);
+                                Main.Send(lightMsg, NetDeliveryMethod.ReliableSequenced, (int) ConnectionChannel.LightSync);
                             //}
                             //catch (Exception ex)
                             //{
@@ -107,7 +107,7 @@ namespace GTANetwork.Streamer
                         msg.Write(bin);
                         //try
                         //{
-                            Main.Client.SendMessage(msg, NetDeliveryMethod.UnreliableSequenced, (int) ConnectionChannel.PureSync);
+                            Main.Send(msg, NetDeliveryMethod.UnreliableSequenced, (int) ConnectionChannel.PureSync);
                         //}
                         //catch (Exception ex)
                         //{
@@ -129,7 +129,7 @@ namespace GTANetwork.Streamer
                             lightMsg.Write(lightBin);
                             //try
                             //{
-                                Main.Client.SendMessage(lightMsg, NetDeliveryMethod.ReliableSequenced, (int) ConnectionChannel.LightSync);
+                                Main.Send(lightMsg, NetDeliveryMethod.ReliableSequenced, (int) ConnectionChannel.LightSync);
                             //}
                             //catch (Exception ex)
                             //{

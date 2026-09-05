@@ -104,7 +104,7 @@ namespace GTANetwork
                 confirmObj.Write(resources[i]);
             }
 
-            Client.SendMessage(confirmObj, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+            Send(confirmObj, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
 
             HasFinishedDownloading = true;
             ConnectLoader.Hide("resources ready, " + resources.Count + " resource(s)");

@@ -29,6 +29,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
     <PackageReference Include="MessagePack" Version="3.1.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Lidgren adapter of the session cipher lives in Shared/Crypto but needs Lidgren: compiled here (and in the client and the bot). -->
+    <Compile Include="..\Shared\Crypto\NetSessionEncryption.cs" Link="Crypto\NetSessionEncryption.cs" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="$(RoslynVersion)" />
   </ItemGroup>

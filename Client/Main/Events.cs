@@ -74,7 +74,7 @@ namespace GTANetwork
                 _lastDead = true;
                 var msg = Main.Client.CreateMessage();
                 msg.Write((byte)PacketType.PlayerRespawned);
-                Main.Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                Main.Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
 
                 JavascriptHook.InvokeCustomEvent(api => api?.invokeonPlayerRespawn());
 
@@ -148,7 +148,7 @@ namespace GTANetwork
                 msg.Write(killerEnt);
                 msg.Write(weapon);
 
-                Main.Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                Main.Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
 
                 JavascriptHook.InvokeCustomEvent(api => api?.invokeonPlayerDeath(new LocalHandle(killer), weapon));
 

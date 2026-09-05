@@ -20,6 +20,8 @@
   <fqdn></fqdn>
   <conntimeout>true</conntimeout>
   <allowcefdevtool>false</allowcefdevtool>
+  <!-- Every client does the X25519 handshake and talks AES-256-GCM (T-009); false lets clients from before 0.2.0-alpha.6 join in plaintext. -->
+  <RequireEncryption>true</RequireEncryption>
   <!-- Resources to start, in order. Each one lives in resources/<name>/meta.xml -->
   <!-- Accounts with a login form (resources/auth): uncomment to require /register and /login before playing. -->
   <!-- <resource src="auth" /> -->

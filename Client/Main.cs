@@ -43,6 +43,7 @@ namespace GTANetwork
                         var count = messages.Count;
                         for (var i = 0; i < count; i++)
                         {
+                            if (!Main.DecryptIncoming(messages[i])) continue; // T-009: not from this session
                             CrossReference.EntryPoint.ProcessMessages(messages[i], true);
                         }
                     }
@@ -616,7 +617,7 @@ namespace GTANetwork
                             msg?.Write((byte)PacketType.ChatData);
                             msg?.Write(data.Length);
                             msg?.Write(data);
-                            Client?.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                            Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                         }
                     }
                     break;

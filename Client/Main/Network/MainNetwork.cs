@@ -19,6 +19,7 @@ using GTANetwork.Misc;
 using GTANetwork.Streamer;
 using GTANetwork.Util;
 using GTANetworkShared;
+using GTANetworkShared.Crypto;
 using Lidgren.Network;
 using Microsoft.Win32;
 using NativeUI;
@@ -52,14 +53,110 @@ namespace GTANetwork
                 msg.Write((byte)PacketType.ChatData);
                 msg.Write(data.Length);
                 msg.Write(data);
-                Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
+                Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
             }
 
             Chat.IsFocused = false;
         }
 
-        public void ConnectToServer(string ip, int port = 0, bool passProtected = false, string myPass = "")
+        // ---- the encrypted session (T-009) ----
+
+        /// <summary>The cipher of the current connection; null before the handshake and on plaintext connections to old servers.</summary>
+        internal static NetSessionEncryption Session;
+        private static KeyPair _handshakeKey;
+        private static byte[] _pinnedServerKey;
+        private static int _authFailuresLogged;
+
+        /// <summary>Every message to the server goes through here: encrypted once the session exists.</summary>
+        internal static void Send(NetOutgoingMessage msg, NetDeliveryMethod method, int channel = 0)
         {
+            var client = Client;
+            if (client == null || msg == null) return;
+            var session = Session;
+            if (session != null) msg.Encrypt(session);
+            client.SendMessage(msg, method, channel);
+        }
+
+        /// <summary>The message pump: a data message of an encrypted session is decrypted here; false = drop it.</summary>
+        internal static bool DecryptIncoming(NetIncomingMessage msg)
+        {
+            var session = Session;
+            if (session == null || msg.MessageType != NetIncomingMessageType.Data) return true;
+            if (msg.Decrypt(session)) return true;
+            if (_authFailuresLogged++ < 3) LogManager.RuntimeLog("session: dropped a message that failed authentication (replay or not from this session)");
+            return false;
+        }
+
+        /// <summary>
+        /// The approval hail arrived. With a server key: check the pin, derive the session key, encrypt from here on. Without
+        /// one: a plaintext session with an old server, unless a key was pinned. False = do not stay connected.
+        /// </summary>
+        internal static bool CompleteHandshake(ConnectionResponse response)
+        {
+            var serverKey = response?.ServerPublicKey;
+            if (serverKey == null || serverKey.Length != 32)
+            {
+                if (_pinnedServerKey != null)
+                {
+                    LogManager.RuntimeLog("session: the server offered no key but one was pinned; not connecting");
+                    Util.Util.SafeNotify("~r~Server key mismatch:~w~ the server offered no key.");
+                    return false;
+                }
+                LogManager.RuntimeLog("session: plaintext (the server offered no key: old server, or RequireEncryption off)");
+                return true;
+            }
+            if (_handshakeKey == null)
+            {
+                LogManager.RuntimeLog("session: the server offered a key but this connection sent none; plaintext");
+                return true;
+            }
+            var fingerprint = SessionHandshake.Fingerprint(serverKey);
+            if (_pinnedServerKey != null && !SameKey(_pinnedServerKey, serverKey))
+            {
+                LogManager.RuntimeLog("session: SERVER KEY MISMATCH: pinned " + SessionHandshake.Fingerprint(_pinnedServerKey) + ", offered " + fingerprint + "; not connecting");
+                Util.Util.SafeNotify("~r~Server key mismatch:~w~ expected " + SessionHandshake.Fingerprint(_pinnedServerKey) + ", got " + fingerprint + ".");
+                return false;
+            }
+            try
+            {
+                var key = SessionHandshake.DeriveSessionKey(_handshakeKey.PrivateKey, serverKey, _handshakeKey.PublicKey, serverKey);
+                Session = new NetSessionEncryption(Client, new SessionCipher(key, isServer: false), fingerprint);
+            }
+            catch (Exception ex)
+            {
+                LogManager.LogException(ex, "SESSION HANDSHAKE");
+                Util.Util.SafeNotify("~r~The session handshake failed.");
+                return false;
+            }
+            LogManager.RuntimeLog("session: encrypted (X25519 + AES-256-GCM), server key " + fingerprint + (_pinnedServerKey != null ? " (pinned)" : " (not pinned)"));
+            return true;
+        }
+
+        private static bool SameKey(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            var diff = 0;
+            for (var i = 0; i < a.Length; i++) diff |= a[i] ^ b[i];
+            return diff == 0;
+        }
+
+        /// <summary>Connects; <paramref name="pinnedServerKey"/> is the server's public key (64 hex characters, "host:port#key" in the menu) that must match.</summary>
+        public void ConnectToServer(string ip, int port = 0, bool passProtected = false, string myPass = "", string pinnedServerKey = null)
+        {
+            Session = null;
+            _authFailuresLogged = 0;
+            _pinnedServerKey = null;
+            if (!string.IsNullOrWhiteSpace(pinnedServerKey))
+            {
+                _pinnedServerKey = SessionHandshake.FromHex(pinnedServerKey, 32);
+                if (_pinnedServerKey == null)
+                {
+                    Util.Util.SafeNotify("~r~The pinned server key is not 64 hex characters.");
+                    LogManager.RuntimeLog("session: pinned key rejected (not 32 bytes of hex): " + pinnedServerKey);
+                    return;
+                }
+            }
+            _handshakeKey = KeyPair.Generate();
             if (IsOnServer())
             {
                 Client.Disconnect("Switching servers");
@@ -108,6 +205,7 @@ namespace GTANetwork
             obj.CEFDevtool = EnableDevTool;
             obj.GameVersion = (byte)Game.Version;
             obj.MediaStream = EnableMediaStream;
+            obj.ClientPublicKey = _handshakeKey.PublicKey;
 
             if (passProtected)
             {
@@ -167,6 +265,7 @@ namespace GTANetwork
 
         private void OnLocalDisconnect()
         {
+            Session = null;
             StopLoadingPrompt();
             ConnectLoader.Hide("disconnect");
             DEBUG_STEP = 42;
@@ -266,7 +365,7 @@ namespace GTANetwork
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
-            Client.SendMessage(msg, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
+            Send(msg, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
 
         public static void TriggerServerEvent(string eventName, string resource, params object[] args)
@@ -283,7 +382,7 @@ namespace GTANetwork
             msg.Write(bin.Length);
             msg.Write(bin);
 
-            Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered);
+            Send(msg, NetDeliveryMethod.ReliableOrdered);
         }
 
         /// <summary>An RpcRequest or RpcResponse to the server (T-008), reliable and ordered on the Rpc channel.</summary>
@@ -295,7 +394,7 @@ namespace GTANetwork
             msg.Write((byte)type);
             msg.Write(bin.Length);
             msg.Write(bin);
-            Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+            Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
         }
 
 

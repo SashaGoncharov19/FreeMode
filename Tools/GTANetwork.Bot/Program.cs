@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using GTANetworkShared;
+using GTANetworkShared.Crypto;
+using GTANetworkServer.Crypto;
 using Lidgren.Network;
 using ProtoBuf;
 
@@ -29,6 +31,8 @@ internal sealed class Options
     public List<string> Expect = new();
     public List<(string Name, string Json)> Rpc = new();       // --rpc name json: RPC calls sent after the chat lines, 1 s apart
     public (string Name, int Count)? RpcBurst;                 // --rpc-burst name count: that many calls at once (rate limit test)
+    public bool NoEncryption;                                  // --no-encryption: hail without a key (an old client); the server refuses it by default
+    public string Pin;                                         // --pin <hex>: the server's X25519 public key that must match, else the bot leaves
     public double Duration = 5;      // seconds to stay connected after the last message was sent
     public double Timeout = 60;      // overall limit
     public bool Sync = true;
@@ -53,6 +57,8 @@ internal sealed class Options
                 case "--expect": o.Expect.Add(Next()); break;
                 case "--rpc": { var name = Next(); o.Rpc.Add((name, Next())); break; }
                 case "--rpc-burst": { var name = Next(); o.RpcBurst = (name, int.Parse(Next(), CultureInfo.InvariantCulture)); break; }
+                case "--no-encryption": o.NoEncryption = true; break;
+                case "--pin": o.Pin = Next(); break;
                 case "--duration": o.Duration = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--timeout": o.Timeout = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--no-sync": o.Sync = false; break;
@@ -81,6 +87,8 @@ internal sealed class Options
   --rpc <name> <json>  RPC call to the server after the chat lines (repeatable); the result is logged as
                        rpc <name> ok <json>  or  rpc <name> error <code>: <message>  and matched by --expect
   --rpc-burst <name> <n>  send n RPC calls at once (rate limit test)
+  --no-encryption      connect like a client without the session handshake (the server refuses it unless RequireEncryption is off)
+  --pin <hex>          the server public key (64 hex characters) that must match, else the bot leaves with: server key mismatch
   --duration <sec>     stay connected this long after the last --say (default 5)
   --timeout <sec>      give up after this long (default 60)
   --no-sync            do not send position sync packets
@@ -141,8 +149,12 @@ internal static class Program
             config.EnableMessageType(NetIncomingMessageType.VerboseDebugMessage);
         }
 
+        AesGcmNet.Install();
         _client = new NetClient(config);
         _client.Start();
+        if (!_o.NoEncryption) _handshakeKey = KeyPair.Generate();
+        _pin = SessionHandshake.FromHex(_o.Pin, 32);
+        if (_o.Pin != null && _pin == null) { Log("crypto", "--pin must be 64 hex characters"); return 1; }
 
         if (_o.Discover)
         {
@@ -163,6 +175,7 @@ internal static class Program
             CEFDevtool = false,
             MediaStream = false,
             Password = string.IsNullOrEmpty(_o.Password) ? null : _o.Password,
+            ClientPublicKey = _handshakeKey?.PublicKey,
         };
 
         var hail = _client.CreateMessage();
@@ -319,6 +332,7 @@ internal static class Program
             {
                 var hail = msg.SenderConnection.RemoteHailMessage;
                 var response = ReadPacket<ConnectionResponse>(hail);
+                if (!CompleteHandshake(response)) { _client.Disconnect("server key mismatch"); return true; }
                 _myHandle = response.CharacterHandle;
                 Log("connected", $"server version {response.ServerVersion}, my player handle {_myHandle}, " +
                                  $"HTTP file server {(response.Settings?.UseHttpServer == true ? "on" : "off")}, mod whitelist entries {response.Settings?.ModWhitelist?.Count ?? 0}");
@@ -326,7 +340,7 @@ internal static class Program
                 var confirm = _client.CreateMessage();
                 confirm.Write((byte)PacketType.ConnectionConfirmed);
                 confirm.Write(false);
-                _client.SendMessage(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                Send(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                 _confirmedFalseSent = true;
                 Log("handshake", "ConnectionConfirmed(false) sent, waiting for the map and client scripts ...");
 
@@ -348,6 +362,11 @@ internal static class Program
 
     private static void OnData(NetIncomingMessage msg)
     {
+        if (_session != null && !msg.Decrypt(_session))
+        {
+            if (_authFailuresLogged++ < 3) Log("crypto", "dropped a message that failed authentication (replay or not from this session)");
+            return;
+        }
         var type = (PacketType)msg.ReadByte();
 
         switch (type)
@@ -365,7 +384,7 @@ internal static class Program
                 accept.Write((byte)PacketType.FileAcceptDeny);
                 accept.Write(start.Id);
                 accept.Write(true);
-                _client.SendMessage(accept, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                Send(accept, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                 break;
             }
             case PacketType.FileTransferTick:
@@ -466,7 +485,7 @@ internal static class Program
                 Log("rpc", line);
                 var reply = _client.CreateMessage();
                 WritePacket(reply, PacketType.RpcResponse, new RpcResponse { Id = r.Id, Ok = true, Payload = r.Payload ?? "null" });
-                _client.SendMessage(reply, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+                Send(reply, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
                 break;
             }
             case PacketType.PlayerDisconnect:
@@ -548,7 +567,7 @@ internal static class Program
                 confirm.Write(true);
                 confirm.Write(_resourcesWithScripts.Count);
                 foreach (var r in _resourcesWithScripts) confirm.Write(r);
-                _client.SendMessage(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                Send(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                 _joined = true;
                 Log("joined", $"download finished, ConnectionConfirmed(true) sent for [{string.Join(", ", _resourcesWithScripts)}]. I am in the game world now.");
                 break;
@@ -609,15 +628,54 @@ internal static class Program
         _rpcSent[id] = _clock.Elapsed;
         var msg = _client.CreateMessage();
         WritePacket(msg, PacketType.RpcRequest, new RpcRequest { Id = id, Name = name, Resource = "bot", Payload = json, TimeoutMs = 5000, Origin = RpcOrigin.Client });
-        _client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+        Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
         Log("rpc", $"#{id} call {name}({json})");
+    }
+
+    // ---- the encrypted session (T-009) ----
+    private static KeyPair _handshakeKey;
+    private static byte[] _pin;
+    private static NetSessionEncryption _session;
+    private static int _authFailuresLogged;
+
+    /// <summary>The approval hail arrived: derive the session key from the server's public key, or note a plaintext session.</summary>
+    private static bool CompleteHandshake(ConnectionResponse response)
+    {
+        var serverKey = response.ServerPublicKey;
+        if (serverKey == null || serverKey.Length != 32)
+        {
+            if (_pin != null) { Log("crypto", "the server offered no session key but --pin was given: leaving"); return false; }
+            Log("crypto", _handshakeKey == null ? "plaintext session (asked for none)" : "plaintext session: the server offered no key (old server, or RequireEncryption off)");
+            _chatLog.AppendLine("crypto: plaintext session");
+            return true;
+        }
+        if (_handshakeKey == null) { Log("crypto", "the server offered a key but this bot sent none; plaintext session"); return true; }
+        var fingerprint = SessionHandshake.Fingerprint(serverKey);
+        if (_pin != null && !_pin.AsSpan().SequenceEqual(serverKey))
+        {
+            Log("crypto", $"server key mismatch: expected {SessionHandshake.Fingerprint(_pin)}, got {fingerprint}; leaving");
+            _chatLog.AppendLine("crypto: server key mismatch");
+            return false;
+        }
+        var key = SessionHandshake.DeriveSessionKey(_handshakeKey.PrivateKey, serverKey, _handshakeKey.PublicKey, serverKey);
+        _session = new NetSessionEncryption(_client, new SessionCipher(key, isServer: false), fingerprint);
+        Log("crypto", $"encrypted session (X25519 + AES-256-GCM), server key {fingerprint}" + (_pin != null ? " (pinned)" : "") + $", session token {(response.SessionToken == null ? "none" : SessionHandshake.ToHex(response.SessionToken))}");
+        _chatLog.AppendLine("crypto: encrypted session " + fingerprint);
+        return true;
+    }
+
+    /// <summary>Every message to the server goes through here: encrypted once the session exists.</summary>
+    private static void Send(NetOutgoingMessage msg, NetDeliveryMethod method, int channel)
+    {
+        if (_session != null) msg.Encrypt(_session);
+        _client.SendMessage(msg, method, channel);
     }
 
     private static void SendChat(string text)
     {
         var msg = _client.CreateMessage();
         WritePacket(msg, PacketType.ChatData, new ChatData { Message = text });
-        _client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
+        Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
         Log("say", text);
     }
 
@@ -642,7 +700,7 @@ internal static class Program
         msg.Write((byte)PacketType.PedPureSync);
         msg.Write(bin.Length);
         msg.Write(bin);
-        _client.SendMessage(msg, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
+        Send(msg, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
     }
 
     /// <summary>A real client would execute the native; the bot honours the ones that move it.</summary>

@@ -160,6 +160,16 @@ data message starts with `(byte)PacketType`; protobuf payloads are `int length +
 in `Shared/PacketOptimization.cs`. Channels: `ConnectionChannel` (Default, FileTransfer, NativeCall, Chat, EntityBackend,
 ClientEvent, SyncEvent, PureSync, LightSync, BasicSync, BulletSync, UnoccupiedVeh, Rpc).
 
+**Session encryption** (T-009, `Shared/Crypto/`): the client's hail (`ConnectionRequest.ClientPublicKey`, ephemeral X25519) and
+the approval hail (`ConnectionResponse.ServerPublicKey` = the static key in `server.key`, `SessionToken`) give both sides
+`SessionHandshake.DeriveSessionKey` (HKDF-SHA256, salt = both public keys, info `gtan-session-v1`). `SessionCipher` turns every
+data message into `[8-byte counter][AES-256-GCM ciphertext][16-byte tag]` (nonce = direction byte + counter; 128-message replay
+window per direction); `NetSessionEncryption` is the Lidgren `NetEncryption` adapter compiled into the server, the client and the
+bot. The server (`GameServer.Send/Broadcast`, one encrypted copy per recipient) and the bot use `Server/Crypto/AesGcmNet.cs`
+(System.Security.Cryptography.AesGcm); the client uses BouncyCastle. `ServerSettings.RequireEncryption` (default true) refuses
+hails without a key. Unconnected messages (discovery) stay plaintext. Pinning: `host:port#<public key hex>` in the CEF menu's
+direct connect (`CefMenu.Connect` → `Main.ConnectToServer(..., pinnedServerKey)`), later the master list.
+
 **RPC** (T-008): `PacketType.RpcRequest`/`RpcResponse` carry `Shared/Rpc/RpcMessages.cs` (`RpcRequest {Id, Name, Resource,
 Payload = one JSON value, TimeoutMs, Origin}`, `RpcResponse {Id, Ok, Payload, ErrorCode, ErrorMessage}`) on the reliable ordered
 channel `Rpc`; codes and limits in `Shared/Rpc/RpcCodes.cs` (64 KB per payload, 10 s default / 60 s maximum timeout, 30
