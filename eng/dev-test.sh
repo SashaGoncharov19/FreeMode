@@ -19,8 +19,8 @@ refs="$(find ~/.nuget/packages/microsoft.netframework.referenceassemblies.net48 
 dotnet run --project Tools/GTANetwork.TypeGen -c Release -- \
   --client "$(ls Client/bin/Release/net*/GTANetwork.dll | head -1)" \
   --server "$(ls Server/bin/Release/net*/GTANetworkServer.dll | head -1)" \
-  --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types
-if ! git diff --quiet -- types/; then echo "note: types/ changed - commit the regenerated typings (CI fails on stale typings)"; fi
+  --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types --runtime-lib runtime/gtan
+if ! git diff --quiet -- types/ runtime/gtan/api.generated.d.ts; then echo "note: types/ changed - commit the regenerated typings (CI fails on stale typings)"; fi
 if command -v bun >/dev/null 2>&1; then
   (cd samples/ts-resource && bun install --frozen-lockfile && bun run check)
 else

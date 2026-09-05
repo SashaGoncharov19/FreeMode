@@ -7,6 +7,7 @@
 | `server.d.ts` | The server API (`API`, `Script`, `Client`, `Vehicle`, … as C# scripts see them; the Bun runtime library of T-006 exposes the same shape) | generated from `Server/bin/Release/net10.0/GTANetworkServer.dll` |
 | `cef.d.ts` | The bridge every CEF page gets: `resourceCall`, `resourceEval`, `gtan` | hand-written |
 | `api-catalogue.json` | Every server API member with parameter and return types, for the Bun bridge (T-006) | generated |
+| `runtime/gtan/api.generated.d.ts` | `gtan.api` of TypeScript server resources: every API member as a Promise-returning method, players/entities as handles | generated (`--runtime-lib`) |
 
 Events are .NET events as ClearScript exposes them: `API.onUpdate.connect(() => …)` / `disconnect`. Overloads appear as
 overloaded signatures; C# `object`/`dynamic` is `unknown`; `List<T>` is `T[]`; `Dictionary<string, T>` is `Record<string, T>`;
@@ -29,7 +30,7 @@ dotnet run --project Tools/GTANetwork.TypeGen -c Release -- \
   --server Server/bin/Release/net10.0/GTANetworkServer.dll \
   --net48-refs ~/.nuget/packages/microsoft.netframework.referenceassemblies.net48/1.0.3/build/.NETFramework/v4.8 \
   --probe Shv.NET/ref/bin/Release/net48 \
-  --out types
+  --out types --runtime-lib runtime/gtan
 git diff --exit-code -- types/   # stale typings fail here
 ```
 

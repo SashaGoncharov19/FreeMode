@@ -28,6 +28,7 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
+    <PackageReference Include="MessagePack" Version="3.1.8" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="$(RoslynVersion)" />
   </ItemGroup>
@@ -43,6 +44,9 @@
   <!-- Default configuration and the example resource are copied next to the binary so "dotnet run" just works. -->
   <ItemGroup>
     <Content Include="settings.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The Bun runtime for TypeScript server resources (Server/Runtime, docs/tasks/T-006): shipped as runtime/ next to the server. -->
+    <None Include="..\runtime\**" Exclude="..\runtime\**\node_modules\**;..\runtime\bench\**;..\runtime\.bun-version" Link="runtime\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\types\api-catalogue.json" Link="runtime\gtan\catalogue.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="resources\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Resource scripts are compiled by the server at runtime (Roslyn), never into this assembly. -->
     <Compile Remove="resources\**" />

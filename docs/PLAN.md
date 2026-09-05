@@ -105,7 +105,9 @@ state mirror at 1000 players × 10 Hz ≤ 3 % of one core on each side. **Measur
 dev container, Bun 1.4.1, .NET 10.0.11): 2.0 M one-way calls/s at 0.50 µs; round trip p50 6 µs / p99 13 µs over a Unix
 socket (8 / 18 µs over loopback TCP); mirror of 1000 players at 10 Hz: engine 1.8 %, Bun 3.4–3.6 % of a core (the one
 number above target, by 0.4 points; stage 2 sends deltas). The full table is in the T-006 task file. Verdict: the bridge
-is fast enough; stage 2 goes ahead. ClearScript in-process stays the fallback only if the runtime turns out unreliable. **Tasks**: T-004, T-005, T-006, T-007. **Risks**: two
+is fast enough; stage 2 goes ahead. ClearScript in-process stays the fallback only if the runtime turns out unreliable.
+**Stage 2 (5 Sept)**: the runtime is in — `Server/Runtime/*`, `runtime/*`, `Server/resources/tsdemo`; `eng/integration-test.sh` drives a
+TypeScript resource (connect greeting, `/tsping`, a cancelable chat handler) through the bot. **Tasks**: T-004, T-005, T-006, T-007. **Risks**: two
 processes to supervise (the engine already does this for the browser host — same watchdog pattern); ordering between
 `state` and `event` frames (one connection, one order); operators need Bun (shipped).
 

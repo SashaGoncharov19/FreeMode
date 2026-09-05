@@ -1,4 +1,5 @@
 using System;
+using GTANetworkServer.Runtime;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -148,6 +149,7 @@ namespace GTANetworkServer
 
                 var cSharp = new List<string>();
                 var vBasic = new List<string>();
+                var tsServer = new List<string>();
 
                 bool multithreaded = false;
 
@@ -226,6 +228,11 @@ namespace GTANetworkServer
                         var scrTxt = File.ReadAllText(baseDir + script.Path);
                         vBasic.Add(scrTxt);
                     }
+                    else if (script.Language == ScriptingEngineLanguage.typescript)
+                    {
+                        if (script.Type == ScriptType.server) tsServer.Add(script.Path);
+                        else Program.Output("Resource " + resourceName + ": client TypeScript (" + script.Path + ") is not bundled yet (T-005); skipped", LogCat.Warn);
+                    }
                 }
 
 
@@ -240,6 +247,23 @@ namespace GTANetworkServer
                 {
                     var vbasicAss = CompileScript(vBasic.ToArray(), (currentResInfo.References ?? new List<AssemblyReferences>()).Select(r => r.Name).ToArray(), true);
                     ourResource.Engines.AddRange(vbasicAss.Select(sss => new ScriptingEngine(sss, sss.GetType().Name, ourResource, multithreaded)));
+                }
+
+                if (tsServer.Count > 0)
+                {
+                    // TypeScript server scripts run in the Bun runtime (D-09); one engine per entry file routes the resource's events there.
+                    if (Runtime == null)
+                    {
+                        Runtime = RuntimeBridge.Create(out var runtimeError);
+                        if (Runtime == null) Program.Output("Resource " + resourceName + ": TypeScript server scripts skipped: " + runtimeError, LogCat.Error);
+                    }
+                    if (Runtime != null)
+                        foreach (var entry in tsServer)
+                        {
+                            var engine = new ScriptingEngine(Runtime, entry, ourResource);
+                            ourResource.Engines.Add(engine);
+                            Runtime.Register(ourResource, engine, entry);
+                        }
                 }
 
                 CommandHandler.Register(ourResource);
@@ -351,6 +375,7 @@ namespace GTANetworkServer
                             engine = ourResource.Engines.FirstOrDefault(en => en.Filename == func.Path);
 
                         if (engine == null) continue;
+                        if (engine._compiledScript == null) continue; // TypeScript exports go through the runtime (T-006 follow-up)
 
                         if (string.IsNullOrWhiteSpace(func.EventName))
                         {
@@ -436,6 +461,7 @@ namespace GTANetworkServer
             }
 
             ourRes.Engines.ForEach(en => en.InvokeResourceStop());
+            Runtime?.Unregister(resourceName);
 
             var msg = Server.CreateMessage();
             msg.Write((byte)PacketType.StopResource);

@@ -1,0 +1,4 @@
+<meta>
+  <info name="tsdemo" author="GTA Network" version="0.1" type="script" description="A TypeScript server resource running in the Bun runtime (T-006 stage 2)." />
+  <script src="server/index.ts" type="server" lang="typescript" />
+</meta>

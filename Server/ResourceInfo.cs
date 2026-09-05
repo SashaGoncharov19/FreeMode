@@ -1,4 +1,5 @@
 using System;
+using GTANetworkServer.Runtime;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +18,8 @@ namespace GTANetworkServer
         compiled,
         csharp,
         vbasic,
+        /// <summary>Server scripts run in the Bun runtime over the bridge (Server/Runtime); client scripts are bundled (T-005).</summary>
+        typescript,
     }
 
     internal class ScriptingEngine
@@ -40,6 +43,23 @@ namespace GTANetworkServer
             {
                 return _compiledScript;
             }
+        }
+
+        /// <summary>The bridge to the Bun runtime when this engine stands for a TypeScript server script; null for compiled scripts.</summary>
+        internal RuntimeBridge Runtime;
+        /// <summary>The API instance the runtime's calls for this resource use (entities it creates belong to the resource).</summary>
+        internal API RuntimeApi;
+
+        /// <summary>A TypeScript server script: events go to the Bun runtime, calls come back through the bridge; no worker threads.</summary>
+        public ScriptingEngine(RuntimeBridge runtime, string name, Resource parent)
+        {
+            ResourceParent = parent;
+            Runtime = runtime;
+            Language = ScriptingEngineLanguage.typescript;
+            Filename = name;
+            _mainQueue = Queue.Synchronized(new Queue());
+            _secondaryQueue = Queue.Synchronized(new Queue());
+            RuntimeApi = new API { ResourceParent = this };
         }
 
         public ScriptingEngine(Script sc, string name, Resource parent, bool async)
@@ -160,6 +180,7 @@ namespace GTANetworkServer
 
         public void InvokeVoidMethod(string method, object[] args)
         {
+            if (Runtime != null) { Program.Output("exported function " + method + " of a TypeScript resource cannot be called from C# yet", LogCat.Warn); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -180,6 +201,7 @@ namespace GTANetworkServer
 
         public dynamic InvokeMethod(string method, object[] args)
         {
+            if (Runtime != null) { Program.Output("exported function " + method + " of a TypeScript resource cannot be called from C# yet", LogCat.Warn); return null; }
             try
             {
                 object objectToReturn = null;
@@ -212,6 +234,7 @@ namespace GTANetworkServer
 
         public void InvokeResourceStart()
         {
+            if (Runtime != null) return; // the runtime raises resourceStart itself once the module is loaded
             /*
             // Sync resourceStart to make sure dependencies are ready?
             Task shutdownTask = new Task(() =>
@@ -243,6 +266,7 @@ namespace GTANetworkServer
 
         public void InvokeEntityDataChange(NetHandle ent, string key, object oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "entityDataChange", ent, key, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -253,6 +277,7 @@ namespace GTANetworkServer
 
         public void InvokeResourceStop()
         {
+            if (Runtime != null) { HasTerminated = true; return; } // the runtime raises resourceStop on unload
             // Cooperative shutdown: Thread.Abort is not supported on .NET 5+.
             // The worker loops check HasTerminated on every iteration.
             HasTerminated = true;
@@ -288,6 +313,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerBeginConnect(Client client, CancelEventArgs e)
         {
+            if (Runtime != null) { if (Runtime.EventCancelable(this, "playerBeginConnect", client)) e.Cancel = true; return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -298,6 +324,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerEnterVehicle(Client client, NetHandle veh)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerEnterVehicle", client, veh); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -308,6 +335,7 @@ namespace GTANetworkServer
 
         public void InvokeServerResourceStart(string resource)
         {
+            if (Runtime != null) { Runtime.Event(this, "serverResourceStart", resource); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -318,6 +346,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleTrailerChange(NetHandle entity, NetHandle trailer)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleTrailerChange", entity, trailer); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -328,6 +357,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerDetonateStickies(Client player)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerDetonateStickies", player); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -338,6 +368,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerModelChange(Client player, int oldModel)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerModelChange", player, oldModel); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -348,6 +379,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleTyreBurst(NetHandle entity, int index)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleTyreBurst", entity, index); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -358,6 +390,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleDoorBreak(NetHandle entity, int index)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleDoorBreak", entity, index); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -368,6 +401,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleWindowBreak(NetHandle entity, int index)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleWindowSmash", entity, index); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -378,6 +412,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleSirenToggle(NetHandle entity, bool oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleSirenToggle", entity, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -388,6 +423,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleHealthChange(NetHandle player, float oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleHealthChange", player, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -398,6 +434,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerWeaponChange(Client player, int oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerWeaponSwitch", player, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -408,6 +445,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerWeaponAmmoChange(Client player, int weapon, int oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerWeaponAmmoChange", player, weapon, oldValue); return; }
             lock (_mainQueue.SyncRoot)
                 _mainQueue.Enqueue(new Action(() =>
                 {
@@ -418,6 +456,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerArmorChange(Client player, int oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerArmorChange", player, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -428,6 +467,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerHealthChange(Client player, int oldValue)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerHealthChange", player, oldValue); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -438,6 +478,7 @@ namespace GTANetworkServer
 
         public void InvokeServerResourceStop(string resource)
         {
+            if (Runtime != null) { Runtime.Event(this, "serverResourceStop", resource); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -448,6 +489,7 @@ namespace GTANetworkServer
 
         public void InvokeCustomDataReceive(string resource)
         {
+            if (Runtime != null) { Runtime.Event(this, "customDataReceived", resource); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -458,6 +500,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerExitVehicle(Client client, NetHandle veh)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerExitVehicle", client, veh); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -468,6 +511,7 @@ namespace GTANetworkServer
 
         public void InvokeVehicleDeath(NetHandle veh)
         {
+            if (Runtime != null) { Runtime.Event(this, "vehicleDeath", veh); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -478,6 +522,7 @@ namespace GTANetworkServer
 
         public void InvokeColshapeEnter(ColShape shape, NetHandle veh)
         {
+            if (Runtime != null) { Runtime.Event(this, "entityEnterColShape", shape, veh); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -488,6 +533,7 @@ namespace GTANetworkServer
 
         public void InvokeColshapeExit(ColShape shape, NetHandle veh)
         {
+            if (Runtime != null) { Runtime.Event(this, "entityExitColShape", shape, veh); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -498,6 +544,7 @@ namespace GTANetworkServer
 
         public void InvokeMapChange(string mapName, XmlGroup map)
         {
+            if (Runtime != null) { Runtime.Event(this, "mapChange", mapName, map); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -508,6 +555,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerDisconnected(Client client, string reason)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerDisconnected", client, reason); return; }
             Task shutdownTask = new Task(() =>
             {
                 try
@@ -528,6 +576,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerDownloadFinished(Client client)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerFinishedDownload", client); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -538,6 +587,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerPickup(Client client, NetHandle pickup)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerPickup", client, pickup); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -548,6 +598,7 @@ namespace GTANetworkServer
 
         public void InvokePickupRespawn(NetHandle pickup)
         {
+            if (Runtime != null) { Runtime.Event(this, "pickupRespawn", pickup); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -558,6 +609,7 @@ namespace GTANetworkServer
 
         public void InvokeChatCommand(Client sender, string command, CancelEventArgs ce)
         {
+            if (Runtime != null) { if (Runtime.EventCancelable(this, "chatCommand", sender, command)) ce.Cancel = true; return; }
             Task cmdTask = new Task(() =>
             {
                 if (Language == ScriptingEngineLanguage.compiled)
@@ -572,6 +624,7 @@ namespace GTANetworkServer
 
         public bool InvokeChatMessage(Client sender, string cmd)
         {
+            if (Runtime != null) return !Runtime.EventCancelable(this, "chatMessage", sender, cmd);
             Task<bool> shutdownTask = new Task<bool>(() =>
             {
                 try
@@ -594,6 +647,7 @@ namespace GTANetworkServer
 
         public void InvokeClientEvent(Client sender, string eventName, object[] args)
         {
+            if (Runtime != null) { Runtime.Event(this, "clientEventTrigger", sender, eventName, args); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -604,6 +658,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerConnected(Client sender)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerConnected", sender); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -614,6 +669,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerDeath(Client killed, int reason, int weapon)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerDeath", killed, reason, weapon); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -624,6 +680,7 @@ namespace GTANetworkServer
 
         public void InvokePlayerRespawn(Client sender)
         {
+            if (Runtime != null) { Runtime.Event(this, "playerRespawn", sender); return; }
             lock (_mainQueue.SyncRoot)
             _mainQueue.Enqueue(new Action(() =>
             {
@@ -634,6 +691,7 @@ namespace GTANetworkServer
 
         public void InvokeUpdate()
         {
+            if (Runtime != null) return; // not forwarded: 60 Hz per resource over the bridge is waste; TypeScript uses timers
             if (Async) return;
             lock (_mainQueue.SyncRoot)
             {

@@ -22,6 +22,15 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
 `claude/modernize-deps-4d8uyn` is being tested in game.
 
 ### Changed
+* **TypeScript server resources run in a Bun runtime** (`<script src="server/index.ts" type="server" lang="typescript"/>`):
+  the server starts one Bun process (`runtime/main.ts`, shipped next to the server; Bun 1.4.1 from `GTAN_BUN`, `runtime/bun/`
+  or `PATH`) and talks to it over a Unix domain socket (loopback TCP on Windows) with MessagePack frames — the resource's
+  entry module exports `default function main(gtan)`, `gtan.api.*` is the whole server API (typed by
+  `runtime/gtan/api.generated.d.ts`, every call returns a Promise), `gtan.on(event, handler)` the engine's events (cancelable
+  ones return `{ cancel: true }`), `gtan.commands.register` the chat commands, `gtan.players` a 10 Hz mirror of the players'
+  state pushed as deltas; resources hot-reload on file changes; a dead runtime is restarted (1, 2, 5 s back-off). Measured
+  bridge: 2.0 M one-way calls/s, round trip p50 6 µs. `Server/resources/tsdemo` is the example; C# and VB resources are
+  unchanged. Bun's own APIs (`Bun.sql`, `Bun.redis`, `Bun.s3`, fetch, WebSocket) are available to gamemodes.
 * **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the

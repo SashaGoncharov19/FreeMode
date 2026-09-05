@@ -48,8 +48,10 @@ rendering can only be verified in game by the owner.
 * **Awaiting the owner in game** (`play.sh --debug`): T-000 (texture ring: typing reacts at once; `[HITCH]` lines vs
   `hitch-monitor.log`; the host stops 60 s after the last browser and returns for the next page) and T-012 (the loader shows
   about a second after "connect" and fades before the `auth` form; `Runtime.log`: `loader: shown …` / `loader: hidden after N ms`).
-* **In progress**: T-006 stage 2 — the Bun runtime for TypeScript server resources (`task/T-006-bun-bridge`; design in the
-  task file). **Open decisions**: Q-07 hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
+* **In progress**: T-006 stage 2 — the Bun runtime for TypeScript server resources (`task/T-006-bun-bridge`): the engine bridge
+  (`Server/Runtime/`), the runtime (`runtime/`), the `tsdemo` resource and its integration-test phase are written and pass
+  `eng/dev-test.sh`; PR pending. The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out,
+  up to 6.5 s of memory stall per second, Chromium took 42 s to start); the loader did not show for that reason. **Open decisions**: Q-07 hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
 * Everything except the game is verified by `eng/dev-test.sh` (CI checks) and `eng/cef-harness.sh` (browser host, both frame
   modes, latency, loader page); the bridge numbers are in `docs/PLAN.md` E-04.
 
