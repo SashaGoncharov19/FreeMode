@@ -43,8 +43,7 @@ timestamps) so the same movement can be compared before and after a sync change.
   time, looping), `docs/SYNC.md` §7, `CHANGELOG.md`, `docs/CODEMAP.md`.
 * **Deviation from the Files list**: the route is recorded by the client (`GTAN_RECORD_ROUTE=1`), as the task's note suggested, not
   by the bot; the summary goes through `LogManager.VerboseLog` (debug mode) as specified.
-* **Verified**: the client builds against the real ScriptHookVDotNet build; `eng/dev-test.sh` green; the bot's `--route` parses and
-  replays a hand-made three-point route (a local check with a stub server is not part of CI: the replay only moves the bot).
+* **Verified**: the client builds against the real ScriptHookVDotNet build; `eng/dev-test.sh` green; the bot's `--route` is exercised only by hand (the replay moves the bot; nothing in CI asserts on it).
   __T018_VERIFIED__
 * **Owner check**: `GTAN_RECORD_ROUTE=1 ~/GTANetwork/play.sh --debug`, walk and drive for a minute, quit; then
   `~/GTANetwork/GTANetwork.Bot --route ~/GTANetwork/logs/route-<stamp>.jsonl --duration 300 --name Route` and play with debug mode

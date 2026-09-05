@@ -47,6 +47,13 @@ namespace GTANetworkShared
         /// and takes over when the page does not come up. Off when CEF is disabled.</summary>
         public bool CefMenu { get; set; }
 
+        /// <summary>Voice chat (T-016): hear other players and talk with the push-to-talk key.</summary>
+        public bool VoiceEnabled { get; set; }
+        /// <summary>The push-to-talk key (System.Windows.Forms.Keys name), default N.</summary>
+        public string VoiceKey { get; set; }
+        /// <summary>Playback volume of other players' voice, 0..100.</summary>
+        public int VoiceVolume { get; set; }
+
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
 
@@ -98,6 +105,9 @@ namespace GTANetworkShared
             CefIdleExitSeconds = 60;
             CefLoader = true;
             CefMenu = true;
+            VoiceEnabled = true;
+            VoiceKey = "N";
+            VoiceVolume = 100;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";
