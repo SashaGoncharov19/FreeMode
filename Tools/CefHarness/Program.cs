@@ -71,6 +71,17 @@ namespace GTANetwork.CefHarness
 
         private static int Main(string[] args)
         {
+            // The capture test (T-016) must not touch CefSharp: jitting a method that references CefSharp.Core loads libcef.dll,
+            // and without the runtime next to the exe that fails before any line runs (under Wine as a dialog nobody closes).
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "--capture-test") return CaptureTest.Run(int.Parse(args[i + 1], CultureInfo.InvariantCulture));
+            }
+            return RunHarness(args);
+        }
+
+        private static int RunHarness(string[] args)
+        {
             // The exe's own folder, also inside a second AppDomain whose base is elsewhere.
             var exeDir = Path.GetDirectoryName(new Uri(typeof(Program).Assembly.CodeBase).LocalPath);
             _cefDir = Path.Combine(exeDir, "cef");

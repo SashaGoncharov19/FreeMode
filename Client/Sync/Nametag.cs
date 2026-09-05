@@ -53,6 +53,7 @@ namespace GTANetwork.Sync
                     thisCollection.Call(Hash.SET_DRAW_ORIGIN, targetPos.X, targetPos.Y, targetPos.Z, 0);;
 
                     var nameText = Name ?? "<nameless>";
+                    if (TalkingUntilMs > Environment.TickCount) nameText += " ~g~*~w~";   // T-016: talking
 
                     if (!string.IsNullOrEmpty(NametagText))
                     {

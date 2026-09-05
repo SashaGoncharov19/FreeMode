@@ -250,8 +250,10 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
 * **Voice**: the protocol and the relay (T-015): `PacketType.Voice` (Opus frames, unreliable `ConnectionChannel.Voice`),
   `Server/Managers/VoiceRouter.cs` (proximity channel 0 within `<voicerange>` / per-player range over the talker's near tiers,
   radio channels > 0, mutes, 400 B and 60 frames/s caps, start/stop-talking events), `API.setPlayerVoiceChannel/Range`,
-  `mutePlayerFor`; the bot encodes test audio with Concentus (`Tools/GTANetwork.Bot/VoiceTest.cs`). Capture and playback in the
-  game: T-016 (the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`, is unrelated).
+  `mutePlayerFor`; the bot encodes test audio with Concentus (`Tools/GTANetwork.Bot/VoiceTest.cs`). In the game (T-016): `Client/Voice/VoiceCapture.cs` (WASAPI/WinMM → 48 kHz mono → Opus → `Voice` packets while
+  the push-to-talk key is held), `VoicePlayback.cs` (a decoder and a buffered stream per talker into one WaveOut mixer; volume by distance,
+  pan by direction, updated every tick), `VoiceKeys.cs`, `SyncPedVoice.cs` (the nametag indicator); `Tools/CefHarness --capture-test`
+  measures capture under Wine (the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`, is unrelated).
 * **Anti-cheat**: `Server/Managers/Anticheat.cs` (T-017): speed and teleport per pure sync packet (on foot `<footspeed>`, drivers the
   model's MaxSpeed × `<speedfactor>` from `vehicleData.json`, a jump over `<teleport>` m), health ≤ 200 and armour ≤ 100, the client's
   `IntegrityReport` (SHA-256 of `bin/scripts/*.dll`, the browser host, libcef; `Client/Util/Integrity.cs`) against `manifest.json`

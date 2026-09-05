@@ -254,6 +254,8 @@ namespace GTANetwork
 
         private static void ResetWorld()
         {
+            Voice.VoiceCapture.Close();
+            Voice.VoicePlayback.Close();
             World.RenderingCamera = MainMenuCamera;
             CefMenu.Suspended = false;
             MainMenu.Visible = !CefMenu.Enabled;
