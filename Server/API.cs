@@ -76,6 +76,8 @@ namespace GTANetworkServer
         public delegate void EntityDataChangedEvent(NetHandle entity, string key, object oldValue);
         public delegate void ResourceEvent(string resourceName);
         public delegate void DataReceivedEvent(string data);
+        /// <summary>T-017: a check found something; kind = speed | teleport | health | armour | integrity.</summary>
+        public delegate void CheatEvent(Client player, string kind, string evidence);
         public delegate void PlayerIntEvent(Client player, int oldValue);
         public delegate void PlayerWeaponEvent(Client player, WeaponHash oldValue);
         public delegate void PlayerAmmoEvent(Client player, WeaponHash weapon, int oldValue);
@@ -93,6 +95,8 @@ namespace GTANetworkServer
         public event CommandEvent onChatCommand;
         public event PlayerConnectingEvent onPlayerBeginConnect;
         public event PlayerEvent onPlayerConnected;
+        /// <summary>T-017: the anti-cheat found something; the gamemode decides what else to do (the server acts per &lt;anticheat action&gt;).</summary>
+        public event CheatEvent onCheatDetected;
         /// <summary>T-015: the player's first voice frame after silence.</summary>
         public event PlayerEvent onPlayerStartTalking;
         /// <summary>T-015: 300 ms without a voice frame from the player.</summary>
@@ -329,6 +333,11 @@ namespace GTANetworkServer
         internal void invokePlayerStartTalking(Client player)
         {
             onPlayerStartTalking?.Invoke(player);
+        }
+
+        internal void invokeCheatDetected(Client player, string kind, string evidence)
+        {
+            onCheatDetected?.Invoke(player, kind, evidence);
         }
 
         internal void invokePlayerStopTalking(Client player)
@@ -3392,6 +3401,21 @@ namespace GTANetworkServer
 
 	            setEntityData(netHandle, "__LAST_POSITION_SET", TickCount);
 	        }
+            // T-017: a server teleport must not count as one
+            Client moved;
+            lock (Program.ServerInstance.Clients) moved = Program.ServerInstance.Clients.Find(c => c != null && c.handle.Value == netHandle.Value);
+            if (moved != null) Program.ServerInstance.Anticheat.Grace(moved, Program.MonotonicMs(), 3000);
+        }
+
+        /// <summary>T-017: what the server does after a cheat finding: "log", "kick" or "ban" (settings.xml &lt;anticheat action&gt;).</summary>
+        public void setAnticheatAction(string action)
+        {
+            Program.ServerInstance.Anticheat.Action = action;
+        }
+
+        public string getAnticheatAction()
+        {
+            return Program.ServerInstance.Anticheat.Action;
         }
 
         public void moveEntityPosition(NetHandle netHandle, Vector3 target, int duration)

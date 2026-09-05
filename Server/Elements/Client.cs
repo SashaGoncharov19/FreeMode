@@ -16,6 +16,7 @@ namespace GTANetworkServer
         internal long BudgetSecond;          // the second the budget counter belongs to
         internal int BudgetBytes;            // bytes of other players' sync sent to this player in that second
         internal Streamer Streamer { get; set; }
+        internal readonly AnticheatState Anticheat = new AnticheatState();   // T-017
         internal DateTime LastUpdate { get; set; }
 
         internal bool Fake { get; set; }

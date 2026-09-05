@@ -104,5 +104,11 @@ $version = (Get-Item "$Out/bin/scripts/GTANetwork.dll").VersionInfo.FileVersion
 Set-Content -Path "$Out/version.txt" -Value $version
 Set-Content -Path "$Out/bin/depsver.txt" -Value $version
 
+# 7. Integrity manifest (T-017): the server compares the client's report with it when it has a copy next to itself.
+$manifestFiles = [ordered]@{}
+foreach ($f in Get-ChildItem "$Out/bin/scripts" -Filter *.dll | Sort-Object Name) { $manifestFiles["bin/scripts/" + $f.Name] = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower() }
+foreach ($rel in "cef/GTANetwork.CefHost.exe", "cef/libcef.dll") { if (Test-Path "$Out/$rel") { $manifestFiles[$rel] = (Get-FileHash "$Out/$rel" -Algorithm SHA256).Hash.ToLower() } }
+[ordered]@{ version = $version; files = $manifestFiles } | ConvertTo-Json | Set-Content -Path "$Out/manifest.json"
+
 Write-Host "Client package $version assembled in $Out"
 Get-ChildItem $Out -Recurse -File | Measure-Object -Property Length -Sum | ForEach-Object { Write-Host ("{0} files, {1:N1} MB" -f $_.Count, ($_.Sum / 1MB)) }

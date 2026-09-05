@@ -37,6 +37,10 @@ namespace GTANetworkShared
         [XmlElement("voicerange")]
         public float VoiceRange { get; set; }
 
+        /// <summary>The anti-cheat baseline (T-017): what the server does with a finding and the movement limits.</summary>
+        [XmlElement("anticheat")]
+        public AnticheatSettings Anticheat { get; set; }
+
         /// <summary>Who receives whose sync packets at which rate (T-003): grid cell size, the full/medium tier distances, the streaming range, the per-player byte budget, the caps.</summary>
         [XmlElement("interest")]
         public InterestSettings Interest { get; set; }
@@ -139,6 +143,7 @@ namespace GTANetworkShared
             RelayThreads = 0;
             Interest = new InterestSettings();
             VoiceRange = 40f;
+            Anticheat = new AnticheatSettings();
             DlcPacks = new List<DlcPackSettings>();
             UseACL = true;
             AnnounceToLan = true;
@@ -224,5 +229,21 @@ namespace GTANetworkShared
         [XmlAttribute("budget")] public int BudgetBytesPerSecond = 30720;
         [XmlAttribute("maxfull")] public int MaxFull = 64;
         [XmlAttribute("maxnear")] public int MaxNear = 250;
+    }
+
+    /// <summary>
+    /// &lt;anticheat action="log|kick|ban" footspeed="60" speedfactor="1.3" teleport="200" integrity="off|report|kick"/&gt; (T-017):
+    /// <c>action</c> is what the server does after raising onCheatDetected for speed, teleport, health and armour findings; a player on
+    /// foot may move <c>footspeed</c> m/s, a driver the vehicle's MaxSpeed × <c>speedfactor</c> (at least 60 m/s); a jump over
+    /// <c>teleport</c> metres between two packets is a teleport; <c>integrity</c> is what happens when the client's binaries differ from
+    /// manifest.json next to the server (no manifest = no check).
+    /// </summary>
+    public class AnticheatSettings
+    {
+        [XmlAttribute("action")] public string Action = "log";
+        [XmlAttribute("footspeed")] public float FootSpeed = 60f;
+        [XmlAttribute("speedfactor")] public float SpeedFactor = 1.3f;
+        [XmlAttribute("teleport")] public float TeleportDistance = 200f;
+        [XmlAttribute("integrity")] public string Integrity = "report";
     }
 }
