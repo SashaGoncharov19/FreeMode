@@ -1,6 +1,6 @@
 # T-020 — Remove dead code and unused binaries
 
-Status: ready
+Status: in progress
 Epic: E-02 Agent framework (hygiene)
 Size: S
 Branch: task/T-020-cleanup from the integration branch
@@ -30,6 +30,7 @@ The excluded legacy client files, unused `libs/` binaries and the root duplicate
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 12:10 agent — started.
 
 ## Result
 
