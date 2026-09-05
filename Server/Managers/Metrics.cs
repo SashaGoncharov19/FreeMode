@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using GTANetworkShared;
 using Newtonsoft.Json;
 
 namespace GTANetworkServer.Managers
@@ -21,6 +22,7 @@ namespace GTANetworkServer.Managers
         private static long _ticks, _packetsIn, _bytesIn, _packetsOut, _bytesOut;
         private static readonly long[] TierSent = new long[4];
         private static long _budgetDropped, _voiceFrames, _voiceDropped, _cheatDetections;
+        private static long _entityCreates, _entityUpdates, _entityDeletes, _entityBytes;   // T-026: entity packets, per recipient
         private static readonly Stopwatch Clock = Stopwatch.StartNew();
         private static readonly object SampleLock = new object();
         private static readonly Queue<Sample> Samples = new Queue<Sample>();
@@ -33,6 +35,7 @@ namespace GTANetworkServer.Managers
             public double Seconds;
             public long Ticks, PacketsIn, BytesIn, PacketsOut, BytesOut;
             public long Full, Medium, Low, Far, BudgetDropped, VoiceFrames, VoiceRelays;
+            public long EntityCreates, EntityUpdates, EntityDeletes, EntityBytes;
         }
 
         /// <summary>One server tick took this long (Program.cs main loop).</summary>
@@ -64,6 +67,20 @@ namespace GTANetworkServer.Managers
 
         /// <summary>A sync packet was queued for one recipient of this tier (0 full, 1 medium, 2 low, 3 far).</summary>
         public static void InterestSent(int tier) { Interlocked.Increment(ref TierSent[tier]); }
+
+        /// <summary>An entity create/update/delete packet went to <paramref name="recipients"/> connections (T-026 baseline).</summary>
+        public static void EntityPacket(PacketType type, int recipients, int bytes)
+        {
+            if (recipients <= 0) return;
+            switch (type)
+            {
+                case PacketType.CreateEntity: Interlocked.Add(ref _entityCreates, recipients); break;
+                case PacketType.UpdateEntityProperties: Interlocked.Add(ref _entityUpdates, recipients); break;
+                case PacketType.DeleteEntity: Interlocked.Add(ref _entityDeletes, recipients); break;
+                default: return;
+            }
+            Interlocked.Add(ref _entityBytes, (long)bytes * recipients);
+        }
 
         /// <summary>The anti-cheat raised a finding (T-017).</summary>
         public static void CheatDetected() { Interlocked.Increment(ref _cheatDetections); }
@@ -110,6 +127,7 @@ namespace GTANetworkServer.Managers
                     Full = Interlocked.Read(ref TierSent[0]), Medium = Interlocked.Read(ref TierSent[1]), Low = Interlocked.Read(ref TierSent[2]), Far = Interlocked.Read(ref TierSent[3]),
                     BudgetDropped = Interlocked.Read(ref _budgetDropped),
                     VoiceFrames = Interlocked.Read(ref _voiceFrames), VoiceRelays = Program.ServerInstance?.Voice?.Relays ?? 0,
+                    EntityCreates = Interlocked.Read(ref _entityCreates), EntityUpdates = Interlocked.Read(ref _entityUpdates), EntityDeletes = Interlocked.Read(ref _entityDeletes), EntityBytes = Interlocked.Read(ref _entityBytes),
                 });
                 while (Samples.Count > SampleWindow) Samples.Dequeue();
             }
@@ -158,6 +176,7 @@ namespace GTANetworkServer.Managers
                 near = new { avg = Math.Round(nearAvg, 1), max = nearMax },
                 process = new { rssBytes = process.WorkingSet64, threads = process.Threads.Count, cpuSeconds = Math.Round(process.TotalProcessorTime.TotalSeconds, 1) },
                 relay = RelaySnapshot(),
+                entities = new { createsPps = Math.Round((last.EntityCreates - first.EntityCreates) / dt), updatesPps = Math.Round((last.EntityUpdates - first.EntityUpdates) / dt), deletesPps = Math.Round((last.EntityDeletes - first.EntityDeletes) / dt), bps = Math.Round((last.EntityBytes - first.EntityBytes) / dt), creates = last.EntityCreates, updates = last.EntityUpdates, bytes = last.EntityBytes },
                 anticheat = new { detections = Interlocked.Read(ref _cheatDetections), kicked = Program.ServerInstance?.Anticheat?.Kicked ?? 0, manifest = Program.ServerInstance?.Anticheat?.HasManifest ?? false },
                 voice = new { framesPps = Math.Round((last.VoiceFrames - first.VoiceFrames) / dt), relaysPps = Math.Round((last.VoiceRelays - first.VoiceRelays) / dt), dropped = Interlocked.Read(ref _voiceDropped) + (Program.ServerInstance?.Voice?.FramesDropped ?? 0) },
                 interest = new

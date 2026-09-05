@@ -301,6 +301,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, 1, data.Length + 5);
             Send(msg, c.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.UnreliableSequenced, (int)channel);
         }
 
@@ -311,6 +312,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, Server.ConnectionsCount, data.Length + 5);
 
             Broadcast(msg, null, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
@@ -322,6 +324,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, Math.Max(0, Server.ConnectionsCount - 1), data.Length + 5);
 
             Broadcast(msg, exclude.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
