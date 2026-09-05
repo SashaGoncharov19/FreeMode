@@ -190,6 +190,8 @@ namespace GTANetworkServer
         public NetEntityHandler NetEntityHandler { get; set; }
         /// <summary>The bridge to the Bun runtime; created by the first resource with TypeScript server scripts (Server/Runtime).</summary>
         internal RuntimeBridge Runtime;
+        /// <summary>Request/response calls between scripts (T-008).</summary>
+        internal readonly RpcDispatcher Rpc = new RpcDispatcher();
 
         public bool AllowDisplayNames { get; set; }
 
@@ -593,6 +595,7 @@ namespace GTANResource
             }
 
             Runtime?.Tick();
+            Rpc.Tick();
 
             if (Downloads.Count > 0)
             {
@@ -722,6 +725,8 @@ namespace GTANResource
             {
                 if (!Clients.Contains(client)) return;
             }
+
+            Rpc.PlayerDisconnected(client);
 
             lock (RunningResources)
             {

@@ -286,6 +286,18 @@ namespace GTANetwork
             Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered);
         }
 
+        /// <summary>An RpcRequest or RpcResponse to the server (T-008), reliable and ordered on the Rpc channel.</summary>
+        internal static void SendRpc(PacketType type, object packet)
+        {
+            if (!IsOnServer()) return;
+            var bin = SerializeBinary(packet);
+            var msg = Client.CreateMessage();
+            msg.Write((byte)type);
+            msg.Write(bin.Length);
+            msg.Write(bin);
+            Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+        }
+
 
         public int GetOpenUdpPort()
         {

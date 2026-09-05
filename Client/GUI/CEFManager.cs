@@ -884,6 +884,25 @@ namespace GTANetwork.GUI
             Queue(() => _parent.Evaluate(code));
         }
 
+        /// <summary>
+        /// The page called gtan.rpc.call(name, args) (T-008): a handler the owning script registered with API.rpc.register answers it,
+        /// otherwise the request goes on to the server; the answer is evaluated in the page as gtan.rpc._settle(id, ...).
+        /// </summary>
+        internal void Rpc(uint id, string name, string payload, int timeoutMs)
+        {
+            if (_parent == null || _wrapper == null || !_wrapper._localMode || string.IsNullOrEmpty(name)) return;
+            var wrapper = _wrapper;
+            var engine = _parent;
+            Action<uint, bool, string, string, string> respond = (requestId, ok, result, code, message) =>
+                wrapper.eval("gtan.rpc._settle(" + requestId + ", " + (ok ? "true" : "false") + ", " + ToLiteral(result) + ", " + ToLiteral(code) + ", " + ToLiteral(message) + ");");
+            Queue(() =>
+            {
+                var context = JavascriptHook.ContextOf(engine);
+                if (context == null) { respond(id, false, null, GTANetworkShared.RpcCodes.Unknown, "the owning script is gone"); return; }
+                context.rpc.FromPage(id, name, payload, timeoutMs, respond);
+            });
+        }
+
         internal void Run(string code)
         {
             if (_parent == null || _wrapper == null || !_wrapper._localMode || string.IsNullOrEmpty(code)) return;
@@ -1137,6 +1156,9 @@ namespace GTANetwork.GUI
                     {
                         _callback?.Run(m.Code);
                     }
+                    break;
+                case CefHostProtocol.Rpc:
+                    if (m.Rpc > 0 && m.Name != null) _callback?.Rpc((uint)m.Rpc, m.Name, m.Text, m.Timeout);
                     break;
                 case CefHostProtocol.RenderTerminated:
                     LogManager.CefLog("-> Browser " + Id + ": render process terminated: " + m.Text);

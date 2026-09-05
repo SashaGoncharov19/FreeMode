@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Xml;
 using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
@@ -2627,6 +2628,54 @@ namespace GTANetworkServer
             packet.Arguments = GameServer.ParseNativeArguments(args);
 
             Program.ServerInstance.SendToClient(player, packet, PacketType.ScriptEventTrigger, true, ConnectionChannel.ClientEvent);
+        }
+
+        // ---- RPC (T-008): request/response calls, Server/Managers/RpcDispatcher.cs ----
+
+        /// <summary>
+        /// Registers the handler of <c>API.rpc.call(name, args)</c> from client scripts (and of <c>gtan.rpc.call</c> from their CEF pages).
+        /// The handler gets the caller and the arguments as one JSON value (a JObject/JArray/JValue: <c>args["item"]</c>, or null) and
+        /// returns a JSON-serialisable value or a Task of one; an exception fails the call with its message and the code "handler"
+        /// (throw an RpcException to choose the code). Names are global across resources: prefix them with the resource name
+        /// ("auth:login"); registering a name again replaces the handler. Handlers run on the resource's script thread; the caller
+        /// waits at most its timeout (10 s by default).
+        /// </summary>
+        public void registerRpc(string name, Func<Client, dynamic, object> handler)
+        {
+            registerRpc(name, handler, null);
+        }
+
+        /// <summary>The same with an allow check: when <paramref name="allow"/> returns false for the caller, the call fails with the
+        /// code "denied" and the handler does not run.</summary>
+        public void registerRpc(string name, Func<Client, dynamic, object> handler, Func<Client, bool> allow)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            Program.ServerInstance.Rpc.Register(name, ResourceParent, handler, allow);
+        }
+
+        /// <summary>TypeScript resources only: <c>gtan.rpc.register(name, handler)</c> keeps the handler in the Bun runtime and tells
+        /// the engine the name through this overload. C# resources pass a handler.</summary>
+        public void registerRpc(string name)
+        {
+            if (ResourceParent == null || ResourceParent.Runtime == null)
+                throw new InvalidOperationException("registerRpc(name) without a handler is for TypeScript resources; pass a handler");
+            Program.ServerInstance.Rpc.Register(name, ResourceParent, null, null);
+        }
+
+        public void unregisterRpc(string name)
+        {
+            Program.ServerInstance.Rpc.Unregister(name);
+        }
+
+        /// <summary>
+        /// Calls a handler the player's client script registered with <c>API.rpc.register(name, handler)</c>. The Task completes with
+        /// the handler's return value (a JSON value: JObject, JArray, string, number, bool or null) or fails with an RpcException whose
+        /// Code is timeout, unknown, handler, size or disconnected. Default timeout 10 s, at most 60 s.
+        /// </summary>
+        public Task<object> callClient(Client player, string name, object args = null, int timeoutMs = RpcCodes.DefaultTimeoutMs)
+        {
+            var resource = ResourceParent == null ? "*" : ResourceParent.ResourceParent.DirectoryName;
+            return Program.ServerInstance.Rpc.CallClient(player, name, args, timeoutMs, resource);
         }
 
         public void sendChatMessageToAll(string message)

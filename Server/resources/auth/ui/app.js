@@ -1,5 +1,6 @@
-// Runs inside the CEF page. resourceCall(name, ...args) invokes a global function of the resource's client
-// script (client.js); the client script answers by calling the global functions defined here.
+// Runs inside the CEF page. gtan.rpc.call(name, args) (T-008) asks the server's handler of that name through the
+// resource's client script and resolves with its answer; on an old client without gtan.rpc the page falls back to
+// resourceCall("authSubmit", ...) and the client script's "auth:result" event calls showError here.
 
 var mode = "login";
 
@@ -38,7 +39,14 @@ document.getElementById("form").addEventListener("submit", function (event) {
     setBusy(true);
     showError("");
 
-    if (typeof resourceCall === "function") {
+    if (typeof gtan !== "undefined" && gtan.rpc) {
+        gtan.rpc.call("auth:" + mode, { name: name, password: password }).then(function (result) {
+            // success: the server's "auth:result" event makes client.js close this form
+            if (!result || !result.ok) showError(result ? result.message : "No answer.");
+        }, function (error) {
+            showError(error.code === "timeout" ? "The server did not answer in time." : (error.message || String(error)));
+        });
+    } else if (typeof resourceCall === "function") {
         resourceCall("authSubmit", mode, name, password);
     } else {
         showError("Not running inside GTA Network.");

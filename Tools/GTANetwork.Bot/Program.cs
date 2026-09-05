@@ -27,6 +27,8 @@ internal sealed class Options
     public string Password = "";
     public List<string> Say = new();
     public List<string> Expect = new();
+    public List<(string Name, string Json)> Rpc = new();       // --rpc name json: RPC calls sent after the chat lines, 1 s apart
+    public (string Name, int Count)? RpcBurst;                 // --rpc-burst name count: that many calls at once (rate limit test)
     public double Duration = 5;      // seconds to stay connected after the last message was sent
     public double Timeout = 60;      // overall limit
     public bool Sync = true;
@@ -49,6 +51,8 @@ internal sealed class Options
                 case "--password": o.Password = Next(); break;
                 case "--say": o.Say.Add(Next()); break;
                 case "--expect": o.Expect.Add(Next()); break;
+                case "--rpc": { var name = Next(); o.Rpc.Add((name, Next())); break; }
+                case "--rpc-burst": { var name = Next(); o.RpcBurst = (name, int.Parse(Next(), CultureInfo.InvariantCulture)); break; }
                 case "--duration": o.Duration = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--timeout": o.Timeout = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--no-sync": o.Sync = false; break;
@@ -73,7 +77,10 @@ internal sealed class Options
   --name <name>        player name (default Bot)
   --password <pass>    server password
   --say <text>         chat line or /command to send after joining (repeatable, 1 s apart)
-  --expect <text>      substring that must appear in received chat; exit code 1 otherwise (repeatable)
+  --expect <text>      substring that must appear in received chat or RPC results; exit code 1 otherwise (repeatable)
+  --rpc <name> <json>  RPC call to the server after the chat lines (repeatable); the result is logged as
+                       rpc <name> ok <json>  or  rpc <name> error <code>: <message>  and matched by --expect
+  --rpc-burst <name> <n>  send n RPC calls at once (rate limit test)
   --duration <sec>     stay connected this long after the last --say (default 5)
   --timeout <sec>      give up after this long (default 60)
   --no-sync            do not send position sync packets
@@ -165,6 +172,11 @@ internal static class Program
 
         var deadline = _o.Interactive ? TimeSpan.MaxValue : _clock.Elapsed + TimeSpan.FromSeconds(_o.Timeout);
         var sayIndex = 0;
+        // The scripted steps, one second apart, in this order: chat lines, RPC calls, the RPC burst.
+        var steps = new List<Action>();
+        foreach (var text in _o.Say) { var line = text; steps.Add(() => SendChat(line)); }
+        foreach (var (name, json) in _o.Rpc) { var n = name; var j = json; steps.Add(() => SendRpc(n, j)); }
+        if (_o.RpcBurst is { } burst) steps.Add(() => { for (var i = 0; i < burst.Count; i++) SendRpc(burst.Name, "null"); });
         TimeSpan nextSay = TimeSpan.Zero, nextSync = TimeSpan.Zero, stayUntil = TimeSpan.MaxValue;
         var disconnected = false;
 
@@ -185,13 +197,13 @@ internal static class Program
 
             if (!_joined) continue;
 
-            if (sayIndex < _o.Say.Count && _clock.Elapsed >= nextSay)
+            if (sayIndex < steps.Count && _clock.Elapsed >= nextSay)
             {
-                SendChat(_o.Say[sayIndex++]);
+                steps[sayIndex++]();
                 nextSay = _clock.Elapsed + TimeSpan.FromSeconds(1);
-                if (sayIndex == _o.Say.Count && !_o.Interactive) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
+                if (sayIndex == steps.Count && !_o.Interactive) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
             }
-            else if (_o.Say.Count == 0 && stayUntil == TimeSpan.MaxValue && !_o.Interactive)
+            else if (steps.Count == 0 && stayUntil == TimeSpan.MaxValue && !_o.Interactive)
             {
                 stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(_o.Duration);
             }
@@ -205,7 +217,7 @@ internal static class Program
                     if (line == "/quit" || line == "/exit") { stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(0.7); break; } // let replies arrive
                     SendChat(line);
                 }
-                if (_stdinClosed && _stdin.IsEmpty && sayIndex >= _o.Say.Count && stayUntil == TimeSpan.MaxValue) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(0.7);
+                if (_stdinClosed && _stdin.IsEmpty && sayIndex >= steps.Count && stayUntil == TimeSpan.MaxValue) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(0.7);
             }
 
             if (_o.Sync && _clock.Elapsed >= nextSync)
@@ -236,7 +248,7 @@ internal static class Program
         }
         if (missing.Count > 0)
         {
-            Log("result", "FAILED: expected chat text not seen: " + string.Join(" | ", missing));
+            Log("result", "FAILED: expected text not seen: " + string.Join(" | ", missing));
             return 1;
         }
         if (_fileFailures > 0)
@@ -244,7 +256,7 @@ internal static class Program
             Log("result", $"FAILED: {_fileFailures} resource file(s) could not be downloaded");
             return 1;
         }
-        Log("result", _o.Expect.Count > 0 ? $"OK: joined, all {_o.Expect.Count} expected chat lines seen" : "OK: joined");
+        Log("result", _o.Expect.Count > 0 ? $"OK: joined, all {_o.Expect.Count} expected lines seen" : "OK: joined");
         return 0;
     }
 
@@ -436,6 +448,27 @@ internal static class Program
                 Log("client-event", $"{e.Resource}: {e.EventName}({string.Join(", ", (e.Arguments ?? new List<NativeArgument>()).Select(ArgToString))})");
                 break;
             }
+            case PacketType.RpcResponse:
+            {
+                var r = ReadPacket<RpcResponse>(msg);
+                _rpcNames.TryGetValue(r.Id, out var name);
+                var line = r.Ok ? $"rpc {name} ok {r.Payload}" : $"rpc {name} error {r.ErrorCode}: {r.ErrorMessage}";
+                _chatLog.AppendLine(line);
+                Log("rpc", $"#{r.Id} {line} ({(_clock.Elapsed - (_rpcSent.TryGetValue(r.Id, out var sent) ? sent : _clock.Elapsed)).TotalMilliseconds:0} ms)");
+                break;
+            }
+            case PacketType.RpcRequest:
+            {
+                // the server calls us (API.callClient): answer with the arguments echoed back
+                var r = ReadPacket<RpcRequest>(msg);
+                var line = $"rpc-in {r.Name} {r.Payload}";
+                _chatLog.AppendLine(line);
+                Log("rpc", line);
+                var reply = _client.CreateMessage();
+                WritePacket(reply, PacketType.RpcResponse, new RpcResponse { Id = r.Id, Ok = true, Payload = r.Payload ?? "null" });
+                _client.SendMessage(reply, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+                break;
+            }
             case PacketType.PlayerDisconnect:
                 Log("player", $"disconnected #{ReadPacket<PlayerDisconnect>(msg).Id}");
                 break;
@@ -563,6 +596,21 @@ internal static class Program
             _fileFailures++;
             Log("files", $"FAILED to download the manifest from {address}: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private static uint _rpcNext;
+    private static readonly Dictionary<uint, string> _rpcNames = new();
+    private static readonly Dictionary<uint, TimeSpan> _rpcSent = new();
+
+    private static void SendRpc(string name, string json)
+    {
+        var id = ++_rpcNext;
+        _rpcNames[id] = name;
+        _rpcSent[id] = _clock.Elapsed;
+        var msg = _client.CreateMessage();
+        WritePacket(msg, PacketType.RpcRequest, new RpcRequest { Id = id, Name = name, Resource = "bot", Payload = json, TimeoutMs = 5000, Origin = RpcOrigin.Client });
+        _client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
+        Log("rpc", $"#{id} call {name}({json})");
     }
 
     private static void SendChat(string text)

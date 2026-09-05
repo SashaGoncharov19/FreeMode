@@ -17,6 +17,9 @@ export default function main(gtan: Gtan) {
     void gtan.api.sendChatMessageToPlayer(player, `tsdemo: you are at ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`);
   });
 
+  // RPC (T-008): API.rpc.call("tsdemo:echo", {...}) from a client script resolves with this
+  gtan.rpc.register("tsdemo:echo", (player, args) => ({ from: "bun", player, args, players: gtan.players.size }));
+
   gtan.on("chatMessage", (player: number, message: string) => {
     if (message.trim() !== "tsdemo?") return;
     void gtan.api.sendChatMessageToPlayer(player, "tsdemo: yes, " + gtan.players.size + " player(s) mirrored");

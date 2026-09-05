@@ -156,7 +156,15 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 Transport: Lidgren.Network fork (`libs/Lidgren.Network.dll`, adds `MaxPlayers`), UDP, app id `GTANETWORK`. Every
 data message starts with `(byte)PacketType`; protobuf payloads are `int length + bytes`; sync packets use the codecs
 in `Shared/PacketOptimization.cs`. Channels: `ConnectionChannel` (Default, FileTransfer, NativeCall, Chat, EntityBackend,
-ClientEvent, SyncEvent, PureSync, LightSync, BasicSync, BulletSync, UnoccupiedVeh).
+ClientEvent, SyncEvent, PureSync, LightSync, BasicSync, BulletSync, UnoccupiedVeh, Rpc).
+
+**RPC** (T-008): `PacketType.RpcRequest`/`RpcResponse` carry `Shared/Rpc/RpcMessages.cs` (`RpcRequest {Id, Name, Resource,
+Payload = one JSON value, TimeoutMs, Origin}`, `RpcResponse {Id, Ok, Payload, ErrorCode, ErrorMessage}`) on the reliable ordered
+channel `Rpc`; codes and limits in `Shared/Rpc/RpcCodes.cs` (64 KB per payload, 10 s default / 60 s maximum timeout, 30
+requests per second per player). Server side `Server/Managers/RpcDispatcher.cs` (registry, size/rate/allow checks, C# handlers on
+the resource's script thread, TypeScript handlers through the bridge's `EventWithResult`, `callClient` with a per-tick timeout
+scan); client side `Client/Javascript/RpcContext.cs` (`API.rpc`; promises and the handler table live in a JavaScript helper in the
+script's engine, `RpcRouter` moves the packets and expires calls on the script tick).
 
 ```mermaid
 sequenceDiagram
@@ -188,23 +196,28 @@ issues: `docs/SYNC.md`.
 Languages: C#/VB compiled at start by `Server/Managers/ScriptCompiler.cs` (Roslyn), `compiled` assemblies, `javascript`
 (client only). API: `GTANetworkServer.Script` + `API` (`Server/API.cs`); events via `ScriptingEngine.Invoke*`
 (`Server/ResourceInfo.cs:213–:645`); commands via `[Command]`; cross-resource `<export>` → `API.exported`;
-client events `API.triggerClientEvent` (`Server/API.cs:2622`) ⇄ `PacketType.ScriptEventTrigger` (`Server/ProcessMessages.cs:1196`).
+client events `API.triggerClientEvent` (`Server/API.cs:2622`) ⇄ `PacketType.ScriptEventTrigger` (`Server/ProcessMessages.cs:1196`);
+request/response calls `API.registerRpc(name, handler, allow?)` / `API.callClient(player, name, args)` (§8 RPC). TypeScript
+resources (Bun runtime, `runtime/gtan/index.ts`): `gtan.rpc.register(name, handler, { allow })`, `gtan.rpc.callClient`.
 
 **Client scripts** — `ClientsideScript` records delivered during download, started by `Client/Main/Misc.cs:212` →
 `JavascriptHook.StartScripts` (`Client/Javascript/JavascriptHook.cs:366`): one `V8ScriptEngine` per file, host object
 `API` (`ScriptContext` :586), `resource`, `exported`; events use `.connect(handler)`; dispatch on the game thread through
-`ThreadJumper`. Debug mode opens the V8 inspector on 9222.
+`ThreadJumper`. Debug mode opens the V8 inspector on 9222. `API.rpc.call(name, args)` → Promise of the server handler's answer,
+`API.rpc.register(name, handler)` for calls from the server and from the resource's pages (`Client/Javascript/RpcContext.cs`).
 
 **CEF pages** — the host injects `resourceCall(name, ...args)`, `resourceEval(code)`, `gtan.call/eval` into every served
 page (`Subprocess/GTANetwork.CefHost/Program.cs`, `ResourceBridgeInjector`); page → host `jsMessage` → game
 (`Client/GUI/CEFManager.cs:1112`) → `BrowserJavascriptCallback` (function name validated) in the owning resource's engine;
-game → page `Browser.eval/call` (:1137/:1143).
+game → page `Browser.eval/call` (:1137/:1143). `gtan.rpc.call(name, args)` → host message `rpc` → `BrowserJavascriptCallback.Rpc`
+→ the owning script's `API.rpc` (its own handler or the server's) → `gtan.rpc._settle(id, …)` evaluated in the page.
 
 **meta.xml** (schema `Server/ResourceInfo.cs:688+`): `<info name author version type={script|gamemode|map} …/>`,
 `<script src type={server|client} lang={javascript|csharp|vbasic|compiled}/>`, `<file src/>`, `<assembly ref/>`,
 `<include resource/>`, `<map src dimension/>`, `<export class function event/>`, `<acl src/>`, `<settings>`, `<config src type/>`.
-Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (C# gamemode + `client.js`), `auth` (accounts,
-PBKDF2, CEF login page `ui/index.html` + `ui/app.js` using `resourceCall`).
+Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (C# gamemode + `client.js`; RPC `freeroam:ping`,
+`freeroam:secret`), `auth` (accounts, PBKDF2, CEF login page `ui/index.html` + `ui/app.js` calling `auth:login` / `auth:register`
+over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo`).
 
 ## 10. Master list, voice, anti-cheat, DLC — what exists
 

@@ -123,9 +123,14 @@ protobuf or MessagePack bytes) on a reliable-ordered channel; (2) server registr
 client `rpc.register`; CEF gets `gtan.rpc.call` implemented over `CefSharp.PostMessage` + a reply `eval` path;
 (3) handshake: ECDH (X25519) → AES-GCM for the session, server certificate pinned via the master list or a server
 key in the connect string; (4) validation: the generated types produce runtime validators for RPC payloads (TS side)
-and the server checks sizes/rates. **Decisions**: crypto library on net48 (BouncyCastle 2.x works on both; .NET
-`AesGcm` is not in .NET Framework) — decided in T-008. **Tasks**: T-008. **Risks**: latency budget — one RPC must be one
-round trip; the client-side dispatch must not block the script thread.
+and the server checks sizes/rates. **Done (T-008, 5 Sept 2026)**: (1) and (2) — `Shared/Rpc/` messages (one JSON value per
+payload, D-13) on the reliable ordered channel `Rpc`; `Server/Managers/RpcDispatcher.cs` (global names, allow check, 30
+requests/s per player, 64 KB, 10 s default timeout, C# handlers on the resource thread, TypeScript handlers through the bridge);
+`API.rpc` on the client with promises in a JavaScript helper so continuations stay on the script thread; `gtan.rpc.call` in CEF
+pages; `auth` and `freeroam` use it; bot round trips in `eng/integration-test.sh`. **Left for T-009**: (3) the session
+handshake and (4) generated validators — crypto library on net48 (BouncyCastle 2.x works on both; .NET `AesGcm` is not in .NET
+Framework) is T-009's first decision. **Risks**: latency budget — one RPC must be one round trip; the client-side dispatch
+must not block the script thread.
 
 ### E-06 Launcher with a GUI (Linux and Windows) and an updater
 

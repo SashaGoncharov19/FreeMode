@@ -1,5 +1,6 @@
 using System;
 using GTANetworkServer.Constant;
+using GTANetworkShared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -8,6 +9,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using MessagePack;
 
 namespace GTANetworkServer.Runtime
@@ -35,6 +37,9 @@ namespace GTANetworkServer.Runtime
             public readonly ManualResetEventSlim Done = new ManualResetEventSlim(false);
             public object Result;
             public string Error;
+            /// <summary>Set for EventWithResult: runs on the bridge thread with (result, null) or (null, error) instead of Done.</summary>
+            public Action<object, string> Callback;
+            public long Deadline;
         }
 
         private const int CancelableTimeoutMs = 250;
@@ -181,6 +186,57 @@ namespace GTANetworkServer.Runtime
             }
         }
 
+        /// <summary>
+        /// An event whose handler's return value is needed, but not right now (an RPC request to a TypeScript resource):
+        /// <paramref name="onDone"/> runs on the bridge thread with the result, or with a null result and an error
+        /// (<see cref="RpcCodes.Timeout"/> after <paramref name="timeoutMs"/>, or why the runtime could not be asked).
+        /// </summary>
+        public void EventWithResult(ScriptingEngine engine, string name, object[] args, int timeoutMs, Action<object, string> onDone)
+        {
+            if (!_connected) { onDone(null, "the TypeScript runtime is not connected"); return; }
+            var resource = engine.ResourceParent?.DirectoryName;
+            var wire = args.Select(ApiDispatcher.ToWire).ToArray();
+            var id = (uint)Interlocked.Increment(ref _nextId);
+            _pending[id] = new Pending { Callback = onDone, Deadline = Environment.TickCount64 + timeoutMs };
+            Send(w => w.Write(FrameType.Event, id, name, (ref MessagePackWriter mp) => WriteEventPayload(ref mp, resource, wire), true), flushImmediately: true, queueWhenDown: false);
+        }
+
+        private void ExpirePending()
+        {
+            if (_pending.IsEmpty) return;
+            var now = Environment.TickCount64;
+            foreach (var kv in _pending)
+            {
+                if (kv.Value.Callback == null || kv.Value.Deadline > now) continue;
+                if (_pending.TryRemove(kv.Key, out var pending)) pending.Callback(null, RpcCodes.Timeout);
+            }
+        }
+
+        /// <summary>A call whose API member returned a Task (callClient): the result frame goes out when the Task finishes.</summary>
+        private void CompleteLater(uint id, Task task)
+        {
+            task.ContinueWith(t =>
+            {
+                object value = null;
+                string error = null;
+                if (t.IsFaulted || t.IsCanceled)
+                {
+                    var inner = t.Exception?.InnerException ?? t.Exception ?? new Exception("cancelled");
+                    error = (inner is RpcException rpc ? rpc.Code : inner.GetType().Name) + ": " + inner.Message;
+                }
+                else
+                {
+                    try { value = ApiDispatcher.ToWire(RpcDispatcher.TaskResult(t)); }
+                    catch (Exception ex) { error = ex.GetType().Name + ": " + ex.Message; }
+                }
+                Send(w => w.Write(FrameType.Result, id, null, (ref MessagePackWriter mp) =>
+                {
+                    if (error != null) { mp.WriteMapHeader(1); mp.Write("error"); mp.Write(error); }
+                    else Wire.Write(ref mp, value);
+                }, true), flushImmediately: true, queueWhenDown: false);
+            }, TaskContinuationOptions.ExecuteSynchronously);
+        }
+
         private static void WriteEventPayload(ref MessagePackWriter mp, string resource, object[] args)
         {
             mp.WriteMapHeader(2);
@@ -249,6 +305,7 @@ namespace GTANetworkServer.Runtime
         public void Tick()
         {
             if (_disposed) return;
+            ExpirePending();
             if (_process != null && !_process.IsRunning && DateTime.UtcNow >= _nextStart && _nextStart != DateTime.MaxValue)
             {
                 Program.Output("Bun runtime is not running; starting it again", LogCat.Warn);
@@ -351,6 +408,11 @@ namespace GTANetworkServer.Runtime
                         error = inner.GetType().Name + ": " + inner.Message;
                         if (!header.Id.HasValue) Program.Output("Bun runtime: " + header.Name + " failed: " + error, LogCat.Warn);
                     }
+                    if (error == null && result is Task task)
+                    {
+                        if (header.Id.HasValue) CompleteLater(header.Id.Value, task);
+                        break;
+                    }
                     if (header.Id.HasValue)
                     {
                         var value = result;
@@ -368,8 +430,16 @@ namespace GTANetworkServer.Runtime
                     var value = Wire.Read(ref mp);
                     if (header.Id.HasValue && _pending.TryRemove(header.Id.Value, out var pending))
                     {
-                        pending.Result = value;
-                        pending.Done.Set();
+                        if (pending.Callback != null)
+                        {
+                            try { pending.Callback(value, null); }
+                            catch (Exception ex) { Program.Output("Bun runtime: a result callback failed: " + ex.Message, LogCat.Warn); }
+                        }
+                        else
+                        {
+                            pending.Result = value;
+                            pending.Done.Set();
+                        }
                     }
                     break;
                 }

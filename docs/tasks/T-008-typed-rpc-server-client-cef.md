@@ -1,6 +1,6 @@
 # T-008 — Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits
 
-Status: ready
+Status: done
 Epic: E-05 RPC and protocol security
 Size: L
 Branch: task/T-008-rpc from the integration branch
@@ -54,9 +54,11 @@ is hand-rolled per gamemode; there is no permission model and no rate limiting.
 
 ## Acceptance criteria
 
-- [ ] Bot RPC round trip in `eng/integration-test.sh`; denied call returns `denied`; 31st call within a second returns `rate`.
-- [ ] Owner check: the `auth` login form uses `gtan.rpc.call("auth:login", …)` and shows the server's error text on a wrong password.
-- [ ] `types/rpc.d.ts` compiles in the sample resource.
+- [x] Bot RPC round trip in `eng/integration-test.sh`; denied call returns `denied`; the 31st call within a second returns `rate`
+      (the test sends 40 at once and expects at least one `rate`).
+- [ ] Owner check: the `auth` login form uses `gtan.rpc.call("auth:login", …)` and shows the server's error text on a wrong password
+      (bot-tested through the same handler; the page itself needs the game).
+- [x] The RPC typings compile in the sample resource (`RpcContext` in `client.d.ts`, `gtan.rpc` in `cef.d.ts`, `registerRpc`/`callClient` in `server.d.ts`).
 
 ## Test plan
 
@@ -69,7 +71,40 @@ Payload as JSON inside protobuf is a compromise (MessagePack later if size matte
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 agent — implemented on `task/T-008-rpc`; `eng/dev-test.sh` green; PR opened.
 
 ## Result
 
-(empty)
+* **Changed**: `Shared/Packets.cs` (`PacketType.RpcRequest = 41`, `RpcResponse = 42`; `ConnectionChannel.Rpc = 12`), new
+  `Shared/Rpc/RpcMessages.cs` (`RpcRequest {Id, Name, Resource, Payload (one JSON value), TimeoutMs, Origin}`, `RpcResponse {Id, Ok,
+  Payload, ErrorCode, ErrorMessage}`) and `Shared/Rpc/RpcCodes.cs` (codes, 64 KB, 10 s / 60 s, `RpcException`); server: new
+  `Server/Managers/RpcDispatcher.cs` (registry with global names, size → rate (token bucket 30/s per player) → allow checks, C# handlers
+  on the resource's script thread via `ScriptingEngine.Enqueue`, `Task` results awaited, TypeScript handlers through
+  `RuntimeBridge.EventWithResult` ("rpcRequest" event, answer `{ok, value | code, message}`), `callClient` with a per-tick timeout scan,
+  cleanup on disconnect; `RpcJson` converts script values ⇄ JSON), `Server/API.cs` (`registerRpc(name, handler[, allow])`,
+  `registerRpc(name)` for the runtime, `unregisterRpc`, `callClient(player, name, args, timeoutMs): Task<object>`),
+  `Server/ProcessMessages.cs`, `Server/GameServer.cs` (`Rpc`, tick, disconnect), `Server/Resources.cs` (unregister on stop),
+  `Server/Runtime/RuntimeBridge.cs` (`EventWithResult`, pending callbacks with deadlines, Task results of API calls finished later),
+  `Server/Runtime/ApiDispatcher.cs` (Task passthrough, JToken → plain), `runtime/gtan/index.ts` (`gtan.rpc.register/unregister/callClient`,
+  `RpcError`, the `rpcRequest` answer); client: new `Client/Javascript/RpcContext.cs` (`API.rpc` + `RpcRouter`; promises and the handler
+  table in a JavaScript helper evaluated in the script's engine, timeouts on the script tick, cleanup on script stop),
+  `Client/Javascript/JavascriptHook.cs`, `Client/Main/Network/{ProcessMessages,MainNetwork}.cs`, `Client/GUI/CEFManager.cs`
+  (`rpc` host message → `BrowserJavascriptCallback.Rpc` → the owning script's `API.rpc`, answer evaluated in the page),
+  `Shared/Cef/CefHostProtocol.cs` (`rpc`, fields `Rpc`, `Timeout`), `Subprocess/GTANetwork.CefHost/Program.cs` (`gtan.rpc.call` in the
+  shim, the `rpc` page message); resources: `freeroam` (`freeroam:ping`, `freeroam:secret` behind `hasEntityData(auth:account)`), `tsdemo`
+  (`tsdemo:echo`), `auth` (`auth:login` / `auth:register` handlers returning `{ok, message}`, `ui/app.js` calls them over `gtan.rpc.call`
+  and shows the reason; the events and chat commands still work); bot `--rpc name json`, `--rpc-burst name n`, results in the `--expect`
+  text; `eng/integration-test.sh` (round trip with echo, denied, unknown, rate; the TypeScript handler), `eng/integration-test-auth.sh`
+  (wrong password → `{ok:false, message}`, right one → logged in, then `freeroam:secret` allowed); typings: `Tools/GTANetwork.TypeGen`
+  `Overrides` (hand-written `RpcContext` with `Promise<T>`), `types/cef.d.ts` (`gtan.rpc`), regenerated `types/*.d.ts`,
+  `api-catalogue.json`, `runtime/gtan/api.generated.d.ts`; `samples/ts-resource` uses `API.rpc`, `API.registerRpc`, `API.callClient`,
+  `gtan.rpc.call`; docs: `CHANGELOG.md`, `docs/CODEMAP.md` §8/§9, `docs/PLAN.md` E-05, `docs/DECISIONS.md` D-13, `types/README.md`.
+* **Verified**: `docker compose run --rm dev eng/dev-test.sh` → `All local checks passed.`: the bot's `rpc freeroam:ping ok {"t":…,"echo":{"n":1},"player":"CIBot"}`,
+  `rpc freeroam:secret error denied`, `rpc tsdemo:echo ok {"from":"bun",…}` (a handler in Bun), `rpc no:such error unknown`,
+  `rpc freeroam:ping error rate` for a burst of 40; in the auth test `rpc auth:login ok {"ok":false,"message":"Wrong name or password."}`
+  then `{"ok":true,"message":"Logged in."}` and `freeroam:secret` allowed after the login; `bun run check` of the sample passes.
+* **Owner check**: log in through the CEF form with a wrong password — the form shows "Wrong name or password."; with the right one it
+  closes. `Runtime.log` should stay free of `RPC` errors.
+* **Not done**: encryption/authentication of the session and generated payload validators (T-009); client → page RPC (pages are
+  called with `Browser.call/eval` as before); `rpc.callClient` from C# to a bot (the bot answers with the arguments, used by nothing yet);
+  the rate limit and size limit are constants (settings later if a gamemode needs more).

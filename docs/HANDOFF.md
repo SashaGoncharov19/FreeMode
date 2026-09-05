@@ -40,7 +40,8 @@ rendering can only be verified in game by the owner.
 * **`claude/modernize-deps-4d8uyn`** — the **integration branch**; pushed. Contains the modernisation (CefSharp 151 in its own
   process, ClearScript 7.5, .NET 10), the agent framework (`AGENTS.md`, `docs/agents/`, `docs/tasks/`, `docs/PLAN.md`,
   `docs/DECISIONS.md`, `docs/CODEMAP.md`, the code graph) and the first merged tasks: **T-001** .NET 10 (#5), **T-004**
-  TypeScript typings (#6), **T-012** CEF connect loader (#7), **T-006 stage 1** bridge benchmark (#8). Tasks run as
+  TypeScript typings (#6), **T-012** CEF connect loader (#7), **T-006** Bun runtime for TypeScript server resources
+  (#8 bridge benchmark, #9 the runtime itself), the browser host's idle timer counted from readiness (#10). Tasks run as
   `task/T-NNN-*` branches with one PR each (D-11); the owner asked the agent to merge PRs whose CI is green (5 Sept).
   No PR to `master` yet; no alpha.6 yet.
 * **The owner's install (`~/GTANetwork`)** holds the integration build: .NET 10 launcher and server (the local server runs on
@@ -48,10 +49,13 @@ rendering can only be verified in game by the owner.
 * **Awaiting the owner in game** (`play.sh --debug`): T-000 (texture ring: typing reacts at once; `[HITCH]` lines vs
   `hitch-monitor.log`; the host stops 60 s after the last browser and returns for the next page) and T-012 (the loader shows
   about a second after "connect" and fades before the `auth` form; `Runtime.log`: `loader: shown …` / `loader: hidden after N ms`).
-* **In progress**: T-006 stage 2 — the Bun runtime for TypeScript server resources (`task/T-006-bun-bridge`): the engine bridge
-  (`Server/Runtime/`), the runtime (`runtime/`), the `tsdemo` resource and its integration-test phase are written and pass
-  `eng/dev-test.sh`; PR pending. The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out,
-  up to 6.5 s of memory stall per second, Chromium took 42 s to start); the loader did not show for that reason. **Open decisions**: Q-07 hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
+* **In PR**: T-008 typed RPC (`task/T-008-rpc`): `API.rpc.call` on the client, `API.registerRpc` / `gtan.rpc.register` on the
+  server, `gtan.rpc.call` in CEF pages, `API.callClient`; the `auth` form and `freeroam` use it; bot round trips in
+  `eng/integration-test.sh` (see `docs/tasks/T-008-…`). Merge when CI is green, then the next platform/UI tasks (below).
+* The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out, up to 6.5 s of memory stall per
+  second, Chromium took 42 s to start); the loader did not show for that reason and the idle timer then stopped the host as
+  soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07
+  hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
 * Everything except the game is verified by `eng/dev-test.sh` (CI checks) and `eng/cef-harness.sh` (browser host, both frame
   modes, latency, loader page); the bridge numbers are in `docs/PLAN.md` E-04.
 
@@ -258,11 +262,17 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-1. **In-game run by the owner** with the eighth-step build: (a) hitches — read `[HITCH]` lines in `Runtime.log`
-   against `hitch-monitor.log` (with `play.sh --debug`) and SHVDN's log, as described above; (b) the idle exit —
-   after login the host must stop a minute later ("No browser for 60 s" in `CEF.log`) and a later page must start it
-   again and show. If the GPU path misbehaves, `<CefGpu>false</CefGpu>` is the safe setting. Then cut
-   `v0.2.0-alpha.6` via the `build.yml` workflow_dispatch **only when the owner asks**.
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): merge T-008 when green → **T-013** CEF main menu / server browser (the
+   owner expects the server list on CEF instead of NativeUI) → **T-005** client TypeScript resources (bundled by the server
+   with Bun) → **T-007** freeroam in TypeScript → **T-009** session encryption → **T-010** launcher GUI → **T-011** master
+   list (needs Q-07). Each on its own `task/T-NNN-*` branch from the integration branch, one PR, `eng/dev-test.sh` green.
+1. **In-game run by the owner** (quiet machine, `play.sh --debug`): (a) hitches — read `[HITCH]` lines in `Runtime.log`
+   against `hitch-monitor.log` and SHVDN's log, as described above; (b) the idle exit — after login the host must stop a
+   minute after the last browser closed ("No browser for 60 s" in `CEF.log`, counted from `CEF initialised`) and a later
+   page must start it again and show; (c) the connect loader (`loader: shown` / `loader: hidden after N ms` in `Runtime.log`);
+   (d) after T-008 is merged and synced: a wrong password in the `auth` form shows "Wrong name or password." in the form.
+   If the GPU path misbehaves, `<CefGpu>false</CefGpu>` is the safe setting. Then cut `v0.2.0-alpha.6` via the `build.yml`
+   workflow_dispatch **only when the owner asks**.
 2. **Make the harness a CI gate**: the Windows job can run `CefHarness.exe --host <package>\cef\GTANetwork.CefHost.exe`
    against the assembled package — the acceptance test for the browser without a game.
 3. **Performance** (the owner's stated goal) — done so far: dirty-rectangle frames, 60 fps, GPU in the host, the

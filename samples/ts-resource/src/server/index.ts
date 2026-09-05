@@ -16,6 +16,12 @@ API.onChatCommand.connect((sender, command, cancel) => {
     API.sendChatMessageToPlayer(sender, `spawned vehicle ${vehicle.handle.Value}`);
 });
 
+// RPC (T-008): a handler for API.rpc.call("ts:time") from client scripts, and a call into the client's "ts:hello" handler.
+API.registerRpc("ts:time", (_sender, _args) => ({ t: Date.now() }));
+API.onPlayerConnected.connect((player: Client) => {
+    API.callClient(player, "ts:hello", { who: player.name }).then((reply) => API.consoleOutput(`client says ${String(reply)}`));
+});
+
 API.onClientEventTrigger.connect((sender, eventName, ...args) => {
     if (eventName !== "ts:ping") return;
     const [x, y, z] = args as [number, number, number];

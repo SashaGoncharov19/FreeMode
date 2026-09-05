@@ -31,6 +31,16 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   state pushed as deltas; resources hot-reload on file changes; a dead runtime is restarted (1, 2, 5 s back-off). Measured
   bridge: 2.0 M one-way calls/s, round trip p50 6 µs. `Server/resources/tsdemo` is the example; C# and VB resources are
   unchanged. Bun's own APIs (`Bun.sql`, `Bun.redis`, `Bun.s3`, fetch, WebSocket) are available to gamemodes.
+* **Request/response calls between scripts (RPC)**: a client script's `API.rpc.call(name, args)` returns a Promise answered by
+  the server handler of that name — `API.registerRpc(name, handler, allow?)` in C#, `gtan.rpc.register(name, handler, { allow })`
+  in TypeScript — and `API.callClient(player, name, args)` / `gtan.rpc.callClient` call a handler the client script registered with
+  `API.rpc.register`; CEF pages get `gtan.rpc.call(name, args)`, answered by the owning client script's handler or forwarded to the
+  server. Arguments and results are one JSON value each (64 KB at most); errors carry a code (`timeout`, `denied`, `unknown`,
+  `rate`, `handler`, `size`, `invalid`, `disconnected`) and a message, never a stack trace; each player may make 30 requests per
+  second; the default timeout is 10 s (60 s at most). Wire: `RpcRequest`/`RpcResponse` (`Shared/Rpc/`) on the reliable ordered
+  channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
+  password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
+  `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
 * **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the

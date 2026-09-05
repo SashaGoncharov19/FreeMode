@@ -532,6 +532,20 @@ namespace GTANetwork.CefHost
                     if (Program.Verbose) Program.Log("browser " + Id + ": resourceCall " + name + " (" + args.Length + " argument(s))");
                     Program.TrySend(new CefHostMessage(CefHostProtocol.JsMessage, Id) { Name = name, Args = args });
                 }
+                else if (type == "rpc")
+                {
+                    object idObj, nameObj, argsObj, timeoutObj;
+                    message.TryGetValue("id", out idObj);
+                    message.TryGetValue("name", out nameObj);
+                    message.TryGetValue("args", out argsObj);
+                    message.TryGetValue("timeout", out timeoutObj);
+                    var name = nameObj as string;
+                    var id = idObj == null ? 0 : Convert.ToInt32(idObj, CultureInfo.InvariantCulture);
+                    if (string.IsNullOrEmpty(name) || id <= 0) return;
+                    var timeout = timeoutObj == null ? 0 : Convert.ToInt32(timeoutObj, CultureInfo.InvariantCulture);
+                    if (Program.Verbose) Program.Log("browser " + Id + ": rpc #" + id + " " + name);
+                    Program.TrySend(new CefHostMessage(CefHostProtocol.Rpc, Id) { Rpc = id, Name = name, Text = argsObj as string, Timeout = timeout });
+                }
                 else if (type == "resourceEval")
                 {
                     object codeObj;
@@ -835,6 +849,17 @@ namespace GTANetwork.CefHost
             " window.resourceCall = function(name){ post({ type: 'resourceCall', name: String(name), args: Array.prototype.slice.call(arguments, 1) }); };" +
             " window.resourceEval = function(code){ post({ type: 'resourceEval', code: String(code) }); };" +
             " window.gtan = { call: window.resourceCall, eval: window.resourceEval };" +
+            // gtan.rpc.call(name, args, timeoutMs): a Promise answered by the owning client script (its own handler or the server's);
+            // the answer arrives as an eval of gtan.rpc._settle(id, ok, json, code, message).
+            " var rpcPending = {}, rpcNext = 1;" +
+            " window.gtan.rpc = {" +
+            "  call: function (name, args, timeoutMs) { return new Promise(function (resolve, reject) {" +
+            "   var id = rpcNext++; rpcPending[id] = { resolve: resolve, reject: reject };" +
+            "   post({ type: 'rpc', id: id, name: String(name), args: JSON.stringify(args === undefined ? null : args), timeout: timeoutMs ? (timeoutMs | 0) : 0 }); }); }," +
+            "  _settle: function (id, ok, json, code, message) { var p = rpcPending[id]; if (!p) return; delete rpcPending[id];" +
+            "   if (ok) p.resolve(json === null || json === undefined || json === '' ? undefined : JSON.parse(json));" +
+            "   else { var e = new Error(message || code || 'rpc failed'); e.code = code || 'handler'; p.reject(e); } }" +
+            " };" +
             "})();";
 
         /// <summary>

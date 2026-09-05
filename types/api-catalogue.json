@@ -4591,6 +4591,123 @@
       "needsResult": false
     },
     {
+      "name": "registerRpc",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "handler",
+          "type": "System.Func\u00603[GTANetworkServer.Client,System.Object,System.Object]",
+          "ts": "(arg1: Client, arg2: unknown) =\u003E unknown",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "registerRpc",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "handler",
+          "type": "System.Func\u00603[GTANetworkServer.Client,System.Object,System.Object]",
+          "ts": "(arg1: Client, arg2: unknown) =\u003E unknown",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "allow",
+          "type": "System.Func\u00602[GTANetworkServer.Client,System.Boolean]",
+          "ts": "(arg: Client) =\u003E boolean",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "registerRpc",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "unregisterRpc",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "callClient",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "name",
+          "type": "System.String",
+          "ts": "string",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "args",
+          "type": "System.Object",
+          "ts": "unknown",
+          "optional": true,
+          "isParams": false
+        },
+        {
+          "name": "timeoutMs",
+          "type": "System.Int32",
+          "ts": "number",
+          "optional": true,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Threading.Tasks.Task\u00601[System.Object]",
+      "returnsTs": "Promise\u003Cunknown\u003E",
+      "needsResult": true
+    },
+    {
       "name": "sendChatMessageToAll",
       "parameters": [
         {

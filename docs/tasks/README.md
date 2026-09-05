@@ -23,9 +23,9 @@ done
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
 | [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | done | E-04 TypeScript | none (T-001 preferred first) |
 | [T-005-client-typescript-resources](T-005-client-typescript-resources.md) | Client resources in TypeScript: `lang="typescript"` bundled by the server with Bun | ready | E-04 TypeScript | T-004 |
-| [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | in progress | E-04 TypeScript | T-001, T-004 |
+| [T-006-server-runtime-on-bun-bridge](T-006-server-runtime-on-bun-bridge.md) | Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload | done (follow-ups listed under Result, stage 2 → Not done) | E-04 TypeScript | T-001, T-004 |
 | [T-007-gamemode-template-and-freeroam-in-typescript](T-007-gamemode-template-and-freeroam-in-typescript.md) | Gamemode template (`gtanetwork create`) and freeroam fully in TypeScript | ready | E-04 TypeScript | T-005, T-006 |
-| [T-008-typed-rpc-server-client-cef](T-008-typed-rpc-server-client-cef.md) | Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits | ready | E-05 RPC and protocol security | T-004 |
+| [T-008-typed-rpc-server-client-cef](T-008-typed-rpc-server-client-cef.md) | Typed RPC: server ⇄ client ⇄ CEF with request ids, timeouts, permissions, rate limits | done | E-05 RPC and protocol security | T-004 |
 | [T-009-session-encryption-and-authentication](T-009-session-encryption-and-authentication.md) | Encrypted, authenticated session between client and server | ready | E-05 RPC and protocol security | T-008 |
 | [T-010-launcher-gui-avalonia-skeleton](T-010-launcher-gui-avalonia-skeleton.md) | Launcher GUI (Avalonia 12): Play, settings, log viewer; the CLI becomes a thin front end | ready | E-06 Launcher | T-001 |
 | [T-011-master-list-service-and-server-browser](T-011-master-list-service-and-server-browser.md) | Master list service, server announce, server list in the client menu | ready | E-07 Master list | T-001 |
@@ -40,12 +40,3 @@ done
 | [T-020-remove-dead-code-and-unused-binaries](T-020-remove-dead-code-and-unused-binaries.md) | Remove dead code and unused binaries | ready | E-02 Agent framework (hygiene) | none |
 | [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
 | [T-022-dlc-in-game-download-and-restart-to-apply](T-022-dlc-in-game-download-and-restart-to-apply.md) | DLC packs in game: download for the next server, restart-to-apply through the launcher, auto-join | ready | E-08 DLC packs | T-014, T-012 |
-
-## Rules
-
-* A task is `ready` only when everything it needs is decided (`docs/DECISIONS.md`) and every acceptance criterion
-  can be checked by a command or an owner step.
-* Tasks are small: one session, under ~15 files. Larger work is a chain of tasks with `Depends on`.
-* The task file is the record: log lines while working, the Result when finished. It is never deleted; `done`
-  tasks stay for the history.
-* Numbers are assigned once and never reused.

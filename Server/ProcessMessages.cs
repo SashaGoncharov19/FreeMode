@@ -1219,6 +1219,23 @@ namespace GTANetworkServer
                                 }
                                     break;
 
+                                case PacketType.RpcRequest:
+                                {
+                                    if (!client.ConnectionConfirmed) continue;
+                                    var len = msg.ReadInt32();
+                                    var data = DeserializeBinary<RpcRequest>(msg.ReadBytes(len)) as RpcRequest;
+                                    if (data != null) Rpc.HandleRequest(client, data);
+                                }
+                                    break;
+
+                                case PacketType.RpcResponse:
+                                {
+                                    var len = msg.ReadInt32();
+                                    var data = DeserializeBinary<RpcResponse>(msg.ReadBytes(len)) as RpcResponse;
+                                    if (data != null) Rpc.HandleResponse(client, data);
+                                }
+                                    break;
+
                                 case PacketType.NativeResponse:
                                 {
                                     if (!client.ConnectionConfirmed) continue;

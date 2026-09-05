@@ -16,3 +16,12 @@ API.onKeyDown.connect((_sender, e) => {
 API.onServerEventTrigger.connect((eventName, args) => {
     if (eventName === "ts:pong") API.sendNotification(`server: ${String(args[0])}`);
 });
+
+// RPC (T-008): a request/response call to the server, and a handler the server (API.callClient) or this resource's pages can call.
+API.onChatCommand.connect((command) => {
+    if (command !== "/tsrpc") return;
+    API.rpc.call<{ t: number; echo: unknown }>("freeroam:ping", { from: "ts-resource" })
+        .then((reply) => API.sendChatMessage(`server time ${reply.t}`))
+        .catch((error: Error & { code?: string }) => API.sendChatMessage(`rpc failed: ${error.code ?? "?"} ${error.message}`));
+});
+API.rpc.register("ts:hello", (args: { who?: string } | undefined) => `hello ${args?.who ?? "there"}`);
