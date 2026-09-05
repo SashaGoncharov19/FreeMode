@@ -50,6 +50,7 @@ namespace GTANetwork.Sync
                 {
                     UpdateOnFootPosition();
                 }
+                RecordRenderError();   // T-018
 
                 _lastJumping = IsJumping;
                 _lastFreefall = IsFreefallingWithParachute;

@@ -101,9 +101,16 @@ rendering can only be verified in game by the owner.
 * **Merged 5 Sept** (#28): T-017 anti-cheat baseline: speed/teleport/health/armour checks with grace,
   `onCheatDetected` + `<anticheat action>`, the client's integrity report against the package's `manifest.json`, the bot's
   `--cheat`, `eng/integration-test-anticheat.sh`. The cheating bots are kicked, an honest one is left alone, 300 honest bots for five minutes: 0 findings. Manifest signing waits for a repository secret (owner).
-* **In review 5 Sept**: T-016 voice in the client (`task/T-016-voice-client`, PR): push-to-talk `N`, WASAPI/WinMM capture → Opus →
+* **Merged 5 Sept** (#29): T-016 voice in the client: push-to-talk `N`, WASAPI/WinMM capture → Opus →
   `Voice`; per-talker decode into one WaveOut mixer with distance attenuation and panning; the nametag `*`; Settings → Voice.
   `needs owner`: the microphone under Proton and the positional playback (task file → Owner check). The harness capture test under Proton: WASAPI shared mode captures the laptop microphone at 48 kHz (the risk the task named is cleared).
+* **Merged 5 Sept** (#30): T-018 sync instrumentation: per-player render error / packet age / rate
+  overlay and a `[SYNC]` summary in debug mode, `GTAN_RECORD_ROUTE=1` + `GTANetwork.Bot --route` for the same movement before and
+  after a change, `GTAN_AUTOTEST_STAY`. `needs owner`: the baseline at 0 and 150 ms RTT (`docs/SYNC.md` §7).
+* **In review 5 Sept**: T-024 the launcher's Servers page (`task/T-024-launcher-server-list`, PR): the master list + favourites +
+  recent + direct connect; Connect starts the game and joins through `GTAN_CONNECT` (`Client/Util/AutoConnect.cs`); CLI
+  `run --connect`. `needs owner`: the join in game. New task files from the follow-ups: T-025 manifest signing (needs a secret),
+  T-026 entity broadcasts under interest management, T-027 voice devices/activation (draft).
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
@@ -317,7 +324,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 ## What is next
 
 0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
-   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-017** anti-cheat baseline merged (#28); **T-016** voice in the client in review (its PR, `needs owner`); next: **T-018** sync instrumentation (needs the owner in game for the overlay), or **T-022** once Q-15 is decided. Each on its own `task/T-NNN-*`
+   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-016** merged (#29, `needs owner` in game); **T-017** merged (#28); **T-018** merged (#30, `needs owner` for the baseline); **T-024** the launcher's Servers page in review (its PR, `needs owner` for the join); ready next: **T-026** entity broadcasts under interest management, **T-025** manifest signing (needs the owner's secret); T-022 waits for Q-15.
    branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
    empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
    owner is away (the owner allowed it on 5 Sept).

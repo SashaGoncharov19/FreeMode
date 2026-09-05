@@ -249,3 +249,21 @@ packets and unoccupied-vehicle sync (§5).
 Reproduce: `docker compose run --rm dev eng/load-test.sh 100 120` (then 300, 1000); `LOAD_NO_ENCRYPTION=1` runs the same
 with plaintext sessions (`--no-encryption`, `RequireEncryption` off) to isolate the cipher's share. Samples and reports land in
 `artifacts/load-<N>.json`, `load-<N>-bot.json`, `load-<N>-server.log`.
+
+## 7. Measuring sync quality (T-018)
+
+* **In game** (debug mode, `<DebugMode>true</DebugMode>` or `GTAN_DEBUG=1`): the overlay lists every streamed player with the
+  render error (metres between the drawn ped and the last received position, recomputed every frame), the age of the last packet
+  and the packet rate; every 10 s `Runtime.log` gets `[SYNC] players N, error p50 X m / p95 Y m, age p95 Z ms, rate R Hz, fps F`
+  (`Client/Sync/SyncMetrics.cs`; the summary is written by `LogManager.VerboseLog`, so only in debug mode).
+* **Record a route**: `GTAN_RECORD_ROUTE=1 ~/GTANetwork/play.sh` — every pure sync packet the local player sends is appended to
+  `logs/route-<stamp>.jsonl` (`{t,x,y,z,h}` per line, `t` in ms).
+* **Replay it with the bot**: `GTANetwork.Bot --host 127.0.0.1 --port 4499 --name Route --route logs/route-<stamp>.jsonl --duration 120`
+  — the bot walks the same path at the same speed, looping, so the same movement can be compared before and after a sync change.
+* **Latency**: on the server host, `sudo tc qdisc add dev lo root netem delay 75ms` gives 150 ms RTT on a local server
+  (`sudo tc qdisc del dev lo root` removes it); the client's `[SYNC]` age p95 and error p50/p95 then show what the interpolation
+  costs.
+* **Without a person at the keyboard**: `GTAN_AUTOTEST=host:port GTAN_AUTOTEST_STAY=60 ~/GTANetwork/play.sh --debug` keeps the
+  game on the server for 60 s after the RPC checks; with a bot moving nearby the `[SYNC]` lines land in `Runtime.log`.
+
+Baseline: not recorded yet — it needs a player in game with a bot streamed in nearby (the owner's check in the task file); the two headless attempts on 5 Sept 2026 logged the summaries but no streamed-in ped within 60 s.
