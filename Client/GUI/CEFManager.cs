@@ -1203,7 +1203,13 @@ namespace GTANetwork.GUI
 
             _lastUrl = page;
             LogManager.CefLog("Trying to load page " + page + "..." + (_created ? "" : " (queued until the browser exists)"));
-            CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = page });
+            // Before the host has answered "ready", Send drops the message (no channel yet): the first browser of a session -
+            // the main menu, created while the game loads - would then never get its page. Queue it behind the create.
+            CEFManager.RunWhenReady(() =>
+            {
+                if (_closed) return;
+                CEFManager.Send(new CefHostMessage(CefHostProtocol.Load, Id) { Url = page });
+            });
         }
 
         internal void GoBack()
@@ -1228,7 +1234,11 @@ namespace GTANetwork.GUI
         internal void LoadHtml(string html)
         {
             if (CefUtil.DISABLE_CEF || _closed) return;
-            CEFManager.Send(new CefHostMessage(CefHostProtocol.LoadHtml, Id) { Html = html ?? string.Empty });
+            CEFManager.RunWhenReady(() =>
+            {
+                if (_closed) return;
+                CEFManager.Send(new CefHostMessage(CefHostProtocol.LoadHtml, Id) { Html = html ?? string.Empty });
+            });
         }
 
         internal string GetAddress()

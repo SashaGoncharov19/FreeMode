@@ -252,6 +252,14 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   release. `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
   See `docs/DEVCONTAINER.md`.
 
+### Fixed
+* **The CEF main menu never came up on a cold start** (the owner's 5 Sept session): the first browser of a session — the menu,
+  created while the game loads — sent its "load page" command before the browser host was ready and `CEFManager.Send` dropped it, so
+  the page was never loaded and the classic menu took over after 30 s. Page loads now queue behind the host's readiness like the
+  browser's creation does (`menu: page ready after 1809 ms` in the autotest afterwards).
+* **A HUD line while the push-to-talk key is held** (T-027): green `● TALKING` while frames go out, yellow while the microphone opens,
+  red with the error when it did not.
+
 ### Removed
 * Dead code and unused binaries (T-020): the legacy client sources that were excluded from the build (`Client/Networking/*Sync*`,
   root `Chat.cs`/`ClassicChat.cs`, `Main/Math.cs`, `Misc/Program.cs`, `Util/DebugWindow.cs`, the D3D10 hooks), the unused
