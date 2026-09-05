@@ -167,6 +167,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Custom DLC packs, first half** (T-014, D-10): a server declares packs in `settings.xml` (`<dlcpack name url sha256 size
+  required/>`) and serves them as `GET /dlcpacks.json`; the launcher downloads and verifies them — `GTANetwork.Launcher prepare
+  <host:port>` or the window's *Packs* page — into `<install>/dlcpacks/<name>/dlc.rpf` (SHA-256 and size checked, a wrong file is
+  never kept); the client reports the packs applied for the session (`dlcpacks/mounted.json`) and a server refuses a player
+  missing a required pack, naming it. Applying the packs to the game at start (the `update.rpf` overlay) waits for the owner's
+  decision Q-15. `eng/integration-test-dlc.sh` covers the list, the refusal, the join with the pack and the launcher's download.
 * **Interest management on the server** (T-003): who receives whose sync, and how often, is decided per sender every 250 ms
   from a grid of 200 m cells per dimension — the nearest players within 50 m (at most 64) get every pure packet (10 Hz), those
   within 200 m every third, the rest within 2000 m (at most 250 in the three tiers) every tenth, everyone else one position every

@@ -45,6 +45,7 @@ internal sealed class Options
     public string Report;            // --report <file>: the load run's JSON report
     public int ConnectIntervalMs = 5;// --connect-interval <ms>: pause between two load bots' connects
     public int Threads;              // --threads N: pump threads for the load bots (default min(4, cores))
+    public List<string> Dlc = new(); // --dlc <name>: a DLC pack this "client" claims to have mounted (T-014), repeatable
 
     public static Options Parse(string[] args)
     {
@@ -74,6 +75,7 @@ internal sealed class Options
                 case "--report": o.Report = Next(); break;
                 case "--connect-interval": o.ConnectIntervalMs = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--threads": o.Threads = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--dlc": o.Dlc.Add(Next()); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -115,6 +117,7 @@ internal sealed class Options
   --connect-interval <ms>
                        pause between two load bots' connects (default 5)
   --threads <n>        pump threads for the load bots (default min(4, cores))
+  --dlc <name>         claim this DLC pack as mounted (repeatable); a server refuses clients missing a required pack
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -195,6 +198,7 @@ internal static class Program
             MediaStream = false,
             Password = string.IsNullOrEmpty(_o.Password) ? null : _o.Password,
             ClientPublicKey = _handshakeKey?.PublicKey,
+            DlcPacks = _o.Dlc.Count > 0 ? _o.Dlc : null,
         };
 
         var hail = _client.CreateMessage();

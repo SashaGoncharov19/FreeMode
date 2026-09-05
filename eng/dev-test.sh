@@ -44,6 +44,7 @@ eng/integration-test.sh "$art/server" "$art/bot/GTANetwork.Bot"
 eng/integration-test-auth.sh "$art/server" "$art/bot/GTANetwork.Bot"
 eng/integration-test-template.sh "$art/server" "$art/bot/GTANetwork.Bot" "$art/cli/gtanetwork"
 eng/integration-test-master.sh "$art/server" "$art/master"
+eng/integration-test-dlc.sh "$art/server" "$art/bot/GTANetwork.Bot" "$(ls Launcher/bin/Release/net*/GTANetwork.Launcher.dll | head -1)"
 
 if [ -n "${LOAD_PLAYERS:-}" ]; then
   echo "== Load test: $LOAD_PLAYERS bots for ${LOAD_SECONDS:-30} s (T-002) =="

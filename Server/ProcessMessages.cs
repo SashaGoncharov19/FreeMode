@@ -143,6 +143,15 @@ namespace GTANetworkServer
                                 continue;
                             }
 
+                            // T-014: a player without a required DLC pack cannot see what the others see
+                            var missingPacks = DlcPackNames.Missing(DlcPacks, connReq.DlcPacks);
+                            if (missingPacks.Count > 0)
+                            {
+                                client.NetConnection.Deny("This server needs the DLC packs: " + string.Join(", ", missingPacks) + "\nUse the launcher's Prepare for " + (string.IsNullOrEmpty(fqdn) ? "this server" : fqdn) + ":" + Port + " and start the game again.");
+                                Program.Output("Player connection refused: missing DLC packs " + string.Join(", ", missingPacks) + " (" + client.NetConnection.RemoteEndPoint.Address + ")");
+                                continue;
+                            }
+
                             if (PasswordProtected && !string.IsNullOrWhiteSpace(Password))
                             {
                                 if (Password != connReq.Password)

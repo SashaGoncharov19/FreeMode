@@ -206,6 +206,7 @@ namespace GTANetwork
             obj.GameVersion = (byte)Game.Version;
             obj.MediaStream = EnableMediaStream;
             obj.ClientPublicKey = _handshakeKey.PublicKey;
+            obj.DlcPacks = Util.DlcPacks.Mounted();   // T-014: what the launcher applied for this session
 
             if (passProtected)
             {
