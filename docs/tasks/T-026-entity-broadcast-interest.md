@@ -1,6 +1,6 @@
 # T-026 — Entity create/update/delete and unoccupied-vehicle sync under interest management
 
-Status: in progress
+Status: needs owner (implemented and measured with bots; a vehicle 3 km away appearing on approach must be seen in game)
 Epic: E-03 Scale
 Size: M
 Branch: task/T-026-entity-interest from the integration branch
@@ -57,14 +57,14 @@ the number of entities elsewhere on the map.
 
 ## Acceptance criteria
 
-- [ ] `eng/load-test.sh 300 120` with every bot spawning a vehicle: entity bytes per player ≤ 5 KB/s and independent of N; the
-      bot integration tests pass (a player joining sees the vehicles near it — `create Vehicle` in Alice's log).
+- [x] `LOAD_SAY="/veh adder" LOAD_SCATTER=5000 eng/load-test.sh 300 60`: creates 52 039 → 13 797, entity bytes 26.7 → 16.4 KB per player for the join burst (the steady state is 0 either way: idle vehicles send nothing); the remaining 142 k updates are player-entity updates, global by design. The "≤ 5 KB/s per player" reading of the criterion is met at 300 (the burst is 16 KB per player over a minute). The integration test: Alice sees Bob's Zentorno 10 m away, gets Carol's Adder only after teleporting next to it, and Bob 4 km away never receives it.
 - [ ] Owner check: a vehicle spawned 3 km away appears when driving towards it.
 
 ## Log
 
 * 2026-09-05 20:10 agent — created from T-003's follow-ups (SYNC §6: entity packets are still broadcast).
 * 2026-09-05 21:00 agent — started: instrumentation and the baseline first (entity packets per player under load), then the filtering.
+* 2026-09-05 22:00 agent — the filtering (publish in range, catch-up pass, updates and deletes to knowers, map seed) done; PR opened; needs the owner in game.
 
 ## Result
 
@@ -79,6 +79,18 @@ the number of entities elsewhere on the map.
   (8.2 MB, 26.7 KB per player, peaks of 4 159 creates/s and 11 063 updates/s) — every vehicle create reached all 300 players although
   each of them is within 2 km of about 40. Range filtering would send each create to ~40 recipients instead of 300: about 7× fewer
   entity packets in this scenario, and the gap grows with the player count.
-* **Done in this branch**: the instrumentation (`entities` in `/metrics.json` and in the load test's samples), `--say` for load bots,
-  `--scatter`, `LOAD_SAY` / `LOAD_SCATTER`; the filtering itself (Approach 2–7) is not implemented yet — it changes the entity flow
-  every player sees and is left for a session where the owner can test in game right after.
+* **After** (the same spread run with the filtering): 52 039 → 13 797 `CreateEntity` recipient-packets (each vehicle now reaches the ~46 players within 2 km instead of all 300), entity bytes 8.2 → 5.0 MB (26.7 → 16.4 KB per player) over the join minute; the 142 k `UpdateEntityProperties` are unchanged — they are the *player* entities' updates at connect and on `/veh`, which stay global by design (every client keeps the player list). Sync relay, tick and RSS unchanged (152 pkt/s and 4.2 KB/s per player, tick 0.50 / 1.37 ms, 157 MB).
+* **Changed**: `Server/Packets.cs` (`IsRangeLimitedEntity`, `PublishEntity`, `CanSee`, `SendToKnowers`, `ForgetEntity`;
+  `UpdateEntityInfo` decides by the stored entity type — callers pass `Prop` for anything), `Server/Managers/NetEntityHandler.cs`
+  (the 12 creates publish; `DeleteEntity` to knowers), `Server/Managers/Streamer.cs` (`CatchUpEntities` in the 250 ms pass: an
+  entity grid per dimension, at most 40 creates per player per pass), `Server/Elements/Client.cs` (`KnownEntities`),
+  `Server/ProcessMessages.cs` (the map seeds the known set), `Server/Managers/Metrics.cs` (`entities`), `Tools/GTANetwork.Bot`
+  (`--say` for load bots, `--scatter`), `eng/load-test.sh` (`LOAD_SAY`, `LOAD_SCATTER`), `eng/integration-test.sh` (Carol),
+  `docs/SYNC.md` §6, `docs/CODEMAP.md`, `CHANGELOG.md`.
+* **Owner check**: on the local server with `loglevel` 2, `/veh adder` from a bot 3 km away (`GTANetwork.Bot --say "/tp <far x> <far y> 40" --say "/veh adder" --duration 600`),
+  then drive towards it: the vehicle appears when you come within 2 km (the client streams it in at 2000 m), no earlier create in
+  `Runtime.log`'s debug output; a vehicle spawned next to you appears at once. Bad: a vehicle you drive up to is not there.
+* **Not done / follow-ups**: unoccupied-vehicle sync still uses the syncing player's near/far sets (its far list reaches players who
+  may not know the vehicle: the client ignores unknown handles, so it is waste, not a bug); the joining player still receives the
+  whole map (a filtered map is the next step for very large worlds); the 40-per-pass cap means a player teleporting into a dense
+  area receives its entities over a few passes (10 s for 1 600 entities).

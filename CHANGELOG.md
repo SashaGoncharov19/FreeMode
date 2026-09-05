@@ -167,6 +167,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Entity packets follow the players' range** (T-026): a vehicle, prop, pickup, marker, label, static ped or particle created on the
+  server reaches only the players within the streaming range (2000 m, `<interest range>`, same dimension rules as sync); a player who
+  comes into range later gets the create from the streamer pass (every 250 ms, at most 40 per pass); property updates and deletes
+  go to the players who know the entity. Blips, the world and players stay global; a joining player still receives the whole map.
+  `/metrics.json` → `entities`; the load harness spreads bots (`LOAD_SCATTER`) and makes them speak (`LOAD_SAY="/veh adder"`).
+  Measured with 300 bots spread over 10 km, one vehicle each: creates 52 k → 14 k recipient-packets, entity bytes per player 27 → 16 KB.
 * **Servers in the launcher window, connect in one click** (T-024): a *Servers* page lists the master's servers (`MasterServerAddress`
   → `/servers/full`: name, players, gamemode, version, verified, pinned key) with your favourites (★) and recent servers from
   `settings.xml`, plus a direct-connect field; *Connect* starts the game and joins the server as soon as it has loaded, without the

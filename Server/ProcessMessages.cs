@@ -295,6 +295,8 @@ namespace GTANetworkServer
                                         var delta = new Delta_PlayerProperties { Name = client.Name };
                                         UpdateEntityInfo(client.handle.Value, EntityType.Player, delta, client);
 
+                                        // T-026: the map carries every entity, so the player knows them all from here on
+                                        lock (client.KnownLock) foreach (var knownId in NetEntityHandler.ToDict().Keys) client.KnownEntities.Add(knownId);
                                         var mapObj = new ServerMap
                                         {
                                             World =

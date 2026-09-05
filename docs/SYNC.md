@@ -237,7 +237,7 @@ The relay workers dropped 2324 messages at their own queues (0.002 %).
 spreads the bots over 10 km. 300 players, one vehicle each: 52 k `CreateEntity` and 90–142 k `UpdateEntityProperties` recipient-packets
 during the join minute (6.7–8.2 MB, 22–27 KB per player), the same whether the players stand in one cluster or 10 km apart — the
 entity packets go to every connection while the sync relay already follows the T-003 tiers (spread: 4.2 KB/s per player against
-36 KB/s in the cluster). T-026 makes them follow the same range.
+36 KB/s in the cluster). T-026 makes them follow the same range. **After T-026**: the same spread run sends 13.8 k creates instead of 52 k (each vehicle to the ~46 players within 2 km) and 5.0 MB instead of 8.2 MB; the 142 k updates left are the player entities' (global by design). A player teleporting next to a far vehicle receives its create from the 250 ms pass (the integration test's Carol).
 
 **After T-003 (interest management, same day)** — tiers by distance (10 Hz ≤ 50 m, ~3 Hz ≤ 200 m, 1 Hz ≤ 2000 m, a position
 every 3 s beyond) from a 200 m grid recomputed every 250 ms, at most 64 players at the full rate and 250 in the tiers per
