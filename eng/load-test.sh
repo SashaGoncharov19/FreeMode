@@ -74,6 +74,8 @@ bot_extra=()
 if [ "${LOAD_NO_ENCRYPTION:-0}" = "1" ]; then bot_extra+=(--no-encryption); fi
 if [ -n "${LOAD_THREADS:-}" ]; then bot_extra+=(--threads "$LOAD_THREADS"); fi   # pump threads for the bots (default min(4, cores))
 if [ "${LOAD_VOICE:-0}" = "1" ]; then bot_extra+=(--voice); fi                         # every bot talks: 50 frames/s (T-015)
+if [ -n "${LOAD_SAY:-}" ]; then bot_extra+=(--say "$LOAD_SAY"); fi                       # every bot says this once after joining, e.g. "/veh adder" (T-026)
+if [ -n "${LOAD_SCATTER:-}" ]; then bot_extra+=(--scatter "$LOAD_SCATTER"); fi           # spread the bots over the map instead of the spawn cluster
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --bots "$players" --move "$move" --duration "$seconds" --timeout $(( seconds + 240 )) --report "$report" --name Load "${bot_extra[@]}" > "$root/artifacts/load-$tag-bot.log" 2>&1 &
 bot_pid=$!
 
@@ -83,7 +85,7 @@ while kill -0 "$bot_pid" 2>/dev/null; do
   m=$(curl -fsS -m 3 "http://127.0.0.1:$port/metrics.json" 2>/dev/null) || continue
   bot_rss=$(awk '/VmRSS/{print $2 * 1024}' "/proc/$bot_pid/status" 2>/dev/null || echo 0)
   printf '{"t":%s,"botRssBytes":%s,"server":%s}\n' "$(date +%s)" "${bot_rss:-0}" "$m" >> "$samples"
-  players_now=$(printf '%s' "$m" | python3 -c 'import json,sys; d=json.load(sys.stdin); v=d.get("voice") or {}; print(d["players"], "tick p50 %.2f p99 %.2f ms, in %.0f pps, out %.0f pps" % (d["tickMs"]["p50"], d["tickMs"]["p99"], d["in"]["pps"], d["out"]["pps"]) + (", voice in %.0f/s relays %.0f/s" % (v["framesPps"], v["relaysPps"]) if v.get("framesPps") else ""))')
+  players_now=$(printf '%s' "$m" | python3 -c 'import json,sys; d=json.load(sys.stdin); v=d.get("voice") or {}; e=d.get("entities") or {}; print(d["players"], "tick p50 %.2f p99 %.2f ms, in %.0f pps, out %.0f pps" % (d["tickMs"]["p50"], d["tickMs"]["p99"], d["in"]["pps"], d["out"]["pps"]) + (", voice in %.0f/s relays %.0f/s" % (v["framesPps"], v["relaysPps"]) if v.get("framesPps") else "") + (", entities creates %.0f/s updates %.0f/s %.1f KB/s" % (e["createsPps"], e["updatesPps"], e["bps"]/1024) if e.get("createsPps") or e.get("updatesPps") else ""))')
   echo "   players $players_now"
 done
 wait "$bot_pid" && bot_exit=0 || bot_exit=$?

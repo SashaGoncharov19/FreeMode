@@ -50,7 +50,14 @@ internal static class LoadBots
         Program.Log("load", $"{o.Bots} bots -> {o.Host}:{o.Port}, one connect per {o.ConnectIntervalMs} ms, {threads} pump threads, move radius {o.Move.ToString("0", CultureInfo.InvariantCulture)} m, encryption {(o.NoEncryption ? "off" : "on")}{(o.Voice ? ", voice 50 frames/s each" : "")}");
         for (var i = 0; i < bots.Length; i++)
         {
-            bots[i] = new LoadBot(i, o.Name + (i + 1).ToString(CultureInfo.InvariantCulture), config, !o.NoEncryption, o.Move, rng.Next(), o.Voice);
+            var say = o.Say;
+            if (o.Scatter > 0)
+            {
+                // a random point within the radius of the map centre (Los Santos), on a fixed height; the server teleports the bot
+                var angle = rng.NextDouble() * Math.PI * 2; var radius = Math.Sqrt(rng.NextDouble()) * o.Scatter;
+                say = new List<string>(o.Say) { string.Format(CultureInfo.InvariantCulture, "/tp {0:0} {1:0} 40", -200 + Math.Cos(angle) * radius, -1000 + Math.Sin(angle) * radius) };
+            }
+            bots[i] = new LoadBot(i, o.Name + (i + 1).ToString(CultureInfo.InvariantCulture), config, !o.NoEncryption, o.Move, rng.Next(), o.Voice, say);
             bots[i].Connect(o.Host, o.Port, o.Password, version);
             Volatile.Write(ref started, i + 1);
             if (o.ConnectIntervalMs > 0) Thread.Sleep(o.ConnectIntervalMs);
@@ -165,11 +172,16 @@ internal sealed class LoadBot
     private bool _moving;
     private TimeSpan _nextTurn, _nextPure, _nextLight, _lastMove;
 
-    public LoadBot(int index, string name, NetPeerConfiguration config, bool encrypt, float moveRadius, int seed, bool voice = false)
+    private readonly List<string> _say;
+    private TimeSpan _sayAt;
+    private bool _said;
+
+    public LoadBot(int index, string name, NetPeerConfiguration config, bool encrypt, float moveRadius, int seed, bool voice = false, List<string> say = null)
     {
         Name = name;
         _moveRadius = moveRadius;
         _voice = voice;
+        _say = say != null && say.Count > 0 ? say : null;
         _rng = new Random(seed);
         _client = new NetClient(config);
         if (encrypt) _key = KeyPair.Generate();
@@ -219,6 +231,17 @@ internal sealed class LoadBot
         }
 
         if (!Joined || Closed || _leaving) return;
+        if (_say != null && !_said && now >= _sayAt)
+        {
+            // the --say lines once, a second after joining (T-026: e.g. "/veh adder" so every bot spawns a vehicle)
+            _said = true;
+            foreach (var text in _say)
+            {
+                var chat = _client.CreateMessage();
+                Program.WritePacket(chat, PacketType.ChatData, new ChatData { Message = text });
+                Send(chat, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
+            }
+        }
         if (now >= _nextPure)
         {
             Move(now);
@@ -320,7 +343,7 @@ internal sealed class LoadBot
                     foreach (var r in _scriptResources) confirm.Write(r);
                     Send(confirm, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                     Joined = true;
-                    _nextPure = now; _nextLight = now;
+                    _nextPure = now; _nextLight = now; _sayAt = now + TimeSpan.FromSeconds(1);
                 }
                 _transfers.Remove(id);
                 break;

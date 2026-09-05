@@ -72,13 +72,17 @@ echo "encryption: an old client is refused, a wrong pin is refused"
 echo "---- phase 2: two bots ----"
 # freeroam spawns at one of four points up to 2.2 km apart; players beyond the 2000 m streaming range only exchange a position every
 # 3 s (T-003), so both teleport to the same spot first - the relay of pure sync is what this phase checks.
-"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Alice --verbose --say "/tp 200 200 72" --say "/players" --say "hi Bob" --duration 6 --timeout 40 > "$server_dir/it-alice.log" 2>&1 &
+# T-026: Carol spawns a vehicle 4 km away; Bob must not receive its create, Alice gets it when she teleports next to it.
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Alice --verbose --say "/tp 200 200 72" --say "/players" --say "hi Bob" --say "/tp 2990 3000 72" --duration 6 --timeout 40 > "$server_dir/it-alice.log" 2>&1 &
 alice_pid=$!
 sleep 2
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Carol --say "/tp 3000 3000 72" --say "/veh adder" --duration 5 --timeout 40 > "$server_dir/it-carol.log" 2>&1 &
+carol_pid=$!
 set +e
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Bob --say "/tp 210 200 72" --say "/veh zentorno" --say "hi Alice" --duration 3 --timeout 40 > "$server_dir/it-bob.log" 2>&1
 rc_bob=$?
 wait "$alice_pid"; rc_alice=$?
+wait "$carol_pid"; rc_carol=$?
 set -e
 grep -E "\[(chat|entity|player|result)\]" "$server_dir/it-alice.log" | grep -v "\[sync\]" || true
 phase2_ok=1
@@ -87,6 +91,9 @@ grep -q "Bob: hi Alice" "$server_dir/it-alice.log" || { echo "Alice did not get 
 grep -q "create Vehicle .* model Zentorno" "$server_dir/it-alice.log" || { echo "Alice did not see Bob's vehicle"; phase2_ok=0; }
 grep -q "\[sync\] ped #" "$server_dir/it-alice.log" || { echo "Alice did not receive relayed position sync from Bob"; phase2_ok=0; }
 grep -q 'player #[0-9]* "Alice"' "$server_dir/it-bob.log" || { echo "Bob's map did not contain Alice"; phase2_ok=0; }
+grep -q "create Vehicle .* model Adder" "$server_dir/it-alice.log" || { echo "Alice did not get Carol's vehicle after teleporting next to it (T-026 catch-up)"; phase2_ok=0; }
+if grep -q "model Adder" "$server_dir/it-bob.log"; then echo "Bob, 4 km away, received Carol's vehicle: entity broadcasts do not follow the range (T-026)"; phase2_ok=0; fi
+[ "$rc_carol" -eq 0 ] || { echo "Carol failed ($rc_carol)"; phase2_ok=0; }
 [ "$rc_alice" -eq 0 ] && [ "$rc_bob" -eq 0 ] || { echo "a bot failed (alice=$rc_alice bob=$rc_bob)"; phase2_ok=0; }
 
 echo "---- server log ----"; cat "$server_dir/it-server.log"; echo "--------------------"

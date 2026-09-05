@@ -32,10 +32,93 @@ namespace GTANetworkServer
                 Properties = newInfo,
                 NetHandle = netId
             };
+            // T-026: a range-limited entity's update goes to the players who know it (the stored type decides; callers pass Prop for anything)
+            EntityProperties stored;
+            var storedType = Program.ServerInstance.NetEntityHandler.ToDict().TryGetValue(netId, out stored) && stored != null ? (EntityType)stored.EntityType : entity;
+            if (IsRangeLimitedEntity(storedType))
+            {
+                Program.ServerInstance.SendToKnowers(netId, packet, PacketType.UpdateEntityProperties, exclude);
+                return;
+            }
             if (exclude == null)
                 Program.ServerInstance.SendToAll(packet, PacketType.UpdateEntityProperties, true, ConnectionChannel.EntityBackend);
             else
                 Program.ServerInstance.SendToAll(packet, PacketType.UpdateEntityProperties, true, exclude, ConnectionChannel.EntityBackend);
+        }
+
+        // ---- T-026: entity packets follow the players' range; blips, the world and players stay global ----
+
+        internal static bool IsRangeLimitedEntity(EntityType type)
+        {
+            return type == EntityType.Vehicle || type == EntityType.Prop || type == EntityType.Marker || type == EntityType.Pickup
+                || type == EntityType.TextLabel || type == EntityType.Ped || type == EntityType.Particle;
+        }
+
+        /// <summary>A new entity: the players within range (same dimension rules as sync) get the create and remember it; global kinds go to everyone.</summary>
+        internal void PublishEntity(int id, EntityProperties props, CreateEntity packet)
+        {
+            var type = (EntityType)packet.EntityType;
+            if (!IsRangeLimitedEntity(type) || props == null || props.Position == null)
+            {
+                SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+                return;
+            }
+            var range = Math.Max(200f, Interest?.Range ?? 2000f);
+            var rangeSquared = range * range;
+            var dict = NetEntityHandler.ToDict();
+            var targets = new List<Client>();
+            lock (Clients)
+            {
+                foreach (var c in Clients) if (CanSee(c, props, rangeSquared, dict)) targets.Add(c);
+            }
+            foreach (var c in targets)
+            {
+                lock (c.KnownLock) c.KnownEntities.Add(id);
+                SendToClient(c, packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            }
+        }
+
+        internal static bool CanSee(Client c, EntityProperties props, float rangeSquared, Dictionary<int, EntityProperties> dict)
+        {
+            if (c == null || c.Fake || c.NetConnection == null || !c.ConnectionConfirmed) return false;
+            var position = c.Position;
+            if (position == null) return false;
+            EntityProperties me;
+            var dimension = dict.TryGetValue(c.handle.Value, out me) && me != null ? me.Dimension : 0;
+            if (dimension != 0 && props.Dimension != 0 && dimension != props.Dimension) return false;
+            return position.DistanceToSquared(props.Position) <= rangeSquared;
+        }
+
+        /// <summary>Sends <paramref name="data"/> to the players whose known set contains the entity.</summary>
+        internal void SendToKnowers(int id, object data, PacketType type, Client exclude = null)
+        {
+            var bytes = SerializeBinary(data);
+            var recipients = new List<NetConnection>();
+            lock (Clients)
+            {
+                foreach (var c in Clients)
+                {
+                    if (c == null || c == exclude || c.Fake || c.NetConnection == null || !c.ConnectionConfirmed) continue;
+                    bool knows;
+                    lock (c.KnownLock) knows = c.KnownEntities.Contains(id);
+                    if (knows) recipients.Add(c.NetConnection);
+                }
+            }
+            if (recipients.Count == 0) return;
+            var msg = Server.CreateMessage();
+            msg.Write((byte)type);
+            msg.Write(bytes.Length);
+            msg.Write(bytes);
+            Metrics.EntityPacket(type, recipients.Count, bytes.Length + 5);
+            Send(msg, recipients, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.EntityBackend);
+        }
+
+        internal void ForgetEntity(int id)
+        {
+            lock (Clients)
+            {
+                foreach (var c in Clients) if (c != null) lock (c.KnownLock) c.KnownEntities.Remove(id);
+            }
         }
 
 
@@ -301,6 +384,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, 1, data.Length + 5);
             Send(msg, c.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.UnreliableSequenced, (int)channel);
         }
 
@@ -311,6 +395,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, Server.ConnectionsCount, data.Length + 5);
 
             Broadcast(msg, null, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
@@ -322,6 +407,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
+            Metrics.EntityPacket(packetType, Math.Max(0, Server.ConnectionsCount - 1), data.Length + 5);
 
             Broadcast(msg, exclude.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }

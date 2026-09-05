@@ -53,6 +53,7 @@ internal sealed class Options
     public bool Voice;               // --voice: every load bot sends 50 dummy voice frames per second
     public string Cheat;             // --cheat speed|teleport|health: misbehave on purpose (T-017 tests)
     public string Route;             // --route <file.jsonl>: replay a recorded route ({t,x,y,z,h} per line, GTAN_RECORD_ROUTE in game), looping (T-018)
+    public float Scatter;            // --scatter <m>: with --bots, every bot teleports (/tp) to a random point within this radius of the map centre after joining (T-026)
 
     public static Options Parse(string[] args)
     {
@@ -90,6 +91,7 @@ internal sealed class Options
                 case "--voice": o.Voice = true; break;
                 case "--cheat": o.Cheat = Next(); break;
                 case "--route": o.Route = Next(); break;
+                case "--scatter": o.Scatter = float.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -139,6 +141,7 @@ internal sealed class Options
   --voice              with --bots: every load bot sends 50 dummy voice frames per second
   --cheat <kind>       misbehave: speed (200 m/s on foot), teleport (500 m jumps every second), health (250)
   --route <file>       replay a route recorded in game with GTAN_RECORD_ROUTE=1 (logs/route-*.jsonl: {t,x,y,z,h} per line), looping
+  --scatter <metres>   with --bots: every bot /tp's to a random point within this radius of the map centre after joining (spread players)
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 

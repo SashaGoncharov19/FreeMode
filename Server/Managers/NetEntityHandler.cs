@@ -146,7 +146,7 @@ namespace GTANetworkServer
             packet.EntityType = (byte) EntityType.Vehicle;
             packet.NetHandle = localEntityHash;
             packet.Properties = obj;
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -173,7 +173,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -200,7 +200,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -231,7 +231,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -260,7 +260,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -287,7 +287,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -315,7 +315,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -351,7 +351,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -382,7 +382,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -408,7 +408,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -439,7 +439,7 @@ namespace GTANetworkServer
             packet.Properties = obj;
             packet.NetHandle = localEntityHash;
 
-            Program.ServerInstance.SendToAll(packet, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.PublishEntity(localEntityHash, obj, packet);   // T-026: the players in range
 
             return localEntityHash;
         }
@@ -450,7 +450,11 @@ namespace GTANetworkServer
 
             var packet = new DeleteEntity();
             packet.NetHandle = netId;
-            Program.ServerInstance.SendToAll(packet, PacketType.DeleteEntity, true, ConnectionChannel.EntityBackend);
+            EntityProperties stored;
+            var rangeLimited = ServerEntities.TryGetValue(netId, out stored) && stored != null && GameServer.IsRangeLimitedEntity((EntityType)stored.EntityType);
+            if (rangeLimited) Program.ServerInstance.SendToKnowers(netId, packet, PacketType.DeleteEntity);   // T-026
+            else Program.ServerInstance.SendToAll(packet, PacketType.DeleteEntity, true, ConnectionChannel.EntityBackend);
+            Program.ServerInstance.ForgetEntity(netId);
 
             lock (ServerEntities) ServerEntities.Remove(netId);
         }

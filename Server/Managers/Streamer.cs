@@ -94,6 +94,62 @@ namespace GTANetworkServer.Managers
                     // a player that vanished mid-pass; the next pass starts from scratch
                 }
             }
+
+            CatchUpEntities(server, entries, settings, cell);
+        }
+
+        /// <summary>T-026: entities a player can see now but has never received (created out of range, or the player moved) get their create.</summary>
+        private static void CatchUpEntities(GameServer server, List<Entry> entries, InterestSettings settings, float cell)
+        {
+            var range = Math.Max(cell, settings.Range);
+            var rangeSquared = range * range;
+            var cells = (int)Math.Ceiling(range / cell);
+            var grid = new Dictionary<int, Dictionary<long, List<KeyValuePair<int, EntityProperties>>>>();   // dimension -> cell -> entities
+            var count = 0;
+            foreach (var pair in server.NetEntityHandler.ToCopy())
+            {
+                var e = pair.Value;
+                if (e == null || e.Position == null || !GameServer.IsRangeLimitedEntity((EntityType)e.EntityType)) continue;
+                Dictionary<long, List<KeyValuePair<int, EntityProperties>>> byCell;
+                if (!grid.TryGetValue(e.Dimension, out byCell)) grid[e.Dimension] = byCell = new Dictionary<long, List<KeyValuePair<int, EntityProperties>>>();
+                var key = CellKey(e.Position, cell);
+                List<KeyValuePair<int, EntityProperties>> bucket;
+                if (!byCell.TryGetValue(key, out bucket)) byCell[key] = bucket = new List<KeyValuePair<int, EntityProperties>>();
+                bucket.Add(pair);
+                count++;
+            }
+            if (count == 0) return;
+
+            foreach (var entry in entries)
+            {
+                if (entry.Position == null) continue;
+                var client = entry.Client;
+                var cx = (int)Math.Floor(entry.Position.X / cell);
+                var cy = (int)Math.Floor(entry.Position.Y / cell);
+                var sent = 0;
+                foreach (var dim in grid)
+                {
+                    if (entry.Dimension != 0 && dim.Key != 0 && dim.Key != entry.Dimension) continue;
+                    for (var x = cx - cells; x <= cx + cells && sent < 40; x++)
+                    {
+                        for (var y = cy - cells; y <= cy + cells && sent < 40; y++)
+                        {
+                            List<KeyValuePair<int, EntityProperties>> bucket;
+                            if (!dim.Value.TryGetValue(((long)x << 32) | (uint)y, out bucket)) continue;
+                            foreach (var pair in bucket)
+                            {
+                                if (entry.Position.DistanceToSquared(pair.Value.Position) > rangeSquared) continue;
+                                bool known;
+                                lock (client.KnownLock) known = client.KnownEntities.Contains(pair.Key);
+                                if (known) continue;
+                                lock (client.KnownLock) client.KnownEntities.Add(pair.Key);
+                                server.SendToClient(client, new CreateEntity { EntityType = pair.Value.EntityType, NetHandle = pair.Key, Properties = pair.Value }, PacketType.CreateEntity, true, ConnectionChannel.EntityBackend);
+                                if (++sent >= 40) break;   // at most 40 catch-up creates per player per pass (every 250 ms)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private static long CellKey(Vector3 position, float cell)

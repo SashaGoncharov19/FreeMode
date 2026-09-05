@@ -17,6 +17,9 @@ namespace GTANetworkServer
         internal int BudgetBytes;            // bytes of other players' sync sent to this player in that second
         internal Streamer Streamer { get; set; }
         internal readonly AnticheatState Anticheat = new AnticheatState();   // T-017
+        /// <summary>T-026: the range-limited entities this client has received a CreateEntity for (global kinds are not tracked).</summary>
+        internal readonly HashSet<int> KnownEntities = new HashSet<int>();
+        internal readonly object KnownLock = new object();
         internal DateTime LastUpdate { get; set; }
 
         internal bool Fake { get; set; }
