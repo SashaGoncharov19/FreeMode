@@ -18,6 +18,10 @@ echo "---- server output ----"; cat smoke.log; echo "-----------------------"
 if [ $ok -ne 1 ]; then echo "server did not start"; kill $pid 2>/dev/null || true; exit 1; fi
 grep -q "Resource example started!" smoke.log || { echo "example resource did not start (script compilation failed?)"; kill $pid; exit 1; }
 grep -q "Example gamemode started" smoke.log || { echo "example script did not run"; kill $pid; exit 1; }
+# the session key (T-009): server.key is created at the first start and the banner shows the public key and the policy
+grep -q "= Public key: [0-9a-f]\{64\}" smoke.log || { echo "the banner shows no server public key"; kill $pid; exit 1; }
+grep -q "= Encryption: required" smoke.log || { echo "the banner does not say that encryption is required"; kill $pid; exit 1; }
+[ -s server.key ] || { echo "server.key was not created"; kill $pid; exit 1; }
 # freeroam's client script is TypeScript: the first start bundles it with Bun (T-005)
 grep -q "bundled client/index.ts -> client/index.js" smoke.log || { echo "freeroam's TypeScript client script was not bundled (bun missing?)"; grep -i "client/index\|bun" smoke.log || true; kill $pid; exit 1; }
 manifest=$(curl -sS -m 5 http://127.0.0.1:4499/manifest.json || true)

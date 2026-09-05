@@ -81,6 +81,11 @@
     <ProjectReference Include="..\NativeUI\NativeUI.csproj" />
   </ItemGroup>
 
+  <!-- The session cipher's Lidgren adapter (T-009) is shared with the server and the bot as source: it needs Lidgren, which GTANetworkShared does not reference. -->
+  <ItemGroup>
+    <Compile Include="..\Shared\Crypto\NetSessionEncryption.cs" Link="Crypto\NetSessionEncryption.cs" />
+  </ItemGroup>
+
   <!-- Legacy sources kept in the tree but never part of the build (superseded by GUI/, Streamer/, Sync/). -->
   <ItemGroup>
     <Compile Remove="Chat.cs" />

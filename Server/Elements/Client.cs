@@ -4,6 +4,7 @@ using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
 using Lidgren.Network;
+using GTANetworkShared.Crypto;
 
 namespace GTANetworkServer
 {
@@ -20,6 +21,10 @@ namespace GTANetworkServer
         internal int LastPedFlag { get; set; }
         internal int LastVehicleFlag { get; set; }
         internal NetConnection NetConnection { get; private set; }
+        /// <summary>The encrypted session with this client (T-009); null while the connection is plaintext.</summary>
+        internal NetSessionEncryption Session { get; set; }
+        internal byte[] SessionToken { get; set; }
+        internal int AuthFailuresLogged;
 
         internal string SocialClubName { get; set; }
         internal bool ConnectionConfirmed { get; set; }
@@ -55,6 +60,7 @@ namespace GTANetworkServer
 
         public Client(NetConnection nc)
         {
+            if (nc != null) nc.Tag = this;
             Health = 100;
             Armor = 0;
             

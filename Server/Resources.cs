@@ -318,7 +318,7 @@ namespace GTANetworkServer
                         {
                             var msg = Server.CreateMessage();
                             msg.Write((byte)PacketType.RedownloadManifest);
-                            client.NetConnection.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
+                            Send(msg, client.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.FileTransfer);
                         }
 
                         foreach (var script in ourResource.ClientsideScripts)
@@ -485,7 +485,7 @@ namespace GTANetworkServer
             var msg = Server.CreateMessage();
             msg.Write((byte)PacketType.StopResource);
             msg.Write(resourceName);
-            Server.SendToAll(msg, NetDeliveryMethod.ReliableOrdered);
+            Broadcast(msg, null, NetDeliveryMethod.ReliableOrdered, 0);
 
             if (Gamemode == ourRes)
             {

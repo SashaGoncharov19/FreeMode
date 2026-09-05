@@ -179,7 +179,7 @@ namespace GTANetwork.Streamer
 
                 msg.Write(bin.Length);
                 msg.Write(bin);
-                Main.Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.BulletSync);
+                Main.Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.BulletSync);
                 Main.BytesSent += bin.Length;
                 Main.MessagesSent++;
             }
@@ -197,7 +197,7 @@ namespace GTANetwork.Streamer
 
                 msg.Write(bin.Length);
                 msg.Write(bin);
-                Main.Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.BulletSync);
+                Main.Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.BulletSync);
                 Main.BytesSent += bin.Length;
                 Main.MessagesSent++;
             }

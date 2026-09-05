@@ -93,7 +93,7 @@ namespace GTANetworkServer
             msg.Write(basic.Length);
             msg.Write(basic);
 
-            Server.SendMessage(msg, connections, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
+            Send(msg, connections, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.BasicSync);
         }
 
         //Ped Packet
@@ -109,8 +109,8 @@ namespace GTANetworkServer
                 msg.Write(full.Length);
                 msg.Write(full);
 
-                if (pure) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
-                else Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
+                if (pure) Send(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
+                else Send(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
             }
 
             if (!pure || fullPacket.NetHandle == null || fullPacket.Position == null) return;
@@ -132,8 +132,8 @@ namespace GTANetworkServer
                 msg.Write(full.Length);
                 msg.Write(full);
 
-                if (pure) Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
-                else Server.SendMessage(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
+                if (pure) Send(msg, connectionsNear, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.PureSync);
+                else Send(msg, connectionsNear, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.LightSync);
             }
 
             if (!pure || fullPacket.NetHandle == null) return;
@@ -215,7 +215,7 @@ namespace GTANetworkServer
                 }
             }
 
-            if (connectionsNear.Count > 0) Server.SendMessage(msgNear, connectionsNear,
+            if (connectionsNear.Count > 0) Send(msgNear, connectionsNear,
                 NetDeliveryMethod.UnreliableSequenced,
                 (int)ConnectionChannel.UnoccupiedVeh);
 
@@ -225,7 +225,7 @@ namespace GTANetworkServer
                 connectionsFar.Add(client.NetConnection);
             }
 
-            if (connectionsFar.Count > 0) Server.SendMessage(msgFar, connectionsFar,
+            if (connectionsFar.Count > 0) Send(msgFar, connectionsFar,
                 NetDeliveryMethod.UnreliableSequenced,
                 (int)ConnectionChannel.UnoccupiedVeh);
         }
@@ -250,7 +250,7 @@ namespace GTANetworkServer
                 connections.Add(client.NetConnection);
             }
 
-            if (connections.Count > 0) Server.SendMessage(msg, connections,
+            if (connections.Count > 0) Send(msg, connections,
                 NetDeliveryMethod.ReliableSequenced,
                 (int)ConnectionChannel.BulletSync);
         }
@@ -274,7 +274,7 @@ namespace GTANetworkServer
                 connections.Add(client.NetConnection);
             }
 
-            if (connections.Count > 0) Server.SendMessage(msg, connections, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.BulletSync);
+            if (connections.Count > 0) Send(msg, connections, NetDeliveryMethod.ReliableSequenced, (int)ConnectionChannel.BulletSync);
         }
 
 
@@ -286,7 +286,7 @@ namespace GTANetworkServer
             msg.Write((byte)packetType);
             msg.Write(data.Length);
             msg.Write(data);
-            Server.SendMessage(msg, c.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.UnreliableSequenced, (int)channel);
+            Send(msg, c.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.UnreliableSequenced, (int)channel);
         }
 
         public void SendToAll(object newData, PacketType packetType, bool important, ConnectionChannel channel)
@@ -297,7 +297,7 @@ namespace GTANetworkServer
             msg.Write(data.Length);
             msg.Write(data);
 
-            Server.SendToAll(msg, null, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
+            Broadcast(msg, null, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
 
         public void SendToAll(object newData, PacketType packetType, bool important, Client exclude, ConnectionChannel channel)
@@ -308,7 +308,7 @@ namespace GTANetworkServer
             msg.Write(data.Length);
             msg.Write(data);
 
-            Server.SendToAll(msg, exclude.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
+            Broadcast(msg, exclude.NetConnection, important ? NetDeliveryMethod.ReliableOrdered : NetDeliveryMethod.ReliableSequenced, (int)channel);
         }
 
         public void SendDeleteObject(Client player, Vector3 pos, float radius, int modelHash)
@@ -325,7 +325,7 @@ namespace GTANetworkServer
             msg.Write((byte)PacketType.DeleteObject);
             msg.Write(bin.Length);
             msg.Write(bin);
-            player.NetConnection.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.EntityBackend);
+            Send(msg, player.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.EntityBackend);
         }
 
 
@@ -343,7 +343,7 @@ namespace GTANetworkServer
             msg.Write((byte)PacketType.NativeCall);
             msg.Write(bin.Length);
             msg.Write(bin);
-            player.NetConnection.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.NativeCall);
+            Send(msg, player.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.NativeCall);
         }
 
         public void SendNativeCallToAllPlayers(bool safe, ulong hash, params object[] arguments)
@@ -378,7 +378,7 @@ namespace GTANetworkServer
 
             if (recipients.Count > 0)
             {
-                Server.SendMessage(msg, recipients, NetDeliveryMethod.ReliableOrdered, (int) ConnectionChannel.NativeCall);
+                Send(msg, recipients, NetDeliveryMethod.ReliableOrdered, (int) ConnectionChannel.NativeCall);
             }
         }
 
@@ -403,7 +403,7 @@ namespace GTANetworkServer
             msg.Write(bin);
 
             _callbacks.Add(salt, callback);
-            player.NetConnection.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.NativeCall);
+            Send(msg, player.NetConnection, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.NativeCall);
         }
 
 

@@ -502,7 +502,7 @@ namespace GTANetwork
             msg.Write((byte)PacketType.NativeResponse);
             msg.Write(bin.Length);
             msg.Write(bin);
-            Client.SendMessage(msg, NetDeliveryMethod.ReliableOrdered, 0);
+            Send(msg, NetDeliveryMethod.ReliableOrdered, 0);
         }
 
         private bool ReplacePointerNatives(ulong hash, ref List<InputArgument> list, ref List<NativeArgument> args)

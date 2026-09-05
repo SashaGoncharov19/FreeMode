@@ -58,6 +58,14 @@ into the JavaScript the game runs (`Server/Managers/TypeScriptBundler.cs`; cache
 needs Bun 1.4.x: `GTAN_BUN=<path>`, a copy in `<server>/runtime/bun/`, or `bun` on `PATH`. `Server/resources/freeroam` (client) and
 `Server/resources/tsdemo` (server) are the shipped examples; `types/README.md` explains the tsconfig files.
 
+## Connections are encrypted
+
+Every connection does an X25519 key exchange during the connect (T-009) and then talks AES-256-GCM. The server's static key
+lives in `<server>/server.key` (created at the first start; back it up like a certificate) and its public key is in the banner
+(`= Public key: …`). A player can pin it: `host:port#<public key>` in the menu's direct connect; a server that offers another
+key is refused with a message. `<RequireEncryption>true</RequireEncryption>` in `settings.xml` (the default) refuses clients
+without the handshake — clients older than 0.2.0-alpha.6; set it to false to let them join in plaintext.
+
 ## Write a gamemode
 
 ```bash

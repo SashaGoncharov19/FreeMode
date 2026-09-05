@@ -15,6 +15,7 @@ using System.Xml.Serialization;
 using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
+using GTANetworkShared.Crypto;
 using Lidgren.Network;
 using Newtonsoft.Json;
 using ProtoBuf;
@@ -191,6 +192,32 @@ namespace GTANetworkServer
                                 }
                             };
 
+                            // T-009: the session handshake. The client sent an ephemeral X25519 public key; the approval carries the
+                            // server's static key and both derive the session key. Without a key: refused, unless RequireEncryption is off.
+                            if (connReq.ClientPublicKey != null && connReq.ClientPublicKey.Length == 32 && ServerKey != null)
+                            {
+                                try
+                                {
+                                    var sessionKey = SessionHandshake.DeriveSessionKey(ServerKey.Pair.PrivateKey, connReq.ClientPublicKey, connReq.ClientPublicKey, ServerKey.PublicKey);
+                                    client.Session = new NetSessionEncryption(Server, new SessionCipher(sessionKey, isServer: true), SessionHandshake.Fingerprint(connReq.ClientPublicKey));
+                                    client.SessionToken = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+                                    respObj.ServerPublicKey = ServerKey.PublicKey;
+                                    respObj.SessionToken = client.SessionToken;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Program.Output("Handshake with " + client.NetConnection.RemoteEndPoint.Address + " failed: " + ex.Message, LogCat.Warn);
+                                    client.NetConnection.Deny("The session handshake failed.");
+                                    continue;
+                                }
+                            }
+                            else if (RequireEncryption)
+                            {
+                                Program.Output("Refused " + client.NetConnection.RemoteEndPoint.Address + ": the client sent no session key (RequireEncryption)", LogCat.Warn);
+                                client.NetConnection.Deny("This server requires an encrypted session: update your client.");
+                                continue;
+                            }
+
                             var channelHail = Server.CreateMessage();
                             var respBin = SerializeBinary(respObj);
 
@@ -234,6 +261,13 @@ namespace GTANetworkServer
                             break;
 
                         case NetIncomingMessageType.Data:
+
+                            if (client.Session != null && !msg.Decrypt(client.Session))
+                            {
+                                // not from this session (replay, garbage, or a plaintext message after the handshake): dropped
+                                if (client.AuthFailuresLogged++ < 3) Program.Output("Dropped a message from " + client.Name + " [" + client.NetConnection.RemoteEndPoint.Address + "] that failed authentication", LogCat.Warn);
+                                continue;
+                            }
 
                             packetType = (PacketType)msg.ReadByte();
                             //Console.WriteLine("Called... " + packetType);
@@ -452,7 +486,7 @@ namespace GTANetworkServer
                                                     respMsg.Write((byte)PacketType.ChatData);
                                                     respMsg.Write(binData.Length);
                                                     respMsg.Write(binData);
-                                                    client.NetConnection.SendMessage(respMsg,
+                                                    Send(respMsg, client.NetConnection,
                                                         NetDeliveryMethod.ReliableOrdered, 0);
                                                 }
 

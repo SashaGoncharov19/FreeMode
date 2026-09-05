@@ -15,6 +15,13 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
+    <!-- X25519 + HKDF for the session handshake and AES-GCM for clients on .NET Framework (the server and the bot use System.Security.Cryptography.AesGcm). -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lidgren adapter of the session cipher: compiled into the server, the client and the bot (they reference Lidgren), not here. -->
+    <Compile Remove="Crypto\NetSessionEncryption.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">

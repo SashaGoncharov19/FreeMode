@@ -26,6 +26,9 @@
       <HintPath>$(GtanLibsDir)Lidgren.Network.dll</HintPath>
     </Reference>
     <ProjectReference Include="..\..\Shared\GTANetworkShared.csproj" />
+    <!-- The session cipher's Lidgren adapter and the .NET AesGcm implementation, shared with the server as source (T-009). -->
+    <Compile Include="..\..\Shared\Crypto\NetSessionEncryption.cs" Link="Crypto\NetSessionEncryption.cs" />
+    <Compile Include="..\..\Server\Crypto\AesGcmNet.cs" Link="Crypto\AesGcmNet.cs" />
     <!-- Native hash names, to print server->client native calls readably. -->
     <Compile Include="..\..\Shv.NET\ref\Core\NativeHashes.g.cs" Link="NativeHashes.g.cs" />
   </ItemGroup>

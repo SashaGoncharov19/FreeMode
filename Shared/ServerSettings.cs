@@ -81,6 +81,8 @@ namespace GTANetworkShared
 
         [XmlElement("allowcefdevtool")]
         public bool Allowcefdevtool { get; set; }
+        /// <summary>Refuse clients that cannot do the encrypted session (T-009); false lets old clients join with a plaintext connection.</summary>
+        public bool RequireEncryption { get; set; }
 
         public WhitelistCollection whitelist { get; set; }
 
@@ -116,6 +118,7 @@ namespace GTANetworkShared
             fqdn = "";
             Conntimeout = true;
             Allowcefdevtool = false;
+            RequireEncryption = true;
         }
 
         public static ServerSettings ReadSettings(string path)

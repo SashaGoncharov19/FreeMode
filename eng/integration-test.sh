@@ -53,9 +53,20 @@ set +e
   --expect '"args":{"x":1},"players":1}' \
   --expect "rpc no:such error unknown" \
   --expect "rpc freeroam:ping error rate" \
+  --expect "crypto: encrypted session" \
   --duration 3 --timeout 60 | tee "$server_dir/it-bot.log"
 rc=${PIPESTATUS[0]}
 set -e
+
+# ---- phase 1b (T-009): a client without the session handshake is refused; a client with the wrong pinned key leaves by itself
+set +e
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name OldClient --no-encryption --duration 1 --timeout 20 > "$server_dir/it-old.log" 2>&1
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Pinned --pin 0000000000000000000000000000000000000000000000000000000000000000 --duration 1 --timeout 20 > "$server_dir/it-pin.log" 2>&1
+set -e
+grep -q "requires an encrypted session" "$server_dir/it-old.log" || { echo "a client without the handshake was not refused:"; cat "$server_dir/it-old.log"; exit 1; }
+grep -q "server key mismatch" "$server_dir/it-pin.log" || { echo "the bot did not refuse a server with the wrong pinned key:"; cat "$server_dir/it-pin.log"; exit 1; }
+if grep -q "\[joined\]" "$server_dir/it-old.log" "$server_dir/it-pin.log"; then echo "a refused client joined anyway"; exit 1; fi
+echo "encryption: an old client is refused, a wrong pin is refused"
 
 # ---- phase 2: two players at once, so that the server relays sync packets and entity events between them
 echo "---- phase 2: two bots ----"
@@ -84,6 +95,8 @@ grep -q "Connection established: CIBot" "$server_dir/it-server.log" || { echo "s
 grep -qE "(bundled|cached bundle of) client/index.ts -> client/index.js" "$server_dir/it-server.log" || { echo "freeroam's TypeScript client script was not bundled"; exit 1; }
 grep -q 'client script "client/index.js" from "freeroam"' "$server_dir/it-bot.log" || { echo "the bot did not receive freeroam's bundled client script"; exit 1; }
 if grep -q "Exception in the Netcode" "$server_dir/it-server.log"; then echo "server logged netcode exceptions"; exit 1; fi
+grep -q "Refused 127.0.0.1: the client sent no session key" "$server_dir/it-server.log" || { echo "the server did not log the refusal of the old client"; exit 1; }
+if grep -q "failed authentication" "$server_dir/it-server.log"; then echo "the server dropped messages that failed authentication"; exit 1; fi
 if grep -q "EXCEPTION IN RESOURCE" "$server_dir/it-server.log"; then echo "a resource script threw (see server log above)"; exit 1; fi
 grep -q "CIBot: hello from the bot" "$server_dir/it-server.log" || { echo "server did not relay the chat message"; exit 1; }
 [ "$rc" -eq 0 ] || { echo "bot exited with $rc"; exit "$rc"; }

@@ -293,7 +293,7 @@ namespace GTANetwork
                             newMsg.Write((byte)PacketType.FileAcceptDeny);
                             newMsg.Write(data.Id);
                             newMsg.Write(acceptDownload);
-                            Client.SendMessage(newMsg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                            Send(newMsg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                         }
                         else
                         {
@@ -862,6 +862,11 @@ namespace GTANetwork
                                 ConnectLoader.Stage("connected", "Connection established");
                                 var respLen = msg.SenderConnection.RemoteHailMessage.ReadInt32();
                                 var respObj = DeserializeBinary<ConnectionResponse>(msg.SenderConnection.RemoteHailMessage.ReadBytes(respLen)) as ConnectionResponse;
+                                if (!CompleteHandshake(respObj))
+                                {
+                                    Client.Disconnect("server key mismatch");
+                                    break;
+                                }
 
                                 if (respObj == null)
                                 {
@@ -874,7 +879,7 @@ namespace GTANetwork
                                 var confirmObj = Client.CreateMessage();
                                 confirmObj.Write((byte)PacketType.ConnectionConfirmed);
                                 confirmObj.Write(false);
-                                Client.SendMessage(confirmObj, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
+                                Send(confirmObj, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.SyncEvent);
                                 JustJoinedServer = true;
 
                                 MainMenu.Tabs.Remove(_welcomePage);

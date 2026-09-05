@@ -41,6 +41,15 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
   password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
   `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
+* **Encrypted, authenticated sessions** (T-009): every connection does an X25519 key exchange in the hail (the client sends an
+  ephemeral public key, the approval carries the server's static key from `server.key`, created at the first start and shown in
+  the banner) and derives a session key with HKDF-SHA256; every data message after that is AES-256-GCM with a per-direction
+  counter nonce and a 128-message replay window (24 bytes of overhead per message). The server uses .NET's hardware AES, the
+  in-game client BouncyCastle (`BouncyCastle.Cryptography` 2.6.2 ships with it). Clients pin the server's key with
+  `host:port#<public key>` in the menu's direct connect (the master list will carry it); a mismatch refuses the connection with
+  a clear line in `Runtime.log`. `<RequireEncryption>true</RequireEncryption>` (default) refuses clients without the handshake, so
+  clients older than this build cannot join; false lets them join in plaintext. The bot speaks the handshake (`--pin`,
+  `--no-encryption`), and the integration test checks the encrypted session, the refusal and the pin mismatch.
 * **`gtanetwork create <name>`** (`Tools/GTANetwork.Cli`, published for Linux and Windows with every build) writes a self-contained
   resource skeleton in TypeScript: `server/index.ts` for the Bun runtime, `client/index.ts` bundled by the server, a CEF page
   talking to both through `gtan.rpc.call`, the typings it type-checks against (`types/`), `package.json` with `bun run check`.

@@ -330,6 +330,9 @@ namespace GTANetwork.GUI
         {
             if (string.IsNullOrWhiteSpace(host)) return;
             host = host.Trim();
+            string pinnedKey = null;
+            var hash = host.IndexOf('#'); // "host:port#<server public key>" pins the key (T-009)
+            if (hash >= 0) { pinnedKey = host.Substring(hash + 1).Trim(); host = host.Substring(0, hash).Trim(); }
             var port = 4499;
             var colon = host.LastIndexOf(':');
             if (colon > 0 && host.IndexOf(':') == colon) // "ip:port" in one field (not an IPv6 literal)
@@ -351,7 +354,7 @@ namespace GTANetwork.GUI
                 if (main == null) return;
                 main.AddServerToRecent(address, pass);
                 Hide("connect " + address);
-                main.ConnectToServer(host, port, pass.Length > 0, pass);
+                main.ConnectToServer(host, port, pass.Length > 0, pass, pinnedKey);
             });
         }
 

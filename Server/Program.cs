@@ -151,6 +151,10 @@ namespace GTANetworkServer
             Console.WriteLine("=======================================================================");
             Console.WriteLine("= Server Name: " + settings.Name);
             Console.WriteLine("= Server Port: " + settings.Port);
+            var serverKey = GTANetworkShared.Crypto.ServerKey.LoadOrCreate(Location + "server.key");
+            Console.WriteLine("= Public key: " + serverKey.PublicKeyHex + (serverKey.Created ? "  (server.key created - back it up like a certificate)" : ""));
+            Console.WriteLine("= Key fingerprint: " + serverKey.Fingerprint + "; pinned connect string: <host>:" + settings.Port + "#" + serverKey.PublicKeyHex);
+            Console.WriteLine("= Encryption: " + (settings.RequireEncryption ? "required (X25519 + AES-256-GCM per session)" : "optional: old clients may join in plaintext"));
             Console.WriteLine("= Server FQDN: " + settings.fqdn);
             Console.WriteLine("=");
             Console.WriteLine("= Player Limit: " + settings.MaxPlayers);
@@ -169,7 +173,8 @@ namespace GTANetworkServer
                 return;
             }
 
-            ServerInstance = new GameServer(settings) {AllowDisplayNames = true};
+            GTANetworkServer.Crypto.AesGcmNet.Install();
+            ServerInstance = new GameServer(settings) {AllowDisplayNames = true, ServerKey = serverKey};
 
             ServerInstance.Start(settings.Resources.Select(r => r.Path).ToArray());
 
