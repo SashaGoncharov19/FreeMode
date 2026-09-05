@@ -41,6 +41,14 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
   password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
   `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
+* **Client scripts in TypeScript** (`<script src="client/index.ts" type="client" lang="typescript"/>`): at resource start the server
+  bundles the entry with Bun (`bun build --target=browser --format=iife`; imports resolved, types erased) into the one JavaScript
+  text the in-game engine already runs, and caches it under `resources/.cache/<resource>/` by the hash of the resource's sources
+  (the second start reads the cache). Bun does not type-check: a resource with its own `typescript` in `node_modules` and a
+  `tsconfig.json` is checked with `tsc --noEmit` first, and a type error fails the start with its file:line; a syntax error fails
+  it in any case. Without Bun the client script is skipped with one error line and the rest of the resource starts, so the server
+  machine needs Bun (`GTAN_BUN`, `runtime/bun/`, or on `PATH`) for TypeScript resources. `freeroam`'s `client.js` is now
+  `client/index.ts` with a `tsconfig.json` against `types/`.
 * **The main menu is a CEF page** (`ui/menu`, `<CefMenu>`, default true): at game start and after a disconnect the player sees the
   servers found — favourites and recent from `settings.xml`, LAN discovery, the master list when one is configured — with gamemode,
   players and a password mark, a filter, favourites (★), direct connect (host, port, password) and the settings the NativeUI menu had

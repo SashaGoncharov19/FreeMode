@@ -80,6 +80,9 @@ echo "---- server log ----"; cat "$server_dir/it-server.log"; echo "------------
 [ "$phase2_ok" -eq 1 ] || { echo "phase 2 failed"; exit 1; }
 
 grep -q "Connection established: CIBot" "$server_dir/it-server.log" || { echo "server never confirmed the bot"; exit 1; }
+# freeroam's client script is TypeScript (T-005): the server bundles it (or reads the bundle the smoke test cached) and the bot gets client/index.js
+grep -qE "(bundled|cached bundle of) client/index.ts -> client/index.js" "$server_dir/it-server.log" || { echo "freeroam's TypeScript client script was not bundled"; exit 1; }
+grep -q 'client script "client/index.js" from "freeroam"' "$server_dir/it-bot.log" || { echo "the bot did not receive freeroam's bundled client script"; exit 1; }
 if grep -q "Exception in the Netcode" "$server_dir/it-server.log"; then echo "server logged netcode exceptions"; exit 1; fi
 if grep -q "EXCEPTION IN RESOURCE" "$server_dir/it-server.log"; then echo "a resource script threw (see server log above)"; exit 1; fi
 grep -q "CIBot: hello from the bot" "$server_dir/it-server.log" || { echo "server did not relay the chat message"; exit 1; }

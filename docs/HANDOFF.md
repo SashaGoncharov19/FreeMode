@@ -53,6 +53,9 @@ rendering can only be verified in game by the owner.
   `gtan.rpc.call` in CEF pages, `API.callClient`; the `auth` form and `freeroam` use it; bot round trips in `eng/integration-test.sh`.
   The owner's install was synced afterwards (client, browser host, `ui/`, server with `runtime/`, bot); the running local server
   must be restarted to speak RPC.
+* **In PR**: T-005 client scripts in TypeScript (`task/T-005-client-typescript`): `Server/Managers/TypeScriptBundler.cs` bundles
+  `client/index.ts` with Bun at resource start (IIFE, hash cache, optional `tsc`); freeroam's client is TypeScript now. The owner's
+  server needs Bun for it: the deploy copies the container's Bun 1.4.1 into `~/GTANetwork/server/runtime/bun/bun`.
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
@@ -266,8 +269,8 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): **T-005** client TypeScript resources (bundled by
-   the server with Bun) → **T-007** freeroam in TypeScript → **T-009** session encryption → **T-010** launcher GUI → **T-011**
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): merge T-005 when green → **T-007** freeroam in TypeScript (server side; the
+   client side is done by T-005) → **T-009** session encryption → **T-010** launcher GUI → **T-011**
    master list (needs Q-07; the CEF menu then gets ping and player counts from it). Each on its own `task/T-NNN-*` branch from the
    integration branch, one PR, `eng/dev-test.sh` green.
 1. **In-game run by the owner** (quiet machine, `play.sh --debug`): (a) hitches — read `[HITCH]` lines in `Runtime.log`
