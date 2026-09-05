@@ -1,6 +1,6 @@
 # T-003 — Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget
 
-Status: ready
+Status: in progress
 Epic: E-03 Scale
 Size: L
 Branch: task/T-003-interest-management from the integration branch
@@ -60,6 +60,7 @@ the entity between grids in the same tick.
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 10:20 agent — started (branched from the T-023 branch so the relay workers are in; the PR targets the integration branch after #22).
 
 ## Result
 
