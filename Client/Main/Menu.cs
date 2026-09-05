@@ -136,7 +136,7 @@ namespace GTANetwork
             }
         }
 
-        private static void AddToFavorites(string server)
+        internal static void AddToFavorites(string server)
         {
             if (string.IsNullOrWhiteSpace(server)) return;
             if (PlayerSettings.FavoriteServers.Contains(server)) return;
@@ -147,13 +147,13 @@ namespace GTANetwork
             Util.Util.SaveSettings(GTANInstallDir + "\\settings.xml");
         }
 
-        private static void RemoveFromFavorites(string server)
+        internal static void RemoveFromFavorites(string server)
         {
             PlayerSettings.FavoriteServers.Remove(server);
             Util.Util.SaveSettings(GTANInstallDir + "\\settings.xml");
         }
 
-        private void AddServerToRecent(string server, string password = "")
+        internal void AddServerToRecent(string server, string password = "")
         {
             if (string.IsNullOrWhiteSpace(server)) return;
             var split = server.Split(':');
@@ -192,7 +192,7 @@ namespace GTANetwork
             _recentBrowser.Items.Add(item);
         }
 
-        private void RebuildServerBrowser()
+        internal void RebuildServerBrowser()
         {
             if (!finished) return;
             finished = false;
@@ -252,6 +252,7 @@ namespace GTANetwork
                     catch (Exception e)
                     {
                         Util.Util.SafeNotify("~r~~h~ERROR~h~~w~~n~Could not contact master server. Try again later.");
+                        CefMenu.Status("Could not contact the master server " + masterServerAddress + " (" + e.Message + ")");
                         var logOutput = "===== EXCEPTION CONTACTING MASTER SERVER @ " + DateTime.UtcNow + " ======\n";
                         logOutput += "Message: " + e.Message;
                         logOutput += "\nData: " + e.Data;
@@ -345,6 +346,7 @@ namespace GTANetwork
                     VerifiedList = listVerified.Distinct().ToList();
 
                     MainMenu.Money = "Servers Online: " + TotalServers + " | Players Online: " + TotalPlayers;
+                    CefMenu.OnServerList(list, VerifiedList, TotalPlayers, TotalServers, null);
 
                     for (var i = 0; i < list.Count; i++)
                     {
@@ -1261,6 +1263,8 @@ namespace GTANetwork
         {
             if (Game.IsControlJustPressed(Control.FrontendPauseAlternate) && !MainMenu.Visible && !_wasTyping && !_mainWarning.Visible)
             {
+                // the classic menu over the CEF main menu (host tab, debug switches); Back brings the CEF page back
+                if (!IsOnServer() && CefMenu.Visible) CefMenu.Hide("pause key: classic menu");
                 MainMenu.Visible = true;
 
                 if (!IsOnServer())
@@ -1282,7 +1286,9 @@ namespace GTANetwork
                 }
 
                 MainMenu.Update();
-                MainMenu.CanLeave = IsOnServer();
+                MainMenu.CanLeave = IsOnServer() || CefMenu.Enabled;
+                // not on a server and neither menu is up: the CEF page returns (the classic menu was closed, or a connect failed)
+                if (!IsOnServer() && CefMenu.Enabled && !MainMenu.Visible && !CefMenu.Visible && !CefMenu.Suspended && _init && !Game.IsLoading) CefMenu.Show();
                 if (MainMenu.Visible && !MainMenu.TemporarilyHidden && !_mainMapItem.Focused && _hasScAvatar && !Game.IsLoading)
                 {
                     var safe = new Point(300, 180);

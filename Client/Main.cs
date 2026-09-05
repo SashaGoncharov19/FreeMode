@@ -416,9 +416,9 @@ namespace GTANetwork
 
             if (!PlayerSettings.DisableCEF)
             {
-                if (PlayerSettings.CefPreload)
+                if (PlayerSettings.CefPreload || CefMenu.Enabled)
                 {
-                    LogManager.RuntimeLog("Initializing CEF (CefPreload).");
+                    LogManager.RuntimeLog("Initializing CEF (" + (PlayerSettings.CefPreload ? "CefPreload" : "CefMenu: the main menu is a CEF page") + ").");
                     CEFManager.InitializeCef();
                 }
                 else
@@ -445,8 +445,10 @@ namespace GTANetwork
             ResetPlayer();
             MainMenu.RefreshIndex();
             _init = true;
-            MainMenu.Visible = true;
             World.RenderingCamera = MainMenuCamera;
+            // The main menu: the CEF page (ui/menu) when it is on, the NativeUI menu otherwise (and on the pause key any time).
+            if (CefMenu.Enabled) { MainMenu.Visible = false; CefMenu.Show(); }
+            else MainMenu.Visible = true;
 
             DisableSlowMo();
             UnlockObjects();
@@ -472,6 +474,7 @@ namespace GTANetwork
         {
             Init();
 
+            CefMenu.Tick();
             PauseMenu();
             _mainWarning?.Draw();
 

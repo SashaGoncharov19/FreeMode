@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GTANetwork.GUI;
+using System;
 using GTA;
 using GTA.Native;
 using GTANetwork.Streamer;
@@ -254,8 +255,10 @@ namespace GTANetwork
         private static void ResetWorld()
         {
             World.RenderingCamera = MainMenuCamera;
-            MainMenu.Visible = true;
+            CefMenu.Suspended = false;
+            MainMenu.Visible = !CefMenu.Enabled;
             MainMenu.TemporarilyHidden = false;
+            if (CefMenu.Enabled) CefMenu.Show();
             IsSpectating = false;
             Weather = null;
             Time = null;

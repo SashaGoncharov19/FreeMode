@@ -214,6 +214,9 @@ namespace GTANetwork.CefHarness
                     var loader = LoaderPageCheck(channel, deadline);
                     log(loader);
                     if (!loader.StartsWith("loader page OK")) return Finish(channel, host, loader, 3, clock);
+                    var menu = MenuPageCheck(channel, deadline);
+                    log(menu);
+                    if (!menu.StartsWith("menu page OK")) return Finish(channel, host, menu, 3, clock);
                 }
 
                 if (holdSec > 0)
@@ -548,6 +551,25 @@ namespace GTANetwork.CefHarness
             var ok = WaitForPixels(frameName, 640, 360, TimeSpan.FromSeconds(15), out opaque, out frames);
             channel.Send(new CefHostMessage(CefHostProtocol.Close, id));
             return ok ? "loader page OK: https://gtan/loader/index.html painted (" + opaque + " opaque pixels of " + (640 * 360) + ", " + frames + " frame(s))" : "loader page never painted (" + frames + " frame(s), " + opaque + " opaque pixels)";
+        }
+
+        /// <summary>Browser 4 loads https://gtan/menu/index.html (the main menu, T-013), gets a state through gtanMenu.update and must paint an opaque page.</summary>
+        private static string MenuPageCheck(CefHostChannel channel, TimeSpan deadline)
+        {
+            const int id = 4;
+            FrameAnnounced.Reset();
+            Created.Reset();
+            channel.Send(new CefHostMessage(CefHostProtocol.Create, id) { W = 960, H = 540, Local = true, Fps = 30 });
+            if (WaitHandle.WaitAny(new WaitHandle[] { Created, Exited }, TimeSpan.FromSeconds(15)) != 0) return "menu page: no 'created'";
+            channel.Send(new CefHostMessage(CefHostProtocol.Load, id) { Url = "https://gtan/menu/index.html" });
+            if (WaitHandle.WaitAny(new WaitHandle[] { FrameAnnounced, Exited }, TimeSpan.FromSeconds(15)) != 0) return "menu page: no frame buffer (is --ui-root right? the host log says what it refused)";
+            channel.Send(new CefHostMessage(CefHostProtocol.Eval, id) { Code = "gtanMenu.update({version:'0.2.0',status:'1 server(s) answered',servers:[{address:'127.0.0.1:4499',name:'Harness server',gamemode:'freeroam',map:'',players:1,maxPlayers:32,passworded:false,source:'lan',online:true,favorite:true,recent:false},{address:'10.0.0.2:4499',name:'10.0.0.2:4499',gamemode:'',map:'',players:0,maxPlayers:0,passworded:false,source:'',online:false,favorite:false,recent:true}],settings:{displayName:'Harness',masterServerAddress:'',showFps:true,disableRockstarEditor:true,timestamp:false,militaryTime:true,scaleChatWithSafezone:true,useClassicChat:false,chatboxXOffset:0,chatboxYOffset:0,cefLoader:true,cefMenu:true,cefGpu:false}})" });
+            string frameName;
+            lock (StateLock) frameName = _frameName;
+            int opaque, frames;
+            var ok = WaitForPixels(frameName, 960, 540, TimeSpan.FromSeconds(15), out opaque, out frames);
+            channel.Send(new CefHostMessage(CefHostProtocol.Close, id));
+            return ok ? "menu page OK: https://gtan/menu/index.html painted (" + opaque + " opaque pixels of " + (960 * 540) + ", " + frames + " frame(s))" : "menu page never painted (" + frames + " frame(s), " + opaque + " opaque pixels)";
         }
 
         private static bool Near(byte value, byte target)
