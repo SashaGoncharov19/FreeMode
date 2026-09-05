@@ -285,6 +285,15 @@ interface API {
     setEntityPositionFrozen(entity: NetHandle, frozen: boolean): void;
     triggerClientEventForAll(eventName: string, ...args: unknown[]): void;
     triggerClientEvent(player: Client, eventName: string, ...args: unknown[]): void;
+    /** Registers the handler of API.rpc.call(name, args) from client scripts (and of gtan.rpc.call from their CEF pages). The handler gets the caller and the arguments as one JSON value (a JObject/JArray/JValue: args["item"], or null) and returns a JSON-serialisable value or a Task of one; an exception fails the call with its message and the code "handler" (throw an RpcException to choose the code). Names are global across resources: prefix them with the resource name ("auth:login"); registering a name again replaces the handler. Handlers run on the resource's script thread; the caller waits at most its timeout (10 s by default).  */
+    registerRpc(name: string, handler: (arg1: Client, arg2: unknown) => unknown): void;
+    /** The same with an allow check: when  returns false for the caller, the call fails with the code "denied" and the handler does not run. */
+    registerRpc(name: string, handler: (arg1: Client, arg2: unknown) => unknown, allow: (arg: Client) => boolean): void;
+    /** TypeScript resources only: gtan.rpc.register(name, handler) keeps the handler in the Bun runtime and tells the engine the name through this overload. C# resources pass a handler. */
+    registerRpc(name: string): void;
+    unregisterRpc(name: string): void;
+    /** Calls a handler the player's client script registered with API.rpc.register(name, handler). The Task completes with the handler's return value (a JSON value: JObject, JArray, string, number, bool or null) or fails with an RpcException whose Code is timeout, unknown, handler, size or disconnected. Default timeout 10 s, at most 60 s.  */
+    callClient(player: Client, name: string, args?: unknown, timeoutMs?: number): Promise<unknown>;
     sendChatMessageToAll(message: string): void;
     sendChatMessageToAll(sender: string, message: string): void;
     sendChatMessageToPlayer(player: Client, message: string): void;

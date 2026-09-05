@@ -47,6 +47,9 @@ namespace GTANetworkShared
         BasicUnoccupiedVehSync = 38,
         BulletPlayerSync = 39,
         DeleteObject = 40,
+        /// <summary>RPC (T-008): RpcRequest / RpcResponse, channel Rpc.</summary>
+        RpcRequest = 41,
+        RpcResponse = 42,
     }
 
     public enum ScriptVersion
@@ -151,7 +154,9 @@ namespace GTANetworkShared
         LightSync = 8,
         BasicSync = 9,
         BulletSync = 10,
-        UnoccupiedVeh = 11
+        UnoccupiedVeh = 11,
+        /// <summary>Request/response calls (RpcRequest, RpcResponse); reliable ordered.</summary>
+        Rpc = 12
     }
 
     

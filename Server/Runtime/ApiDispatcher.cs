@@ -45,7 +45,7 @@ namespace GTANetworkServer.Runtime
                 {
                     if (!TryBind(api, method, args, out var bound, out var error)) { lastError = error; continue; }
                     var result = method.Invoke(api, bound);
-                    return ToWire(result);
+                    return result is System.Threading.Tasks.Task ? result : ToWire(result); // a Task is finished by the bridge (CompleteLater)
                 }
                 throw new ArgumentException("no overload of API." + name + " takes " + Describe(args) + (lastError != null ? " (" + lastError + ")" : ""));
             }
@@ -239,6 +239,7 @@ namespace GTANetworkServer.Runtime
                 case Vector3 v: return new Dictionary<string, object> { ["x"] = v.X, ["y"] = v.Y, ["z"] = v.Z };
                 case Color color: return new Dictionary<string, object> { ["r"] = color.red, ["g"] = color.green, ["b"] = color.blue, ["a"] = color.alpha };
                 case XmlGroup xml: return xml.ToString();
+                case Newtonsoft.Json.Linq.JToken json: return ToWire(RpcJson.ToPlain(json)); // RPC answers (callClient)
                 case IDictionary dict:
                 {
                     var map = new Dictionary<string, object>();

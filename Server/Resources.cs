@@ -462,6 +462,7 @@ namespace GTANetworkServer
 
             ourRes.Engines.ForEach(en => en.InvokeResourceStop());
             Runtime?.Unregister(resourceName);
+            Rpc.UnregisterResource(resourceName);
 
             var msg = Server.CreateMessage();
             msg.Write((byte)PacketType.StopResource);

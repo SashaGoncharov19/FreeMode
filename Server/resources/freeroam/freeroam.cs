@@ -25,6 +25,11 @@ public class Freeroam : Script
         API.onPlayerDisconnected += OnPlayerDisconnected;
         API.onPlayerRespawn += Spawn;
         API.onClientEventTrigger += OnClientEvent;
+
+        // RPC (T-008): client scripts call these with API.rpc.call("freeroam:ping", {...}) and get the return value back;
+        // "freeroam:secret" only answers players the auth resource logged in (everyone else gets the code "denied").
+        API.registerRpc("freeroam:ping", (sender, args) => new { t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), echo = (object)args, player = sender.name });
+        API.registerRpc("freeroam:secret", (sender, args) => "the secret is 42", sender => API.hasEntityData(sender, "auth:account"));
     }
 
     private void OnResourceStart()

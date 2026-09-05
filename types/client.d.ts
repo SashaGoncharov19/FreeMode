@@ -2,6 +2,8 @@
 /// <reference path="./shared.d.ts" />
 
 interface ScriptContext {
+    /** Request/response calls (T-008): API.rpc.call(name, args) reaches the server's handler of that name and returns a Promise; API.rpc.register(name, handler) answers calls from the server (API.callClient) and from this resource's CEF pages (gtan.rpc.call). */
+    readonly rpc: RpcContext;
     readonly onResourceStart: HostEvent<ScriptContextEmptyEvent>;
     readonly onResourceStop: HostEvent<ScriptContextEmptyEvent>;
     readonly onUpdate: HostEvent<ScriptContextEmptyEvent>;
@@ -443,6 +445,23 @@ interface ScriptContext {
     getGameText(labelName: string): string;
     toggleGameAIEntities(state: boolean): void;
     toggleSnow(): boolean;
+}
+/** API.rpc (T-008): request/response calls to the server, and handlers the server or this resource's CEF pages can call. */
+interface RpcContext {
+    /**
+     * Calls the server handler `name` (API.registerRpc in C#, gtan.rpc.register in TypeScript) with one JSON-serialisable
+     * argument. Rejects with an Error whose `code` is timeout | denied | unknown | rate | handler | size | invalid | disconnected.
+     * Default timeout 10 s, at most 60 s.
+     */
+    call<T = unknown>(name: string, args?: unknown, timeoutMs?: number): Promise<T>;
+    /**
+     * Answers API.callClient(player, name, args) from the server and gtan.rpc.call(name, args) from this resource's pages:
+     * return a value or a Promise; throw (an Error with a `code`) to fail the call. Registering a name again replaces the handler.
+     */
+    register(name: string, handler: (args: any) => unknown): void;
+    unregister(name: string): void;
+    /** True when this script registered a handler of that name. */
+    has(name: string): boolean;
 }
 type ScriptContextEmptyEvent = () => void;
 type ScriptContextServerEventTrigger = (eventName: string, arguments_: unknown[]) => void;

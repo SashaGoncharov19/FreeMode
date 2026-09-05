@@ -1,6 +1,6 @@
 # T-006 — Server gamemode runtime on Bun: bridge spike with numbers, then protocol, state mirror, resource loader, hot reload
 
-Status: in progress
+Status: done (follow-ups listed under Result, stage 2 → Not done)
 Epic: E-04 TypeScript
 Size: L (two stages; stop after stage 1 if the numbers are missed and re-plan)
 Branch: task/T-006-bun-runtime from the integration branch
@@ -137,6 +137,7 @@ port and a token in the environment. Ordering between `state` and `event`: one c
 * 2026-09-05 07:40 agent — bench works after two protocol-level fixes (a ref struct passed by value lost the reply payload; a 1 ms flush on both sides put 1 ms on every round trip → flush on demand for calls with an id). Numbers met, except the Bun side of the state mirror at 3.4–3.6 % vs 3 %. Decision: stage 2 goes ahead (D-09). PR opened.
 
 * 2026-09-05 08:20 agent — PR #8 (stage 1) merged; stage 2 in progress on task/T-006-bun-bridge.
+* 2026-09-05 agent — PR #9 (stage 2) merged into the integration branch; T-008 adds `gtan.rpc` to the runtime library.
 
 ## Result (stage 1)
 

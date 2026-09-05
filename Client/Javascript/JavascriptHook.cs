@@ -152,6 +152,17 @@ namespace GTANetwork.Javascript
 
         internal static List<Action> ThreadJumper;
 
+        /// <summary>The API object of the script that owns <paramref name="engine"/>, or null when it is gone.</summary>
+        internal static ScriptContext ContextOf(V8ScriptEngine engine)
+        {
+            lock (ScriptEngines)
+            {
+                for (var i = 0; i < ScriptEngines.Count; i++)
+                    if (ScriptEngines[i].Engine == engine) return ScriptEngines[i].Context;
+            }
+            return null;
+        }
+
         internal static WaveOutEvent AudioDevice { get; set; }
         internal static WaveStream AudioReader { get; set; }
 
@@ -285,6 +296,7 @@ namespace GTANetwork.Javascript
                 {
                     tmpList[i].Invoke();
                 }
+                RpcRouter.Tick();
 
                 lock (ScriptEngines)
                 {
@@ -410,6 +422,7 @@ namespace GTANetwork.Javascript
             var context = new ScriptContext(scriptEngine);
             //scriptEngine.AddHostObject("host", new HostFunctions()); // Disable an exploit where you could get reflection
             scriptEngine.AddHostObject("API", context);
+            context.rpc.Attach(scriptEngine);
             scriptEngine.AddHostType("Enumerable", typeof(Enumerable));
             scriptEngine.AddHostType("List", typeof(List<>));
             scriptEngine.AddHostType("Dictionary", typeof(Dictionary<,>));
@@ -486,9 +499,11 @@ namespace GTANetwork.Javascript
                 {
                     t.Engine.Interrupt();
                     t.Engine.Script.API.invokeResourceStop();
+                    t.Context.rpc.Detach();
                     t.Engine.Dispose();
                 }
                 ScriptEngines.Clear();
+                RpcRouter.Reset();
             }
 
             AudioDevice?.Stop();
@@ -532,6 +547,7 @@ namespace GTANetwork.Javascript
                     {
                         if (ScriptEngines[i].ResourceParent != resourceName) continue;
                         ScriptEngines[i].Engine.Script.API.invokeResourceStop();
+                        ScriptEngines[i].Context.rpc.Detach();
                         ScriptEngines[i].Engine.Dispose();
                         ScriptEngines.RemoveAt(i);
                     }
@@ -588,7 +604,13 @@ namespace GTANetwork.Javascript
         public ScriptContext(V8ScriptEngine engine)
         {
             Engine = engine;
+            rpc = new RpcContext(this);
         }
+
+        /// <summary>Request/response calls (T-008): <c>API.rpc.call(name, args)</c> reaches the server's handler of that name and
+        /// returns a Promise; <c>API.rpc.register(name, handler)</c> answers calls from the server (API.callClient) and from this
+        /// resource's CEF pages (gtan.rpc.call).</summary>
+        public RpcContext rpc { get; }
 
         internal bool isDisposing;
         internal string ParentResourceName;

@@ -35,6 +35,7 @@ grep -q "Started! Waiting for connections." "$server_dir/it-server.log" || { ech
 set +e
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name CIBot --discover \
   --say "/help" --say "/players" --say "/veh adder" --say "/pos" --say "/weapon carbinerifle 250" --say "hello from the bot" --say "/nonexistent" --say "/tsping abc" --say "tsdemo?" \
+  --rpc "freeroam:ping" '{"n":1}' --rpc "freeroam:secret" 'null' --rpc "tsdemo:echo" '{"x":1}' --rpc "no:such" 'null' --rpc-burst "freeroam:ping" 40 \
   --expect "Welcome to GTA Network freeroam" \
   --expect "/veh [model]" \
   --expect "Online (1): CIBot" \
@@ -45,6 +46,13 @@ set +e
   --expect "hello from Bun" \
   --expect "tsdemo: pong abc" \
   --expect "tsdemo: yes" \
+  --expect 'rpc freeroam:ping ok {"t":' \
+  --expect '"echo":{"n":1},"player":"CIBot"}' \
+  --expect "rpc freeroam:secret error denied" \
+  --expect 'rpc tsdemo:echo ok {"from":"bun","player":' \
+  --expect '"args":{"x":1},"players":1}' \
+  --expect "rpc no:such error unknown" \
+  --expect "rpc freeroam:ping error rate" \
   --duration 3 --timeout 60 | tee "$server_dir/it-bot.log"
 rc=${PIPESTATUS[0]}
 set -e

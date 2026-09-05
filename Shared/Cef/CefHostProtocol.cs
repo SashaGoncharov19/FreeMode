@@ -73,6 +73,9 @@ namespace GTANetworkShared.Cef
         public const string Console = "console";
         /// <summary>The page called resourceCall(Name, Args...) or resourceEval(Code).</summary>
         public const string JsMessage = "jsMessage";
+        /// <summary>The page called gtan.rpc.call(Name, args): Rpc = the request id in the page, Text = the arguments as JSON, Timeout ms.
+        /// The answer goes back as an Eval of gtan.rpc._settle(id, ok, json, code, message).</summary>
+        public const string Rpc = "rpc";
         /// <summary>The render process of browser Id died: Status, Text.</summary>
         public const string RenderTerminated = "renderTerminated";
         /// <summary>A line for the game's CEF.log: Text.</summary>
@@ -122,6 +125,10 @@ namespace GTANetworkShared.Cef
         public int Level;
         public int Line;
         public object[] Args;
+        /// <summary>RPC request id of a page ("rpc" messages).</summary>
+        public int Rpc;
+        /// <summary>Timeout in ms the page asked for ("rpc" messages).</summary>
+        public int Timeout;
         public long Handle;
         public long[] Handles;
         public string Chromium;

@@ -178,6 +178,13 @@ namespace GTANetworkServer
 
         #region Interface
 
+        /// <summary>Runs <paramref name="action"/> on this script's thread (RPC handlers, T-008).</summary>
+        internal void Enqueue(Action action)
+        {
+            lock (_mainQueue.SyncRoot)
+            _mainQueue.Enqueue(action);
+        }
+
         public void InvokeVoidMethod(string method, object[] args)
         {
             if (Runtime != null) { Program.Output("exported function " + method + " of a TypeScript resource cannot be called from C# yet", LogCat.Warn); return; }

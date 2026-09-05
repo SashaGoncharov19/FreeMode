@@ -775,6 +775,20 @@ namespace GTANetwork
                         }
                     }
                     break;
+                case PacketType.RpcRequest:
+                    {
+                        var len = msg.ReadInt32();
+                        var data = DeserializeBinary<RpcRequest>(msg.ReadBytes(len)) as RpcRequest;
+                        if (data != null) RpcRouter.OnRequest(data);
+                    }
+                    break;
+                case PacketType.RpcResponse:
+                    {
+                        var len = msg.ReadInt32();
+                        var data = DeserializeBinary<RpcResponse>(msg.ReadBytes(len)) as RpcResponse;
+                        if (data != null) RpcRouter.OnResponse(data);
+                    }
+                    break;
                 case PacketType.NativeCall:
                     {
                         var len = msg.ReadInt32();

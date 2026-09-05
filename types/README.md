@@ -5,13 +5,15 @@
 | `shared.d.ts` | Enums (`VehicleHash`, `WeaponHash`, `PedHash`, `Keys`, …), `Vector3`, `NetHandle`, entity property types, the `HostEvent` shape | generated from `GTANetworkShared.dll` and the referenced framework types |
 | `client.d.ts` | The in-game API: `ScriptContext` (what a client script sees as `API`), its events, host types (`Vector3`, `Keys`, `menuControl`, …) | generated from `Client/bin/Release/net48/GTANetwork.dll` |
 | `server.d.ts` | The server API (`API`, `Script`, `Client`, `Vehicle`, … as C# scripts see them; the Bun runtime library of T-006 exposes the same shape) | generated from `Server/bin/Release/net10.0/GTANetworkServer.dll` |
-| `cef.d.ts` | The bridge every CEF page gets: `resourceCall`, `resourceEval`, `gtan` | hand-written |
+| `cef.d.ts` | The bridge every CEF page gets: `resourceCall`, `resourceEval`, `gtan` (incl. `gtan.rpc.call`, T-008) | hand-written |
 | `api-catalogue.json` | Every server API member with parameter and return types, for the Bun bridge (T-006) | generated |
 | `runtime/gtan/api.generated.d.ts` | `gtan.api` of TypeScript server resources: every API member as a Promise-returning method, players/entities as handles | generated (`--runtime-lib`) |
 
 Events are .NET events as ClearScript exposes them: `API.onUpdate.connect(() => …)` / `disconnect`. Overloads appear as
 overloaded signatures; C# `object`/`dynamic` is `unknown`; `List<T>` is `T[]`; `Dictionary<string, T>` is `Record<string, T>`;
-a type the generator does not know is `unknown /* Full.Name */`.
+a type the generator does not know is `unknown /* Full.Name */`. A few declarations are written by hand inside the generator
+(`Overrides` in `Tools/GTANetwork.TypeGen/Program.cs`) where the C# signature says too little: `RpcContext` (`API.rpc`) returns
+`Promise<T>`.
 
 ## Using them in a resource
 

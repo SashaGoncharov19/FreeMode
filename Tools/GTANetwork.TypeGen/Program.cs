@@ -302,6 +302,30 @@ internal sealed class Emitter
         throw new InvalidOperationException(fullName + " not found among the references of " + from.GetName().Name);
     }
 
+    /// <summary>Types whose declaration is written by hand because the C# signature says too little (Promises, JSON values).</summary>
+    private static readonly Dictionary<string, string> Overrides = new()
+    {
+        ["GTANetwork.Javascript.RpcContext"] = """
+/** API.rpc (T-008): request/response calls to the server, and handlers the server or this resource's CEF pages can call. */
+interface {name} {
+    /**
+     * Calls the server handler `name` (API.registerRpc in C#, gtan.rpc.register in TypeScript) with one JSON-serialisable
+     * argument. Rejects with an Error whose `code` is timeout | denied | unknown | rate | handler | size | invalid | disconnected.
+     * Default timeout 10 s, at most 60 s.
+     */
+    call<T = unknown>(name: string, args?: unknown, timeoutMs?: number): Promise<T>;
+    /**
+     * Answers API.callClient(player, name, args) from the server and gtan.rpc.call(name, args) from this resource's pages:
+     * return a value or a Promise; throw (an Error with a `code`) to fail the call. Registering a name again replaces the handler.
+     */
+    register(name: string, handler: (args: any) => unknown): void;
+    unregister(name: string): void;
+    /** True when this script registered a handler of that name. */
+    has(name: string): boolean;
+}
+""",
+    };
+
     /// <summary>Drains the queue of referenced types, emitting each once (shared types go to the shared emitter).</summary>
     public void Flush()
     {
@@ -311,6 +335,7 @@ internal sealed class Emitter
             var key = t.FullName!;
             if (!_seen.Add(key)) continue;
             var name = _names[key];
+            if (Overrides.TryGetValue(key, out var handWritten)) { _out.AppendLine(handWritten.Replace("{name}", name)); TypeCount++; continue; }
             if (t.IsEnum) EmitEnum(t, name);
             else if (typeof(MulticastDelegate).FullName == t.BaseType?.FullName) EmitDelegate(t, name);
             else EmitInterface(t, name, isRoot: false);
@@ -652,6 +677,8 @@ internal static class RuntimeApiEmitter
             case "System.Byte": case "System.SByte": case "System.Int16": case "System.UInt16": case "System.Int32": case "System.UInt32":
             case "System.Int64": case "System.UInt64": case "System.Single": case "System.Double": case "System.Decimal": return "number";
             case "System.Object": return "unknown";
+            case "System.Threading.Tasks.Task": return "void";                          // awaited by the bridge: the member's Promise<> is enough
+            case "System.Threading.Tasks.Task`1": return Map(t.GetGenericArguments()[0]);
             case "System.Nullable`1": return Map(t.GetGenericArguments()[0]) + " | null";
             case "System.Collections.Generic.List`1": case "System.Collections.Generic.IEnumerable`1": case "System.Collections.Generic.IList`1":
                 return Wrap(Map(t.GetGenericArguments()[0])) + "[]";

@@ -99,11 +99,17 @@ if [ -e "$client_files/auth/auth.cs" ]; then echo "FAIL: the server script auth.
 
 # Second connection: the stored account must accept the password, the wrong one must be rejected.
 set +e
+# The CEF form goes through RPC (T-008): a wrong password resolves with ok=false and the server's text, the right one logs in.
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name CIBot2 \
   --say "/login cibot wrongpass" \
-  --say "/login cibot secret123" \
+  --rpc "auth:login" '{"name":"cibot","password":"wrongpass"}' \
+  --rpc "auth:login" '{"name":"cibot","password":"secret123"}' \
+  --rpc "freeroam:secret" 'null' \
   --expect "Wrong name or password" \
+  --expect 'rpc auth:login ok {"ok":false,"message":"Wrong name or password."}' \
+  --expect 'rpc auth:login ok {"ok":true,"message":"Logged in."}' \
   --expect "Logged in as cibot" \
+  --expect 'rpc freeroam:secret ok "the secret is 42"' \
   --duration 2 --timeout 40 | tee "$server_dir/it-bot2.log"
 rc2=${PIPESTATUS[0]}
 set -e

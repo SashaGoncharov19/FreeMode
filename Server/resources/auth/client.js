@@ -1,6 +1,7 @@
-// auth: client side. Shows the login/registration form (ui/index.html) in a CEF browser and forwards what the
-// player typed to the server as the events "auth:login" / "auth:register". The server answers with
-// "auth:result" (ok, message). The chat commands /login and /register go through the same server code.
+// auth: client side. Shows the login/registration form (ui/index.html) in a CEF browser. The page itself calls the
+// server's RPC handlers "auth:login" / "auth:register" (gtan.rpc.call, T-008) and shows the answer; this script
+// closes the form when the server reports success through the "auth:result" event (also sent for /login and
+// /register in chat). authSubmit stays for pages of older clients that only have resourceCall.
 
 var authBrowser = null;
 

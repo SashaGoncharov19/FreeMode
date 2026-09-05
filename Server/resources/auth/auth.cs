@@ -7,10 +7,12 @@ using System.Text.RegularExpressions;
 using GTANetworkServer;
 using GTANetworkShared;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 // Accounts with registration and login. Until a player logged in, chat messages and every command except
 // /register, /login and /help are cancelled and the player is frozen. The client side (client.js + ui/)
-// shows a CEF form that calls the same two events the chat commands use, so both paths share this code.
+// shows a CEF form that calls the RPC handlers "auth:login" / "auth:register" (T-008); the chat commands and the
+// older events of the same names run the same code, so every path shares it.
 //
 // Storage: <resource folder>/accounts.json, one entry per account with a random salt and a PBKDF2-SHA256
 // hash (100 000 rounds). Other resources can read the account name of a logged-in player with
@@ -47,6 +49,18 @@ public class Auth : Script
         API.onChatMessage += OnChatMessage;
         API.onChatCommand += OnChatCommand;
         API.onClientEventTrigger += OnClientEvent;
+        // The CEF form: gtan.rpc.call("auth:login", { name, password }) resolves with { ok, message }.
+        API.registerRpc("auth:login", (sender, args) => Attempt(sender, false, args));
+        API.registerRpc("auth:register", (sender, args) => Attempt(sender, true, args));
+    }
+
+    private object Attempt(Client sender, bool register, object args)
+    {
+        var fields = args as JObject;
+        var name = (string)fields?["name"] ?? "";
+        var password = (string)fields?["password"] ?? "";
+        var error = register ? Register(sender, name, password) : Login(sender, name, password);
+        return new { ok = error == null, message = error ?? (register ? "Account created." : "Logged in.") };
     }
 
     private void OnResourceStart()
@@ -132,38 +146,33 @@ public class Auth : Script
 
     // ---- the logic -------------------------------------------------------------------------------------
 
-    private void Register(Client player, string name, string password)
+    private string Register(Client player, string name, string password)
     {
         if (IsLoggedIn(player))
         {
-            Fail(player, "You are already logged in.");
-            return;
+            return Fail(player, "You are already logged in.");
         }
 
         if (!NamePattern.IsMatch(name ?? ""))
         {
-            Fail(player, "The name must be 3-20 letters, digits or underscores.");
-            return;
+            return Fail(player, "The name must be 3-20 letters, digits or underscores.");
         }
 
         if ((password ?? "").Length < MinPasswordLength)
         {
-            Fail(player, "The password must have at least " + MinPasswordLength + " characters.");
-            return;
+            return Fail(player, "The password must have at least " + MinPasswordLength + " characters.");
         }
 
         if (!AllowAttempt(player))
         {
-            Fail(player, "Too many attempts, wait a minute.");
-            return;
+            return Fail(player, "Too many attempts, wait a minute.");
         }
 
         lock (_lock)
         {
             if (_accounts.ContainsKey(name))
             {
-                Fail(player, "That name is taken.");
-                return;
+                return Fail(player, "That name is taken.");
             }
 
             var salt = RandomNumberGenerator.GetBytes(16);
@@ -184,20 +193,19 @@ public class Auth : Script
         API.consoleOutput("auth: account " + name + " created by " + player.name);
         API.sendChatMessageToPlayer(player, "~g~Account " + name + " created.~w~ You are logged in.");
         Succeed(player, name, "Welcome, " + name + "! Your account was created.");
+        return null;
     }
 
-    private void Login(Client player, string name, string password)
+    private string Login(Client player, string name, string password)
     {
         if (IsLoggedIn(player))
         {
-            Fail(player, "You are already logged in.");
-            return;
+            return Fail(player, "You are already logged in.");
         }
 
         if (!AllowAttempt(player))
         {
-            Fail(player, "Too many attempts, wait a minute.");
-            return;
+            return Fail(player, "Too many attempts, wait a minute.");
         }
 
         Account account;
@@ -213,8 +221,7 @@ public class Auth : Script
 
         if (account == null || !CryptographicOperations.FixedTimeEquals(actual, expected))
         {
-            Fail(player, "Wrong name or password.");
-            return;
+            return Fail(player, "Wrong name or password.");
         }
 
         lock (_lock)
@@ -227,6 +234,7 @@ public class Auth : Script
         API.consoleOutput("auth: " + player.name + " logged in as " + account.Name);
         API.sendChatMessageToPlayer(player, "~g~Logged in as " + account.Name + ".");
         Succeed(player, account.Name, "Welcome back, " + account.Name + "!");
+        return null;
     }
 
     private void Succeed(Client player, string accountName, string message)
@@ -236,10 +244,12 @@ public class Auth : Script
         API.triggerClientEvent(player, "auth:result", true, message);
     }
 
-    private void Fail(Client player, string reason)
+    /// <summary>Tells the player why it failed (chat and the "auth:result" event) and returns the reason for the RPC answer.</summary>
+    private string Fail(Client player, string reason)
     {
         API.sendChatMessageToPlayer(player, "~r~" + reason);
         API.triggerClientEvent(player, "auth:result", false, reason);
+        return reason;
     }
 
     private bool AllowAttempt(Client player)
