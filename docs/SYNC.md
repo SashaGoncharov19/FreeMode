@@ -140,8 +140,8 @@ Client streaming
 Every data message after the handshake carries 8 bytes of counter and a 16-byte GCM tag: +24 bytes per message (a pure ped
 sync packet of ~90 bytes grows by about a quarter). CPU: the server encrypts once per recipient with hardware AES
 (`AesGcm`, AES-NI), well under a microsecond per sync packet; the in-game client encrypts its own ~10–100 messages per second
-with BouncyCastle (managed, a few microseconds each). The 300-bot measurement waits for the load harness (T-002); the
-two-bot integration phase runs with encryption on and shows no change in the relayed packet counts.
+with BouncyCastle (managed, a few microseconds each). The load harness (T-002) measured it — §6: at 300 players the per-recipient
+encryption takes the tick from 1.1 ms to 66 ms (T-023, Q-14); the two-bot integration phase shows no change in the relayed packet counts.
 
 ## 5. Proposals
 
@@ -168,3 +168,57 @@ H. **Wire format**: quantised positions (fixed-point int32) and velocities (int1
 
 Measure each step with the bot (`eng/integration-test.sh`) and the `[PROFILE]` lines: packets/s per player,
 bytes/s per player, script ms per frame, `SyncThread` natives per tick.
+
+## 6. Load baseline (T-002, 5 September 2026)
+
+Measured with `eng/load-test.sh <players> 120` in the dev container on the owner's laptop (12 cores, 15 GB; nothing else
+running): one server with `freeroam`, one bot process holding all the connections (`GTANetwork.Bot --bots N --move 1500`),
+every bot joining like a client and sending pure sync at 10 Hz and light sync every 1.5 s while walking within 1500 m of its
+spawn (all bots spawn at freeroam's spawn points, so everyone is within near range of everyone — the worst case for the relay).
+Encrypted sessions (T-009) unless marked. Numbers are averages over the steady state (all players joined); the server's
+loop asks for 60 ticks/s (`Thread.Sleep(1000/60)` after each tick).
+
+| players | joined | tick p50 / p99 / max ms | ticks/s | in per player pkt/s, KB/s | out per player pkt/s, KB/s | out total KB/s | GC gen0/1/2 | near avg / max | server RSS MB | bot RSS MB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 20 (20 s) | 20 | 0.14 / 0.54 / 44.0 | 62 | 10.8, 0.8 | 199.8, 9.7 | 193.7 | 5/1/0 | 19 / 19 | 119 | 79 |
+| 100 | 100 | 1.93 / 4.21 / 9.9 | 56 | 10.8, 0.8 | 1044.5, 50.7 | 5065.8 | 440/3/2 | 99 / 99 | 143 | 88 |
+| 300 | 300 | 66.17 / 135.30 / 162.7 | 11 | 8.9, 0.6 | 2200.5, 104.4 | 31315.9 | 722/287/18 | 250 / 250 | 150 | 143 |
+| 300 (plaintext) | 300 | 1.09 / 6.98 / 10.2 | 56 | 10.5, 0.5 | 2621.8, 125.7 | 37711.8 | 500/74/9 | 250 / 250 | 135 | 129 |
+| 1000 (bots on 4 pump threads, sending ~1.5 pkt/s each) | 1000 | 42.6 / 354.0 / 1251 | 14 | 1.5, 0.1 | 570.7, 18.0 | 13314 | 366/162/13 | 244 / 250 | 350 | 808 |
+| 1000 (10 pump threads; loaded phase, before the collapse) | 973 | 66.6 / 814 / 80861 | ~13 | 1.0, 0.1 | ~527, ~25 | ~24500 | 668/245/108 | ~240 / 250 | 870 | 6353 |
+
+What the numbers say:
+
+* **The relay is O(N²) and single-threaded.** Every pure sync packet is re-serialized and sent to every near player
+  (`GameServer.Send`); with everyone in range the server emits N·(N−1)·10 messages per second: 100 players → 104 k/s
+  (5 MB/s), 300 players → 657–786 k/s (31–38 MB/s; the cap of 250 near players is active). 100 players fit comfortably
+  (1.9 ms per tick, 56 of the 60 ticks per second).
+* **Per-recipient encryption is the dominant server cost above ~150 players.** The same 300-player run in plaintext keeps a
+  1.1 ms tick (78 ns per recipient-message: one Lidgren enqueue) and delivers the full 2622 packets/s to every client;
+  encrypted it takes 66 ms per tick (p99 135 ms, the loop at 11 Hz) and delivers 2200 — about 1.1 µs per recipient-message
+  for `Server.CreateMessage` + a payload copy + `Seal` (two allocations, one AES-GCM). The T-009 review deferred this number
+  to the harness; it is now known, and it is the 60× between the two rows. Fix path: T-023 (zero-copy sealing; Q-14 a relay
+  key for the sync channels), after or alongside T-003 (fewer recipients per packet).
+* **Egress per player is 4× over the budget already at 300**: 126 KB/s (plaintext) against the 30 KB/s target of
+  `docs/PLAN.md` §1 — the 250-near cap alone does not bound bandwidth; T-003's interest management (cells, tiered rates,
+  a per-player budget) has to bring the recipient count and rates down, not the bytes per packet.
+* **Memory is not the problem**: the server stays at 135–150 MB with 300 players; the bot process holds 300 connections in
+  ~130–145 MB (about 0.4 MB and one Lidgren thread per connection). GC gen2 rose from 2 to 18 per 120 s between 100 and 300
+  encrypted players — the per-recipient message copies.
+* **The harness itself** costs about one core per 100 bots (decrypting and parsing ~2200–2600 packets/s per bot): 100 bots
+  used 104 CPU-seconds in 127 s, 300 bots 410 (encrypted) / 302 (plaintext) in ~140 s. On this 12-core machine the
+  1000-bot run is bounded by the machine as much as by the server; treat its numbers as "the server under a saturated host".
+* **1000 players do not hold.** Two runs. With 4 pump threads in the bot process the bots were CPU-starved and sent only
+  ~1.5 packets/s each: all 1000 joined, the tick ran at 14 Hz (p50 43 ms, p99 354 ms, max 1.25 s) and 272 connections timed
+  out during the 120 s. With 10 pump threads (the bots at their full rate) 973 joined; the relay sat at ~510 k messages/s
+  with the tick at 66 ms p50 / 0.8 s p99, then **one tick took 81 s** and 965 of the 969 remaining connections timed out
+  (the table's row shows the loaded phase; the run's own steady-state window fell into the collapsed tail). The mechanism:
+  each tick reads *all* pending messages (`Server.ReadMessages`) and relays every one to up to 250 recipients; once a tick
+  lags, the next one meets a larger backlog — a runaway with no backpressure. For T-003 this adds two items before the
+  recipient cuts: drop stale pure sync instead of relaying it (proposal E) and bound the work per tick. Memory: the server
+  reached 870 MB; the bot process 6.3 GB — its Lidgren send queues while the server stalled — so the harness needs a cap on
+  queued sends (or unreliable-only sending) before the next 1000 run.
+
+Reproduce: `docker compose run --rm dev eng/load-test.sh 100 120` (then 300, 1000); `LOAD_NO_ENCRYPTION=1` runs the same
+with plaintext sessions (`--no-encryption`, `RequireEncryption` off) to isolate the cipher's share. Samples and reports land in
+`artifacts/load-<N>.json`, `load-<N>-bot.json`, `load-<N>-server.log`.

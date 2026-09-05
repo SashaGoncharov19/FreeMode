@@ -167,6 +167,10 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Load harness** (T-002): `GTANetwork.Bot --bots N --move <m> --report <file>` holds N simulated players in one process
+  (each joins like a client and sends pure sync every 100 ms and light sync every 1500 ms while walking within the radius);
+  the server exposes `GET /metrics.json` (tick p50/p99/max, packets and bytes in/out, GC, near-set sizes, players, RSS) when
+  `<httpserver>` is on; `eng/load-test.sh <players> <seconds>` runs both and prints the baseline table (`docs/SYNC.md` §6).
 * **Master list** (`Tools/GTANetwork.Master`: ASP.NET Core minimal API on .NET 10, SQLite, Docker image): servers announce
   themselves every 60 s (`POST /addserver`; `settings.xml` `<announce>true</announce>` and `<master>https://...</master>`) with
   their public key and a token from `master.token` that owns the address; the master pings the announced UDP port with a Lidgren

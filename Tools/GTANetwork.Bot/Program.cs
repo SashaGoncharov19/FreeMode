@@ -40,6 +40,11 @@ internal sealed class Options
     public bool Verbose;
     public bool Interactive;
     public string DownloadFiles;     // folder that receives the resources' <file>s, like the game's resources folder
+    public int Bots;                 // --bots N: the load harness (T-002) — N connections in this process instead of the scripted bot
+    public float Move;               // --move <m>: load bots random-walk within this radius of their spawn (0 = stand still)
+    public string Report;            // --report <file>: the load run's JSON report
+    public int ConnectIntervalMs = 5;// --connect-interval <ms>: pause between two load bots' connects
+    public int Threads;              // --threads N: pump threads for the load bots (default min(4, cores))
 
     public static Options Parse(string[] args)
     {
@@ -64,6 +69,11 @@ internal sealed class Options
                 case "--no-sync": o.Sync = false; break;
                 case "--discover": o.Discover = true; break;
                 case "--download-files": o.DownloadFiles = Next(); break;
+                case "--bots": o.Bots = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--move": o.Move = float.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--report": o.Report = Next(); break;
+                case "--connect-interval": o.ConnectIntervalMs = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--threads": o.Threads = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -98,6 +108,13 @@ internal sealed class Options
                        /<resource>/<path>; otherwise the UDP stream) into <dir>/<resource>/<path>; exit code 1
                        when a file fails
   -i, --interactive    after joining, read chat lines / commands from stdin until /quit or EOF
+  --bots <n>           load harness (T-002): hold n connections in this process, each joining like a client and sending
+                       pure sync every 100 ms and light sync every 1500 ms for --duration seconds; --say/--expect do not apply
+  --move <metres>      load bots random-walk within this radius of their spawn at walking speed (default 0: stand still)
+  --report <file>      write the load run's JSON report (joined, failed, packets/bytes per second, handles seen, RSS)
+  --connect-interval <ms>
+                       pause between two load bots' connects (default 5)
+  --threads <n>        pump threads for the load bots (default min(4, cores))
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -139,6 +156,8 @@ internal static class Program
             Console.Error.WriteLine(ex.Message);
             return 2;
         }
+
+        if (_o.Bots > 0) return LoadBots.Run(_o);
 
         var config = new NetPeerConfiguration("GTANETWORK") { ConnectionTimeout = 30f };
         config.EnableMessageType(NetIncomingMessageType.ConnectionLatencyUpdated);
@@ -802,14 +821,14 @@ internal static class Program
         return "0x" + unchecked((uint)hash).ToString("X8");
     }
 
-    private static string NativeName(ulong hash)
+    internal static string NativeName(ulong hash)
     {
         return Enum.IsDefined(typeof(GTA.Native.Hash), hash) ? Enum.GetName(typeof(GTA.Native.Hash), hash) : "0x" + hash.ToString("X16");
     }
 
     private static string Strip(string text) => text == null ? "" : ColorCodes.Replace(text, "");
 
-    private static void WritePacket(NetOutgoingMessage msg, PacketType type, object payload)
+    internal static void WritePacket(NetOutgoingMessage msg, PacketType type, object payload)
     {
         using var stream = new MemoryStream();
         Serializer.Serialize(stream, payload);
@@ -819,14 +838,14 @@ internal static class Program
         msg.Write(bin);
     }
 
-    private static T ReadPacket<T>(NetIncomingMessage msg)
+    internal static T ReadPacket<T>(NetIncomingMessage msg)
     {
         var len = msg.ReadInt32();
         var bytes = msg.ReadBytes(len);
         return Serializer.Deserialize<T>(new MemoryStream(bytes));
     }
 
-    private static void Log(string tag, string text)
+    internal static void Log(string tag, string text)
     {
         Console.WriteLine($"[{_clock.Elapsed.TotalSeconds,6:0.00}] [{tag}] {text}");
     }

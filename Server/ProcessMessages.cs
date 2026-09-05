@@ -34,6 +34,7 @@ namespace GTANetworkServer
             for (var index1 = 0; index1 < count; index1++)
             {
                 var msg = messages[index1];
+                Metrics.PacketIn(msg.LengthBytes);
                 Client client = null;
                 lock (Clients)
                 {

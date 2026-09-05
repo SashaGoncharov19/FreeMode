@@ -45,4 +45,9 @@ eng/integration-test-auth.sh "$art/server" "$art/bot/GTANetwork.Bot"
 eng/integration-test-template.sh "$art/server" "$art/bot/GTANetwork.Bot" "$art/cli/gtanetwork"
 eng/integration-test-master.sh "$art/server" "$art/master"
 
+if [ -n "${LOAD_PLAYERS:-}" ]; then
+  echo "== Load test: $LOAD_PLAYERS bots for ${LOAD_SECONDS:-30} s (T-002) =="
+  LOAD_ART="$art" eng/load-test.sh "$LOAD_PLAYERS" "${LOAD_SECONDS:-30}" "$art/server" "$art/bot/GTANetwork.Bot"
+fi
+
 echo "All local checks passed."

@@ -75,6 +75,11 @@ server (tick ms p50/p99, packets/s, bytes/s per player, GC), a report script; (2
 processing off the client's game thread, (5) allocation-free packet paths, (6) only then consider the transport (Q-10).
 **Tasks**: T-002 (harness + baseline), T-003 (interest management), later tasks from the numbers. **Risks**: the
 Lidgren fork's single socket thread; GC pauses at 1000 connections (use `Server GC`, pooled buffers).
+**Baseline (T-002, 5 Sept 2026, `docs/SYNC.md` §6)**: 100 players — tick 1.9 ms p50, 51 KB/s per player; 300 players —
+everyone within near range, the 250-recipient cap active — 126 KB/s per player in plaintext with a 1.1 ms tick, but with the
+encrypted sessions the per-recipient copy + AES-GCM makes the tick 66 ms and the loop 11 Hz (T-023, Q-14); 1000 players —
+the server does not hold them: 973–1000 join, the relay (~510 k messages/s) saturates the tick (p50 66 ms, p99 0.8 s), a lagging tick reads an ever larger backlog until one tick takes 81 s and Lidgren times the connections out (969 → 4 players); there is no backpressure and no stale-packet drop today. The per-player egress budget (30 KB/s) is exceeded 4× at 300 before any scaling: T-003 must cut recipients and
+rates, not bytes per packet.
 
 ### E-04 TypeScript on both sides: Bun runtime on the server, V8 in the game, typings for both
 

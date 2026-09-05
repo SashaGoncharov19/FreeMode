@@ -181,9 +181,12 @@ namespace GTANetworkServer
             Output("Started! Waiting for connections.");
 
  
+            var tickWatch = new System.Diagnostics.Stopwatch();
             while (!CloseProgram)
             {
+                tickWatch.Restart();
                 ServerInstance.Tick();
+                Managers.Metrics.TickDone(tickWatch.Elapsed.TotalMilliseconds);
                 Thread.Sleep(1000/60);
             }
 
