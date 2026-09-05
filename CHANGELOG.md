@@ -41,6 +41,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
   password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
   `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
+* **A launcher window** (`Launcher.Gui`, Avalonia 12.1.2, one binary for Linux and Windows, published as `gtanetwork-launcher-gui-*`):
+  Home shows what the doctor detects (game folder, Steam, Proton, prefix, ScriptHookV, launch options) and has Play/Stop with
+  the launcher's log; Settings edits `settings.xml` (launch method and paths, display name, master server, the CEF switches,
+  debug mode) — the same file the in-game client reads; Logs tails `logs/*.log`. The launcher's logic moved into
+  `Launcher.Core` (shared by the window and the command line launcher, whose behaviour is unchanged). `eng/setup-linux.sh`
+  installs the window into `<install>/gui/` and points the desktop entry at it; `--self-test` builds the window without a
+  display, which CI and `eng/dev-test.sh` run.
 * **Encrypted, authenticated sessions** (T-009): every connection does an X25519 key exchange in the hail (the client sends an
   ephemeral public key, the approval carries the server's static key from `server.key`, created at the first start and shown in
   the banner) and derives a session key with HKDF-SHA256; every data message after that is AES-256-GCM with a per-direction

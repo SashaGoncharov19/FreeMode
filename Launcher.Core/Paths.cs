@@ -1,12 +1,12 @@
 namespace GTANetwork.Launcher;
 
-internal sealed class LauncherException : Exception
+public sealed class LauncherException : Exception
 {
     public LauncherException(string message) : base(message) { }
 }
 
 /// <summary>Layout of a GTA Network installation folder.</summary>
-internal sealed class Paths
+public sealed class Paths
 {
     public Paths(string installDir)
     {

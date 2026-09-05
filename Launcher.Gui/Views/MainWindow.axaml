@@ -1,0 +1,111 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GTANetwork.Launcher.Gui.ViewModels"
+        x:Class="GTANetwork.Launcher.Gui.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="GTA Network" Width="960" Height="640" MinWidth="720" MinHeight="480"
+        Background="#0f1216">
+  <Window.Styles>
+    <Style Selector="TextBlock.h1"><Setter Property="FontSize" Value="26"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="White"/></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#9aa4b2"/></Style>
+    <Style Selector="TextBlock.warn"><Setter Property="Foreground" Value="#f5a623"/></Style>
+    <Style Selector="TextBlock.ok"><Setter Property="Foreground" Value="#6fd68a"/></Style>
+    <Style Selector="Button.nav"><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Padding" Value="14,10"/><Setter Property="Background" Value="Transparent"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#f5a623"/><Setter Property="Foreground" Value="#1a1a1a"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Padding" Value="28,10"/></Style>
+    <Style Selector="TextBox.field"><Setter Property="MinWidth" Value="360"/></Style>
+    <Style Selector="TextBlock.label"><Setter Property="Foreground" Value="#b8c0cc"/><Setter Property="Margin" Value="0,10,0,4"/></Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="200,*">
+    <!-- navigation -->
+    <Border Grid.Column="0" Background="#141a21" Padding="12">
+      <StackPanel Spacing="4">
+        <TextBlock Text="GTA" FontSize="30" FontWeight="Bold" Foreground="White" Margin="8,4,0,0"/>
+        <TextBlock Text="Network" FontSize="22" FontWeight="Bold" Foreground="#f5a623" Margin="8,-8,0,16"/>
+        <Button Classes="nav" Content="Home" Command="{Binding ShowHomeCommand}"/>
+        <Button Classes="nav" Content="Settings" Command="{Binding ShowSettingsCommand}"/>
+        <Button Classes="nav" Content="Logs" Command="{Binding ShowLogsCommand}"/>
+        <TextBlock Classes="muted" Text="{Binding Version}" Margin="8,24,0,0" FontSize="12"/>
+      </StackPanel>
+    </Border>
+
+    <!-- home -->
+    <Grid Grid.Column="1" IsVisible="{Binding IsHome}" RowDefinitions="Auto,Auto,*,Auto,220" Margin="24">
+      <TextBlock Grid.Row="0" Classes="h1" Text="Play"/>
+      <TextBlock Grid.Row="1" Classes="muted" Text="{Binding StatusSummary}" Margin="0,4,0,12"/>
+      <ScrollViewer Grid.Row="2">
+        <ItemsControl ItemsSource="{Binding StatusLines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:StatusLine">
+              <TextBlock Text="{Binding Text}" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextWrapping="Wrap" Margin="0,1"
+                         Classes.warn="{Binding IsWarning}" Classes.ok="{Binding IsOk}" Classes.muted="{Binding !IsWarning}"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="12" Margin="0,12">
+        <Button Classes="primary" Content="Play" Command="{Binding PlayCommand}" IsEnabled="{Binding CanPlay}"/>
+        <Button Content="Stop" Command="{Binding StopCommand}" IsEnabled="{Binding IsPlaying}"/>
+        <Button Content="Check again" Command="{Binding RefreshStatusCommand}"/>
+        <CheckBox Content="Debug (diagnostics in Runtime.log, Wine log, hitch monitor)" IsChecked="{Binding Debug}" VerticalAlignment="Center"/>
+      </StackPanel>
+      <TextBox Grid.Row="4" Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12"
+               Background="#0b0e12" Foreground="#c8d0da" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+    </Grid>
+
+    <!-- settings -->
+    <ScrollViewer Grid.Column="1" IsVisible="{Binding IsSettings}" Margin="24">
+      <StackPanel>
+        <TextBlock Classes="h1" Text="Settings"/>
+        <TextBlock Classes="muted" Text="Written to settings.xml; the in-game client reads the same file." Margin="0,4,0,8"/>
+
+        <TextBlock Classes="label" Text="Launch method"/>
+        <ComboBox ItemsSource="{Binding LaunchMethods}" SelectedItem="{Binding LaunchMethod}" MinWidth="200"/>
+        <TextBlock Classes="label" Text="GTA V folder (contains GTA5.exe; empty = detect from Steam)"/>
+        <TextBox Classes="field" Text="{Binding GamePath}"/>
+        <TextBlock Classes="label" Text="Steam root (empty = detect)"/>
+        <TextBox Classes="field" Text="{Binding SteamPath}"/>
+        <TextBlock Classes="label" Text="Proton build folder (empty = detect)"/>
+        <TextBox Classes="field" Text="{Binding ProtonPath}"/>
+        <TextBlock Classes="label" Text="Wine prefix of the game (empty = detect)"/>
+        <TextBox Classes="field" Text="{Binding ProtonPrefixPath}"/>
+        <CheckBox Content="Add -scOfflineOnly while GTA Network runs" IsChecked="{Binding ScOfflineOnly}" Margin="0,10,0,0"/>
+        <CheckBox Content="Park other *.asi plugins during the session" IsChecked="{Binding DisableOtherAsiPlugins}"/>
+
+        <TextBlock Classes="label" Text="Display name"/>
+        <TextBox Classes="field" Text="{Binding DisplayName}"/>
+        <TextBlock Classes="label" Text="Master server URL (empty = none)"/>
+        <TextBox Classes="field" Text="{Binding MasterServerAddress}"/>
+        <CheckBox Content="Show the FPS counter" IsChecked="{Binding ShowFps}" Margin="0,10,0,0"/>
+        <CheckBox Content="Debug mode (diagnostic lines in Runtime.log and CEF.log)" IsChecked="{Binding DebugMode}"/>
+
+        <TextBlock Classes="h1" Text="Browser (CEF)" FontSize="18" Margin="0,16,0,0"/>
+        <CheckBox Content="Loading screen while connecting" IsChecked="{Binding CefLoader}" Margin="0,8,0,0"/>
+        <CheckBox Content="Main menu as a CEF page (the classic menu stays on the pause key)" IsChecked="{Binding CefMenu}"/>
+        <CheckBox Content="GPU rendering in the browser" IsChecked="{Binding CefGpu}"/>
+        <CheckBox Content="Start the browser host with the game" IsChecked="{Binding CefPreload}"/>
+        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
+          <StackPanel><TextBlock Classes="label" Text="Frames per second (1-60)"/><TextBox Text="{Binding CefFrameRate}" Width="100"/></StackPanel>
+          <StackPanel><TextBlock Classes="label" Text="Stop the browser host after N s without a browser (0 = never)"/><TextBox Text="{Binding CefIdleExitSeconds}" Width="100"/></StackPanel>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,20,0,0">
+          <Button Classes="primary" Content="Save" Command="{Binding SaveSettingsCommand}"/>
+          <TextBlock Classes="muted" Text="{Binding SettingsStatus}" VerticalAlignment="Center"/>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- logs -->
+    <Grid Grid.Column="1" IsVisible="{Binding IsLogs}" ColumnDefinitions="220,*" RowDefinitions="Auto,*" Margin="24">
+      <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Classes="h1" Text="Logs"/>
+      <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,12,0">
+        <ListBox ItemsSource="{Binding LogFiles}" SelectedItem="{Binding SelectedLogFile}" Background="#141a21"/>
+        <Button Content="Refresh" Command="{Binding RefreshLogsCommand}" Margin="0,8,0,0"/>
+        <TextBlock Classes="muted" Text="The last 300 lines; refreshed every 2 s." FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
+      </StackPanel>
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LogTail}" IsReadOnly="True" AcceptsReturn="True" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12"
+               Background="#0b0e12" Foreground="#c8d0da" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"/>
+    </Grid>
+  </Grid>
+</Window>

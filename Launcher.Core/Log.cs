@@ -1,6 +1,6 @@
 namespace GTANetwork.Launcher;
 
-internal static class Log
+public static class Log
 {
     private static readonly object Sync = new();
     private static string? _file;
@@ -19,6 +19,9 @@ internal static class Log
         }
     }
 
+    /// <summary>Every line as it is written (level: INFO, OK, WARN, ERR); the GUI shows them. Raised on the writing thread.</summary>
+    public static event Action<string, string>? Written;
+
     public static void Info(string message) => Write("INFO", message, ConsoleColor.Gray);
     public static void Ok(string message) => Write(" OK ", message, ConsoleColor.Green);
     public static void Warn(string message) => Write("WARN", message, ConsoleColor.Yellow);
@@ -32,6 +35,8 @@ internal static class Log
             Console.ForegroundColor = color;
             Console.WriteLine($"[{level}] {message}");
             Console.ForegroundColor = previous;
+
+            try { Written?.Invoke(level.Trim(), message); } catch { }
 
             if (_file == null) return;
             try

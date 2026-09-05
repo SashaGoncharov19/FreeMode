@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace GTANetwork.Launcher;
 
 /// <summary>What was changed inside the game folder, so that it can be undone (also after a crash).</summary>
-internal sealed class DeployManifest
+public sealed class DeployManifest
 {
     public DateTime Time { get; set; }
     public List<string> Deployed { get; set; } = new();                 // files we placed into the game folder
@@ -13,7 +13,7 @@ internal sealed class DeployManifest
     public string? CommandlineOriginal { get; set; }
 }
 
-internal static class Deployment
+public static class Deployment
 {
     public const string ManifestName = "gtanetwork-deploy.json";
     public const string DisabledDir = "Disabled";

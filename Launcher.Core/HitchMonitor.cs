@@ -11,7 +11,7 @@ namespace GTANetwork.Launcher;
 /// then be matched with what the machine was doing in that second: a burst of swap-ins or a memory stall is the
 /// machine, a GPU clock drop is thermals, and if neither moved while our overlay took 0.1 ms, it was the game.
 /// </summary>
-internal sealed class HitchMonitor : IDisposable
+public sealed class HitchMonitor : IDisposable
 {
     private readonly string _logPath;
     private readonly ManualResetEvent _stop = new(false);

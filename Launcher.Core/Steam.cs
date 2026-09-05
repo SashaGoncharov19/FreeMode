@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace GTANetwork.Launcher;
 
 /// <summary>Locates Steam, its library folders, GTA V, the game's Wine prefix and Proton builds.</summary>
-internal static class Steam
+public static class Steam
 {
     public const int GtaVAppId = 271590; // Grand Theft Auto V (Legacy)
 

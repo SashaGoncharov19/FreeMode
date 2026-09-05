@@ -67,6 +67,10 @@ jobs:
           dotnet publish Server/GTANetworkServer.csproj "${common[@]}" -r win-x64   --self-contained false -o artifacts/server-win-x64
           dotnet publish Launcher/GTANetwork.Launcher.csproj "${common[@]}" -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/launcher-linux-x64
           dotnet publish Launcher/GTANetwork.Launcher.csproj "${common[@]}" -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/launcher-win-x64
+          dotnet publish Launcher.Gui/GTANetwork.Launcher.Gui.csproj "${common[@]}" -r linux-x64 --self-contained true  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/launcher-gui-linux-x64
+          dotnet publish Launcher.Gui/GTANetwork.Launcher.Gui.csproj "${common[@]}" -r win-x64   --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/launcher-gui-win-x64
+          # the window built without a display (Avalonia.Headless): the XAML loads, the status and the settings come up
+          artifacts/launcher-gui-linux-x64/GTANetwork.Launcher.Gui --install-dir artifacts --self-test
           dotnet publish Map2Resource/Map2Resource.csproj "${common[@]}" -o artifacts/map2resource
           cp vehicleData.json artifacts/server-linux-x64/ && cp vehicleData.json artifacts/server-win-x64/
 
@@ -106,6 +110,18 @@ jobs:
         with:
           name: gtanetwork-launcher-win-x64-${{ env.GTAN_VERSION }}
           path: artifacts/launcher-win-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-launcher-gui-linux-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/launcher-gui-linux-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-launcher-gui-win-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/launcher-gui-win-x64
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
