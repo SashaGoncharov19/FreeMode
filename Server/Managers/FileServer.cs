@@ -94,6 +94,13 @@ namespace GTANetworkServer.Managers
                     return;
                 }
 
+                if (string.Equals(path, "/metrics.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    // the server's counters for the load harness (T-002)
+                    Write(response, Encoding.UTF8.GetBytes(Metrics.ToJson()), "application/json", request.HttpMethod == "HEAD");
+                    return;
+                }
+
                 var file = FileModule.Resolve(path);
                 if (file == null)
                 {

@@ -50,6 +50,9 @@ namespace GTANetworkServer.Managers
             return _near;
         }
 
+        /// <summary>How many players this one currently receives at the pure rate (Metrics).</summary>
+        public int NearCount => _near.Length;
+
         public IEnumerable<Client> GetFarClients()
         {
             return _far;

@@ -77,10 +77,14 @@ rendering can only be verified in game by the owner.
   the server after the game is ready, calls `freeroam:ping` from a client script and from a CEF page and writes
   `autotest: RESULT: OK` (or `FAILED`) to `Runtime.log`, then quits the game (`GTAN_AUTOTEST_QUIT=0` keeps it). Run it as
   `GTAN_AUTOTEST=127.0.0.1:4499 ~/GTANetwork/play.sh --debug` while the local server runs. The owner's install has this build.
-* **In review 5 Sept**: T-011 the master list (`task/T-011-master-list`, PR): `Tools/GTANetwork.Master` (minimal API + SQLite, Docker),
+* **Merged 5 Sept** (#20): T-011 the master list: `Tools/GTANetwork.Master` (minimal API + SQLite, Docker),
   server announce every 60 s to `<master>` with the public key and `master.token`, `/servers/full` in the CEF menu with key
   pinning, `eng/integration-test-master.sh` in `dev-test.sh` and CI. Q-07 (a domain and a host) stays the owner's; until then
   `<master>` and `MasterServerAddress` are empty and nothing is announced.
+* **In review 5 Sept**: T-002 the load harness (`task/T-002-bot-load-harness-and-baseline`, PR): `GTANetwork.Bot --bots N`,
+  `GET /metrics.json`, `eng/load-test.sh`. **Baseline** (`docs/SYNC.md` §6): 100 players — tick 1.9 ms; 300 — 66 ms and the
+  loop at 11 Hz *because of per-recipient encryption* (1.1 ms in plaintext) — T-023 + Q-14; 1000 — the server collapses: the tick lags, the backlog grows (one tick of 81 s) and the connections time out (272 dropped with the bots half-starved; 969 → 4 at full rate). The
+  egress per player is 4× over the plan's budget at 300 already: T-003 is about recipients and rates.
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
@@ -294,7 +298,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 ## What is next
 
 0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
-   **T-011** master list is implemented (its PR; `needs owner`: Q-07 domain + host, then the in-game list check); then the next ready task in the plan's order (**T-002** load harness first: M2 starts with the measurement). Each on its own `task/T-NNN-*`
+   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness in review (its PR); next **T-023** (encrypted relay cost — small, measurable with the new harness) and **T-003** interest management. Each on its own `task/T-NNN-*`
    branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
    empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
    owner is away (the owner allowed it on 5 Sept).

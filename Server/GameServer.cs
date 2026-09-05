@@ -615,6 +615,7 @@ namespace GTANResource
             if (msg == null || connection == null) return;
             var session = (connection.Tag as Client)?.Session;
             if (session != null) msg.Encrypt(session);
+            Metrics.PacketsOut(1, msg.LengthBytes);
             Server.SendMessage(msg, connection, method, channel);
         }
 
@@ -624,6 +625,7 @@ namespace GTANResource
             if (msg == null || recipients == null || recipients.Count == 0) return;
             List<NetConnection> plain = null;
             var length = msg.LengthBytes;
+            Metrics.PacketsOut(recipients.Count, length);
             for (var i = 0; i < recipients.Count; i++)
             {
                 var connection = recipients[i];
@@ -685,6 +687,7 @@ namespace GTANResource
 
             Runtime?.Tick();
             Rpc.Tick();
+            Metrics.MaybeSample(Clients);
 
             if (Downloads.Count > 0)
             {

@@ -19,7 +19,7 @@ done
 | --- | --- | --- | --- | --- |
 | [T-000-in-game-checks-texture-ring-hitches-idle-exit](T-000-in-game-checks-texture-ring-hitches-idle-exit.md) | In-game checks: texture ring, hitch diagnostics, idle exit of the browser host | needs owner | E-02 Agent framework (closing the browser work of 4 Sept) | none |
 | [T-001-dotnet-10-for-server-launcher-bot-tools](T-001-dotnet-10-for-server-launcher-bot-tools.md) | .NET 10 for server, launcher, bot, Map2Resource and the dev container | done | E-01 Platform upgrade | none |
-| [T-002-bot-load-harness-and-baseline](T-002-bot-load-harness-and-baseline.md) | Bot load harness: N simulated players, server metrics, baseline numbers at 100/300/1000 | ready | E-03 Scale | none (T-001 preferred first) |
+| [T-002-bot-load-harness-and-baseline](T-002-bot-load-harness-and-baseline.md) | Bot load harness: N simulated players, server metrics, baseline numbers at 100/300/1000 | done | E-03 Scale | none (T-001 preferred first) |
 | [T-003-server-interest-management](T-003-server-interest-management.md) | Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget | ready | E-03 Scale | T-002 |
 | [T-004-typescript-typings-generator](T-004-typescript-typings-generator.md) | TypeScript typings generated from the C# APIs (server, client, CEF) | done | E-04 TypeScript | none (T-001 preferred first) |
 | [T-005-client-typescript-resources](T-005-client-typescript-resources.md) | Client resources in TypeScript: `lang="typescript"` bundled by the server with Bun | done | E-04 TypeScript | T-004 |
@@ -40,3 +40,4 @@ done
 | [T-020-remove-dead-code-and-unused-binaries](T-020-remove-dead-code-and-unused-binaries.md) | Remove dead code and unused binaries | ready | E-02 Agent framework (hygiene) | none |
 | [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
 | [T-022-dlc-in-game-download-and-restart-to-apply](T-022-dlc-in-game-download-and-restart-to-apply.md) | DLC packs in game: download for the next server, restart-to-apply through the launcher, auto-join | ready | E-08 DLC packs | T-014, T-012 |
+| [T-023-encrypted-relay-cost](T-023-encrypted-relay-cost.md) | Encrypted relay cost: pooled buffers, and a per-server relay key (Q-14) | ready | E-03 Scale | T-002 |
