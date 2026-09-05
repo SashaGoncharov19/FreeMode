@@ -51,6 +51,7 @@ internal sealed class Options
     public int VoiceMax = -1;        // --voice-max <n>: at most n voice frames may arrive (0 = none), else exit code 1
     public double VoiceJitter = 40;  // --voice-jitter <ms>: p99 inter-arrival limit when frames are expected
     public bool Voice;               // --voice: every load bot sends 50 dummy voice frames per second
+    public string Cheat;             // --cheat speed|teleport|health: misbehave on purpose (T-017 tests)
 
     public static Options Parse(string[] args)
     {
@@ -86,6 +87,7 @@ internal sealed class Options
                 case "--voice-max": o.VoiceMax = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--voice-jitter": o.VoiceJitter = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--voice": o.Voice = true; break;
+                case "--cheat": o.Cheat = Next(); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -133,6 +135,7 @@ internal sealed class Options
   --voice-expect <n>   at least n voice frames must arrive (exit code 1 otherwise); --voice-jitter <ms> limits their p99 inter-arrival (default 40)
   --voice-max <n>      at most n voice frames may arrive (0 = this bot must hear nothing)
   --voice              with --bots: every load bot sends 50 dummy voice frames per second
+  --cheat <kind>       misbehave: speed (200 m/s on foot), teleport (500 m jumps every second), health (250)
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -287,6 +290,7 @@ internal static class Program
 
             if (_o.Sync && _clock.Elapsed >= nextSync)
             {
+                Cheat();
                 SendPureSync();
                 nextSync = _clock.Elapsed + TimeSpan.FromMilliseconds(100);
             }
@@ -767,6 +771,28 @@ internal static class Program
         Log("say", text);
     }
 
+    private static int _cheatTicks;
+    private static byte _health = 100;
+
+    /// <summary>--cheat: the kind of misbehaviour the server's anti-cheat must catch (T-017).</summary>
+    private static void Cheat()
+    {
+        if (_o.Cheat == null || !_joined) return;
+        _cheatTicks++;
+        switch (_o.Cheat)
+        {
+            case "speed":    // 200 m/s: 20 m per 100 ms packet, north
+                _position = new Vector3(_position.X, _position.Y + 20f, _position.Z);
+                break;
+            case "teleport": // a 500 m jump every second
+                if (_cheatTicks % 10 == 0) _position = new Vector3(_position.X + 500f, _position.Y, _position.Z);
+                break;
+            case "health":
+                _health = 250;
+                break;
+        }
+    }
+
     private static void SendVoice(byte[] frame)
     {
         var msg = _client.CreateMessage();
@@ -785,7 +811,7 @@ internal static class Program
             Position = _position,
             Quaternion = new Vector3(0f, 0f, _heading),
             Velocity = new Vector3(0f, 0f, 0f),
-            PlayerHealth = 100,
+            PlayerHealth = _health,
             PedArmor = 0,
             Speed = 0,
             WeaponHash = unchecked((int)WeaponHash.Unarmed),

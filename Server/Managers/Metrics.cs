@@ -20,7 +20,7 @@ namespace GTANetworkServer.Managers
         private static int _tickIndex, _tickCount;
         private static long _ticks, _packetsIn, _bytesIn, _packetsOut, _bytesOut;
         private static readonly long[] TierSent = new long[4];
-        private static long _budgetDropped, _voiceFrames, _voiceDropped;
+        private static long _budgetDropped, _voiceFrames, _voiceDropped, _cheatDetections;
         private static readonly Stopwatch Clock = Stopwatch.StartNew();
         private static readonly object SampleLock = new object();
         private static readonly Queue<Sample> Samples = new Queue<Sample>();
@@ -64,6 +64,9 @@ namespace GTANetworkServer.Managers
 
         /// <summary>A sync packet was queued for one recipient of this tier (0 full, 1 medium, 2 low, 3 far).</summary>
         public static void InterestSent(int tier) { Interlocked.Increment(ref TierSent[tier]); }
+
+        /// <summary>The anti-cheat raised a finding (T-017).</summary>
+        public static void CheatDetected() { Interlocked.Increment(ref _cheatDetections); }
 
         /// <summary>A voice frame arrived from a player (T-015).</summary>
         public static void VoiceFrame() { Interlocked.Increment(ref _voiceFrames); }
@@ -155,6 +158,7 @@ namespace GTANetworkServer.Managers
                 near = new { avg = Math.Round(nearAvg, 1), max = nearMax },
                 process = new { rssBytes = process.WorkingSet64, threads = process.Threads.Count, cpuSeconds = Math.Round(process.TotalProcessorTime.TotalSeconds, 1) },
                 relay = RelaySnapshot(),
+                anticheat = new { detections = Interlocked.Read(ref _cheatDetections), kicked = Program.ServerInstance?.Anticheat?.Kicked ?? 0, manifest = Program.ServerInstance?.Anticheat?.HasManifest ?? false },
                 voice = new { framesPps = Math.Round((last.VoiceFrames - first.VoiceFrames) / dt), relaysPps = Math.Round((last.VoiceRelays - first.VoiceRelays) / dt), dropped = Interlocked.Read(ref _voiceDropped) + (Program.ServerInstance?.Voice?.FramesDropped ?? 0) },
                 interest = new
                 {

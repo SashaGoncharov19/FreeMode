@@ -97,12 +97,18 @@ $keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "t
 Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force
 Copy-Item "$Root/ui/*" "$Out/ui" -Recurse -Force   # the client's own pages (connect loader), served by the browser host as https://gtan/
-Copy-Item "$Root/vehicleData.json", "$Root/whitelist.txt", "$Root/LICENSE" $Out
+Copy-Item "$Root/vehicleData.json", "$Root/LICENSE" $Out
 
 # 6. Version stamp (read from the in-game client)
 $version = (Get-Item "$Out/bin/scripts/GTANetwork.dll").VersionInfo.FileVersion
 Set-Content -Path "$Out/version.txt" -Value $version
 Set-Content -Path "$Out/bin/depsver.txt" -Value $version
+
+# 7. Integrity manifest (T-017): the server compares the client's report with it when it has a copy next to itself.
+$manifestFiles = [ordered]@{}
+foreach ($f in Get-ChildItem "$Out/bin/scripts" -Filter *.dll | Sort-Object Name) { $manifestFiles["bin/scripts/" + $f.Name] = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower() }
+foreach ($rel in "cef/GTANetwork.CefHost.exe", "cef/libcef.dll") { if (Test-Path "$Out/$rel") { $manifestFiles[$rel] = (Get-FileHash "$Out/$rel" -Algorithm SHA256).Hash.ToLower() } }
+[ordered]@{ version = $version; files = $manifestFiles } | ConvertTo-Json | Set-Content -Path "$Out/manifest.json"
 
 Write-Host "Client package $version assembled in $Out"
 Get-ChildItem $Out -Recurse -File | Measure-Object -Property Length -Sum | ForEach-Object { Write-Host ("{0} files, {1:N1} MB" -f $_.Count, ($_.Sum / 1MB)) }

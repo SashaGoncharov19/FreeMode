@@ -685,6 +685,17 @@ namespace GTANetworkServer
             }));
         }
 
+        public void InvokeCheatDetected(Client sender, string kind, string evidence)
+        {
+            if (Runtime != null) { Runtime.Event(this, "cheatDetected", sender, kind, evidence); return; }
+            lock (_mainQueue.SyncRoot)
+            _mainQueue.Enqueue(new Action(() =>
+            {
+                if (Language == ScriptingEngineLanguage.compiled)
+                    _compiledScript.API.invokeCheatDetected(sender, kind, evidence);
+            }));
+        }
+
         public void InvokePlayerStartTalking(Client sender)
         {
             if (Runtime != null) { Runtime.Event(this, "playerStartTalking", sender); return; }

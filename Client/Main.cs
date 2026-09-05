@@ -288,6 +288,7 @@ namespace GTANetwork
 
             GameSettings = Misc.GameSettings.LoadGameSettings();
             PlayerSettings = Util.Util.ReadSettings(GTANInstallDir + "\\settings.xml");
+            Util.Integrity.ComputeInBackground(GTANInstallDir, CurrentVersion.ToString());   // T-017
 
 #if DEBUG
             LogManager.Verbose = true;

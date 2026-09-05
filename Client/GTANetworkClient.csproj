@@ -87,23 +87,6 @@
   </ItemGroup>
 
   <!-- Legacy sources kept in the tree but never part of the build (superseded by GUI/, Streamer/, Sync/). -->
-  <ItemGroup>
-    <Compile Remove="Chat.cs" />
-    <Compile Remove="ClassicChat.cs" />
-    <Compile Remove="GUI\DirectXHook\Hook\DXHookD3D10.cs" />
-    <Compile Remove="GUI\DirectXHook\Hook\DXHookD3D10_1.cs" />
-    <Compile Remove="Main\Math.cs" />
-    <Compile Remove="Misc\Program.cs" />
-    <Compile Remove="Networking\PedThread.cs" />
-    <Compile Remove="Networking\StreamedItems.cs" />
-    <Compile Remove="Networking\Streamer.cs" />
-    <Compile Remove="Networking\SyncEventWatcher.cs" />
-    <Compile Remove="Networking\SyncPed.cs" />
-    <Compile Remove="Networking\SyncSender.cs" />
-    <Compile Remove="Networking\UnoccupiedVehicleSync.cs" />
-    <Compile Remove="Networking\WeaponManager.cs" />
-    <Compile Remove="Util\DebugWindow.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="soundlist.txt" />

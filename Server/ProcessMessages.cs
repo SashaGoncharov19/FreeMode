@@ -143,6 +143,10 @@ namespace GTANetworkServer
                                 continue;
                             }
 
+                            // T-017: the client's binaries against the release manifest (only when the server has manifest.json)
+                            Anticheat.CheckIntegrity(client, connReq.Integrity, Program.MonotonicMs());
+                            if (client.NetConnection.Status == NetConnectionStatus.Disconnected) continue;
+
                             // T-014: a player without a required DLC pack cannot see what the others see
                             var missingPacks = DlcPackNames.Missing(DlcPacks, connReq.DlcPacks);
                             if (missingPacks.Count > 0)
@@ -412,6 +416,8 @@ namespace GTANetworkServer
                                                 fs => fs.Engines.ForEach(en => { en.InvokePlayerConnected(client); }));
 
                                         client.ConnectionConfirmed = true;
+
+                                        Anticheat.Grace(client, Program.MonotonicMs(), 5000);   // T-017: the spawn teleports the player
                                         Program.Output("Connection established: " + client.SocialClubName + " (" +
                                                        client.Name + ") [" +
                                                        client.NetConnection.RemoteEndPoint.Address + "]");
@@ -543,6 +549,14 @@ namespace GTANetworkServer
                                         var fullPacket = PacketOptimization.ReadPureVehicleSync(bin);
 
                                         fullPacket.NetHandle = client.handle.Value;
+
+                                        // T-017: the driver's speed against the vehicle's MaxSpeed
+                                        if (fullPacket.Flag != null && PacketOptimization.CheckBit(fullPacket.Flag.Value, VehicleDataFlags.Driver) && fullPacket.VehicleHandle != null)
+                                        {
+                                            EntityProperties vehicleProps;
+                                            var vehicleModel = NetEntityHandler.ToDict().TryGetValue(fullPacket.VehicleHandle.Value, out vehicleProps) ? vehicleProps.ModelHash : 0;
+                                            Anticheat.CheckVehicle(client, fullPacket, vehicleModel, Program.MonotonicMs());
+                                        }
 
                                         if (fullPacket.PlayerHealth.Value != client.Health)
                                         {
@@ -889,6 +903,8 @@ namespace GTANetworkServer
                                         var oldArmor = client.Armor;
                                         var oldWeap = client.CurrentWeapon;
                                         var oldAmmo = client.Ammo;
+
+                                        Anticheat.CheckPed(client, fullPacket, Program.MonotonicMs());   // T-017
 
                                         client.Health = fullPacket.PlayerHealth.Value;
                                         client.Armor = fullPacket.PedArmor.Value;
@@ -1379,6 +1395,7 @@ namespace GTANetworkServer
                                     if (!client.ConnectionConfirmed) continue;
                                     PublicAPI.removeAllPlayerWeapons(client);
                                     PublicAPI.stopPlayerAnimation(client);
+                                    Anticheat.Grace(client, Program.MonotonicMs(), 3000);   // T-017: the respawn moves the player
 
                                     lock (RunningResources)
                                     {

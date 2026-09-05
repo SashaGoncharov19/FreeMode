@@ -254,9 +254,13 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
   the push-to-talk key is held), `VoicePlayback.cs` (a decoder and a buffered stream per talker into one WaveOut mixer; volume by distance,
   pan by direction, updated every tick), `VoiceKeys.cs`, `SyncPedVoice.cs` (the nametag indicator); `Tools/CefHarness --capture-test`
   measures capture under Wine (the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`, is unrelated).
-* **Anti-cheat**: native allow-list (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path
-  traversal guards, server ACL/bans/whitelist/minimum version; the client integrity check is compiled out
-  (`Client/Main/Misc.cs:409`, `#if INTEGRITYCHECK`).
+* **Anti-cheat**: `Server/Managers/Anticheat.cs` (T-017): speed and teleport per pure sync packet (on foot `<footspeed>`, drivers the
+  model's MaxSpeed × `<speedfactor>` from `vehicleData.json`, a jump over `<teleport>` m), health ≤ 200 and armour ≤ 100, the client's
+  `IntegrityReport` (SHA-256 of `bin/scripts/*.dll`, the browser host, libcef; `Client/Util/Integrity.cs`) against `manifest.json`
+  next to the server (`eng/package-client.ps1` writes it into the package); a finding raises `API.onCheatDetected` and acts per
+  `<anticheat action>`; grace after connect, respawn and `setEntityPosition`. Also from before: the native allow-list
+  (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path traversal guards, server ACL/bans/whitelist/minimum
+  version.
 * **DLC/RPF**: none; `_ENABLE_MP_DLC_MAPS`/`_LOAD_MP_DLC_MAPS` at `Client/Main.cs:354`, `EnableMpVehiclesGlobal` setting.
 
 ## 11. Build, CI, scripts, tests
@@ -270,15 +274,14 @@ CEF harness (`docs/agents/testing.md`). Dev container: `.devcontainer/`, `docker
 
 ## 12. Data, vendored and dead files
 
-* `libs/`: used — `Lidgren.Network.dll`, `NAudio.dll`, `SharpDX*.dll`; copied at packaging — `EasyHook64.dll`,
-  `EasyLoad64.dll`, `sharpdx_direct3d11*_x64.dll`; **unused leftovers** — `EasyHook.dll`, `Interop.WMPLib.dll`,
-  `Ionic.Zip.dll`, `Microsoft.Owin*.dll`, `Nancy*.dll`, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `Owin.dll`,
-  `protobuf-net.dll` (NuGet versions are used).
+* `libs/`: `Lidgren.Network.dll` (the fork), `NAudio.dll`, `SharpDX*.dll` (referenced), `EasyHook64.dll`, `EasyLoad64.dll`,
+  `sharpdx_direct3d11*_x64.dll` (copied at packaging). The unused leftovers (`EasyHook.dll`, `Interop.WMPLib.dll`, `Ionic.Zip.dll`,
+  Owin/Nancy, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `protobuf-net.dll`) were removed in T-020; NuGet supplies those.
 * `ui/loader/` — the connect loading screen (HTML/CSS/JS), shipped as `<install>/ui`.
 * `ui/menu/` — the main menu page (`index.html`, `menu.js`, `style.css`), same folder.
-* `natives.txt` (root) = `Client/natives.txt` (embedded, 4281 hashes); `Client/soundlist.txt`; `vehicleData.json`
-  (read by `Server/Constant/ConstantVehicleData.cs`); `whitelist.txt` (1-byte placeholder); `images/**` (HUD, blips,
-  radio art, `cef/cursor.png`).
+* `Client/natives.txt` (embedded, 4281 hashes; the root copy is gone), `Client/soundlist.txt`, `vehicleData.json` (read by
+  `Server/Constant/ConstantVehicleData.cs`), `images/**` (HUD, blips, radio art, `cef/cursor.png`).
 * Generated: `Shv.NET/ref/Core/NativeHashes.g.cs` (from `Shv.NET/ref/generate-hashes.py`), `Server/Constant/NativeHashes.cs`.
-* Excluded from the client build (legacy): `Client/Chat.cs`, `ClassicChat.cs` (root copies), `Client/Networking/{PedThread,StreamedItems,Streamer,SyncEventWatcher,SyncPed,SyncSender,UnoccupiedVehicleSync,WeaponManager}.cs`,
-  `Client/Main/Math.cs`, `Client/Misc/Program.cs`, `Client/Util/DebugWindow.cs`, D3D10 hooks.
+* The legacy client files that were excluded from the build (`Client/Networking/*Sync*`, root `Chat.cs`/`ClassicChat.cs`,
+  `Main/Math.cs`, `Misc/Program.cs`, `Util/DebugWindow.cs`, the D3D10 hooks) were deleted in T-020; the csproj has no
+  `Compile Remove` list any more.

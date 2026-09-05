@@ -173,6 +173,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   position relative to the camera; a green `*` after the nametag marks who is talking; `<VoiceEnabled>`, `<VoiceKey>`,
   `<VoiceVolume>` in `settings.xml`. `CefHarness --capture-test <s>` records the microphone under Wine without the game.
   __T016_NUMBERS__
+* **Anti-cheat baseline** (T-017): the server checks every claimed position against speed and teleport limits (60 m/s on foot,
+  the vehicle's MaxSpeed × 1.3 for drivers, a jump over 200 m between two packets), health and armour against the game's maxima,
+  and the client's binaries against `manifest.json` next to the server (written into every client package by
+  `eng/package-client.ps1`; no manifest = no check). A finding raises `API.onCheatDetected(player, kind, evidence)` (`cheatDetected`
+  in TypeScript) at most once per kind per 5 s and the server acts per `<anticheat action="log|kick|ban" … integrity="off|report|kick"/>`
+  (default: log). Connect, respawn and a server teleport get a grace period. The bot misbehaves on request (`--cheat speed|teleport|health`);
+  `eng/integration-test-anticheat.sh` checks the kick and that an honest bot is left alone. Five minutes of 300 honest bots: no finding.
 * **Voice chat protocol** (T-015): `PacketType.Voice` carries 20 ms Opus frames (48 kHz mono, 24 kbit/s; at most 400 bytes and
   60 frames/s per player) on an unreliable channel; the server relays them without decoding — channel 0 is proximity voice within
   `<voicerange>` (40 m; `API.setPlayerVoiceRange` per player), a channel above 0 is a radio heard by everyone on it
@@ -228,6 +235,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   them into an existing `~/GTANetwork` install, so a change can be tried in game without waiting for CI or a
   release. `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
   See `docs/DEVCONTAINER.md`.
+
+### Removed
+* Dead code and unused binaries (T-020): the legacy client sources that were excluded from the build (`Client/Networking/*Sync*`,
+  root `Chat.cs`/`ClassicChat.cs`, `Main/Math.cs`, `Misc/Program.cs`, `Util/DebugWindow.cs`, the D3D10 hooks), the unused
+  `libs/` DLLs (`EasyHook.dll`, `Interop.WMPLib.dll`, `Ionic.Zip.dll`, Owin/Nancy, `NAudio.WindowsMediaFormat.dll`,
+  `Newtonsoft.Json.dll`, `protobuf-net.dll` — NuGet supplies them), the root `natives.txt` copy and the placeholder `whitelist.txt`.
 
 ### Not yet
 * Server, launcher and bot stay on .NET 8; the client stays on .NET Framework 4.8 (ScriptHookVDotNet hosts the
