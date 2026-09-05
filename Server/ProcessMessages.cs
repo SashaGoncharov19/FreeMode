@@ -1015,6 +1015,17 @@ namespace GTANetworkServer
                                 }
                                     break;
 
+                                case PacketType.Voice:
+                                {
+                                    // T-015: an Opus frame; relayed by range or radio channel, never decoded
+                                    if (!client.ConnectionConfirmed) continue;
+                                    var voiceLength = msg.ReadInt32();
+                                    if (voiceLength <= 0 || voiceLength > VoiceRouter.MaxFrameBytes || voiceLength > msg.LengthBytes - msg.PositionInBytes) { Metrics.VoiceDropped(); continue; }
+                                    Voice.Relay(client, msg.ReadBytes(voiceLength), Program.MonotonicMs());
+                                    Metrics.VoiceFrame();
+                                    break;
+                                }
+
                                 case PacketType.BulletSync:
                                 {
                                     if (!client.ConnectionConfirmed) continue;

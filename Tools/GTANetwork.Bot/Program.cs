@@ -46,6 +46,11 @@ internal sealed class Options
     public int ConnectIntervalMs = 5;// --connect-interval <ms>: pause between two load bots' connects
     public int Threads;              // --threads N: pump threads for the load bots (default min(4, cores))
     public List<string> Dlc = new(); // --dlc <name>: a DLC pack this "client" claims to have mounted (T-014), repeatable
+    public string VoiceSend;         // --voice-send <seconds|wav>: talk after the chat lines (T-015): 20 ms Opus frames at 50/s
+    public int VoiceExpect = -1;     // --voice-expect <n>: at least n voice frames must arrive, else exit code 1
+    public int VoiceMax = -1;        // --voice-max <n>: at most n voice frames may arrive (0 = none), else exit code 1
+    public double VoiceJitter = 40;  // --voice-jitter <ms>: p99 inter-arrival limit when frames are expected
+    public bool Voice;               // --voice: every load bot sends 50 dummy voice frames per second
 
     public static Options Parse(string[] args)
     {
@@ -76,6 +81,11 @@ internal sealed class Options
                 case "--connect-interval": o.ConnectIntervalMs = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--threads": o.Threads = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--dlc": o.Dlc.Add(Next()); break;
+                case "--voice-send": o.VoiceSend = Next(); break;
+                case "--voice-expect": o.VoiceExpect = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--voice-max": o.VoiceMax = int.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--voice-jitter": o.VoiceJitter = double.Parse(Next(), CultureInfo.InvariantCulture); break;
+                case "--voice": o.Voice = true; break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -118,6 +128,11 @@ internal sealed class Options
                        pause between two load bots' connects (default 5)
   --threads <n>        pump threads for the load bots (default min(4, cores))
   --dlc <name>         claim this DLC pack as mounted (repeatable); a server refuses clients missing a required pack
+  --voice-send <seconds|wav>
+                       talk after the chat lines: a 440 Hz tone for that many seconds, or a 16-bit PCM WAV, as 20 ms Opus frames
+  --voice-expect <n>   at least n voice frames must arrive (exit code 1 otherwise); --voice-jitter <ms> limits their p99 inter-arrival (default 40)
+  --voice-max <n>      at most n voice frames may arrive (0 = this bot must hear nothing)
+  --voice              with --bots: every load bot sends 50 dummy voice frames per second
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -137,6 +152,11 @@ internal static class Program
     private static float _heading;
     private static readonly Stopwatch _clock = Stopwatch.StartNew();
     private static readonly System.Collections.Concurrent.ConcurrentQueue<string> _stdin = new();
+    private static List<byte[]> _voiceFrames;
+    private static int _voiceIndex, _voiceReceived;
+    private static TimeSpan _nextVoice;
+    private static double _lastVoiceMs;
+    private static readonly List<double> _voiceGaps = new();
     private static volatile bool _stdinClosed;
 
     private sealed class Download
@@ -213,6 +233,12 @@ internal static class Program
         foreach (var text in _o.Say) { var line = text; steps.Add(() => SendChat(line)); }
         foreach (var (name, json) in _o.Rpc) { var n = name; var j = json; steps.Add(() => SendRpc(n, j)); }
         if (_o.RpcBurst is { } burst) steps.Add(() => { for (var i = 0; i < burst.Count; i++) SendRpc(burst.Name, "null"); });
+        if (_o.VoiceSend != null) steps.Add(() =>
+        {
+            _voiceFrames = VoiceTest.Frames(_o.VoiceSend);
+            _nextVoice = _clock.Elapsed;
+            Log("voice", $"talking: {_voiceFrames.Count} Opus frames of 20 ms ({_voiceFrames.Count * 20 / 1000.0:0.0} s, {_voiceFrames.Sum(f => f.Length) / Math.Max(1, _voiceFrames.Count)} bytes each)");
+        });
         TimeSpan nextSay = TimeSpan.Zero, nextSync = TimeSpan.Zero, stayUntil = TimeSpan.MaxValue;
         var disconnected = false;
 
@@ -229,7 +255,10 @@ internal static class Program
 
         while (_clock.Elapsed < deadline && !disconnected)
         {
-            disconnected = Pump();
+            // while talking, wake up for the next 20 ms frame instead of sleeping up to 50 ms on the message event
+            var wait = 50;
+            if (_voiceFrames != null && _voiceIndex < _voiceFrames.Count) wait = (int)Math.Max(0, Math.Min(50, (_nextVoice - _clock.Elapsed).TotalMilliseconds));
+            disconnected = Pump(wait);
 
             if (!_joined) continue;
 
@@ -262,7 +291,19 @@ internal static class Program
                 nextSync = _clock.Elapsed + TimeSpan.FromMilliseconds(100);
             }
 
-            if (_clock.Elapsed >= stayUntil) break;
+            if (_voiceFrames != null && _voiceIndex < _voiceFrames.Count && _clock.Elapsed >= _nextVoice)
+            {
+                SendVoice(_voiceFrames[_voiceIndex++]);
+                _nextVoice += TimeSpan.FromMilliseconds(20);
+                if (_voiceIndex == _voiceFrames.Count)
+                {
+                    Log("voice", $"sent {_voiceFrames.Count} frames");
+                    _chatLog.AppendLine($"voice: sent {_voiceFrames.Count} frames");
+                    if (stayUntil < _clock.Elapsed + TimeSpan.FromSeconds(1)) stayUntil = _clock.Elapsed + TimeSpan.FromSeconds(1);   // let the last frames leave
+                }
+            }
+
+            if (_clock.Elapsed >= stayUntil && (_voiceFrames == null || _voiceIndex >= _voiceFrames.Count)) break;
         }
 
         if (!disconnected)
@@ -277,6 +318,17 @@ internal static class Program
         var missing = _o.Expect.Where(e => !chat.Contains(e, StringComparison.Ordinal)).ToList();
 
         Console.WriteLine();
+        if (_voiceReceived > 0 || _o.VoiceExpect >= 0 || _o.VoiceMax >= 0)
+        {
+            var gaps = _voiceGaps.OrderBy(g => g).ToList();
+            double P(double q) => gaps.Count == 0 ? 0 : gaps[Math.Min(gaps.Count - 1, (int)Math.Ceiling(q * gaps.Count) - 1 < 0 ? 0 : (int)Math.Ceiling(q * gaps.Count) - 1)];
+            var p50 = P(0.5); var p99 = P(0.99);
+            Log("voice", $"received {_voiceReceived} frames, inter-arrival p50 {p50:0.0} ms, p99 {p99:0.0} ms");
+            _chatLog.AppendLine($"voice: received {_voiceReceived} frames");
+            if (_o.VoiceExpect >= 0 && _voiceReceived < _o.VoiceExpect) { Log("result", $"FAILED: voice: received {_voiceReceived} frames, expected at least {_o.VoiceExpect}"); return 1; }
+            if (_o.VoiceMax >= 0 && _voiceReceived > _o.VoiceMax) { Log("result", $"FAILED: voice: received {_voiceReceived} frames, at most {_o.VoiceMax} allowed"); return 1; }
+            if (_o.VoiceExpect > 0 && p99 > _o.VoiceJitter) { Log("result", $"FAILED: voice: p99 inter-arrival {p99:0.0} ms is over the {_o.VoiceJitter} ms limit"); return 1; }
+        }
         if (!_joined)
         {
             Log("result", "FAILED: never joined the server");
@@ -296,11 +348,11 @@ internal static class Program
         return 0;
     }
 
-    /// <summary>Processes pending messages. Returns true when the connection was closed.</summary>
-    private static bool Pump()
+    /// <summary>Processes pending messages after waiting at most <paramref name="waitMs"/> for one. Returns true when the connection was closed.</summary>
+    private static bool Pump(int waitMs = 50)
     {
         var closed = false;
-        _client.MessageReceivedEvent.WaitOne(50);
+        if (waitMs > 0) _client.MessageReceivedEvent.WaitOne(waitMs);
 
         NetIncomingMessage msg;
         while ((msg = _client.ReadMessage()) != null)
@@ -511,6 +563,19 @@ internal static class Program
                 Send(reply, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Rpc);
                 break;
             }
+            case PacketType.Voice:
+            {
+                // T-015: [talker handle][length][Opus frame]; counted, timed, not decoded
+                var talker = msg.ReadInt32();
+                var len = msg.ReadInt32();
+                msg.ReadBytes(len);
+                var nowMs = _clock.Elapsed.TotalMilliseconds;
+                if (_voiceReceived > 0) _voiceGaps.Add(nowMs - _lastVoiceMs);
+                _lastVoiceMs = nowMs;
+                _voiceReceived++;
+                if (_o.Verbose) Log("voice", $"frame #{_voiceReceived} from #{talker} ({len} bytes)");
+                break;
+            }
             case PacketType.PlayerDisconnect:
                 Log("player", $"disconnected #{ReadPacket<PlayerDisconnect>(msg).Id}");
                 break;
@@ -700,6 +765,15 @@ internal static class Program
         WritePacket(msg, PacketType.ChatData, new ChatData { Message = text });
         Send(msg, NetDeliveryMethod.ReliableOrdered, (int)ConnectionChannel.Chat);
         Log("say", text);
+    }
+
+    private static void SendVoice(byte[] frame)
+    {
+        var msg = _client.CreateMessage();
+        msg.Write((byte)PacketType.Voice);
+        msg.Write(frame.Length);
+        msg.Write(frame);
+        Send(msg, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.Voice);
     }
 
     private static void SendPureSync()

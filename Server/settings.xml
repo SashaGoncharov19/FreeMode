@@ -14,6 +14,8 @@
   <!-- Interest management (T-003): sync goes at 10 Hz to the nearest players within "full" m (at most "maxfull"), at ~3 Hz within
        "medium" m, at 1 Hz within "range" m (at most "maxnear" in the three tiers), one position every 3 s to everyone else; a
        player receives at most "budget" bytes/s of others' sync (farther tiers dropped first; 0 = unlimited); "cell" is the grid cell. -->
+  <!-- Voice chat (T-015): metres a talker is heard within on the proximity channel; scripts can set per-player ranges and radio channels. -->
+  <voicerange>40</voicerange>
   <interest cell="200" full="50" medium="200" range="2000" budget="30720" maxfull="64" maxnear="250" />
   <upnp>false</upnp>
   <announce_lan>true</announce_lan>

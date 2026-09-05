@@ -247,7 +247,11 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
   (empty by default — Q-07, the owner's domain); `CefMenu.OnMasterList` shows the rows and `CefMenu.Connect` pins the listed
   server's key. The classic launcher's updater endpoints (`Subprocess/GTANSubprocess/EntryPoint.cs`,
   `PlayGTANetworkUpdater/Program.cs`) still point at the dead master (Q-13).
-* **Voice**: none (only the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`).
+* **Voice**: the protocol and the relay (T-015): `PacketType.Voice` (Opus frames, unreliable `ConnectionChannel.Voice`),
+  `Server/Managers/VoiceRouter.cs` (proximity channel 0 within `<voicerange>` / per-player range over the talker's near tiers,
+  radio channels > 0, mutes, 400 B and 60 frames/s caps, start/stop-talking events), `API.setPlayerVoiceChannel/Range`,
+  `mutePlayerFor`; the bot encodes test audio with Concentus (`Tools/GTANetwork.Bot/VoiceTest.cs`). Capture and playback in the
+  game: T-016 (the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`, is unrelated).
 * **Anti-cheat**: native allow-list (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path
   traversal guards, server ACL/bans/whitelist/minimum version; the client integrity check is compiled out
   (`Client/Main/Misc.cs:409`, `#if INTEGRITYCHECK`).

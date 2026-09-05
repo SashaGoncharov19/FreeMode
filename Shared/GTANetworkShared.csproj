@@ -17,6 +17,8 @@
     <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
     <!-- X25519 + HKDF for the session handshake and AES-GCM for clients on .NET Framework (the server and the bot use System.Security.Cryptography.AesGcm). -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <!-- Opus in pure C# (T-015 voice): the bot encodes test audio with it; the in-game client will encode and decode with it (T-016). -->
+    <PackageReference Include="Concentus" Version="2.2.2" />
   </ItemGroup>
 
   <ItemGroup>

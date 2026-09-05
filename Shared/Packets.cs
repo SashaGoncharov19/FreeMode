@@ -50,6 +50,8 @@ namespace GTANetworkShared
         /// <summary>RPC (T-008): RpcRequest / RpcResponse, channel Rpc.</summary>
         RpcRequest = 41,
         RpcResponse = 42,
+        /// <summary>T-015: one 20 ms Opus frame. Client -> server: [int length][frame]; server -> clients: [int talker handle][int length][frame].</summary>
+        Voice = 43,
     }
 
     public enum ScriptVersion
@@ -156,7 +158,9 @@ namespace GTANetworkShared
         BulletSync = 10,
         UnoccupiedVeh = 11,
         /// <summary>Request/response calls (RpcRequest, RpcResponse); reliable ordered.</summary>
-        Rpc = 12
+        Rpc = 12,
+        /// <summary>Voice frames (T-015); unreliable sequenced.</summary>
+        Voice = 13
     }
 
     

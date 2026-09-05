@@ -47,10 +47,10 @@ internal static class LoadBots
             workers.Add(worker);
         }
 
-        Program.Log("load", $"{o.Bots} bots -> {o.Host}:{o.Port}, one connect per {o.ConnectIntervalMs} ms, {threads} pump threads, move radius {o.Move.ToString("0", CultureInfo.InvariantCulture)} m, encryption {(o.NoEncryption ? "off" : "on")}");
+        Program.Log("load", $"{o.Bots} bots -> {o.Host}:{o.Port}, one connect per {o.ConnectIntervalMs} ms, {threads} pump threads, move radius {o.Move.ToString("0", CultureInfo.InvariantCulture)} m, encryption {(o.NoEncryption ? "off" : "on")}{(o.Voice ? ", voice 50 frames/s each" : "")}");
         for (var i = 0; i < bots.Length; i++)
         {
-            bots[i] = new LoadBot(i, o.Name + (i + 1).ToString(CultureInfo.InvariantCulture), config, !o.NoEncryption, o.Move, rng.Next());
+            bots[i] = new LoadBot(i, o.Name + (i + 1).ToString(CultureInfo.InvariantCulture), config, !o.NoEncryption, o.Move, rng.Next(), o.Voice);
             bots[i].Connect(o.Host, o.Port, o.Password, version);
             Volatile.Write(ref started, i + 1);
             if (o.ConnectIntervalMs > 0) Thread.Sleep(o.ConnectIntervalMs);
@@ -146,6 +146,9 @@ internal sealed class LoadBot
     private readonly KeyPair _key;
     private NetSessionEncryption _session;
     private readonly float _moveRadius;
+    private readonly bool _voice;
+    private static readonly byte[] VoiceFrame = MakeVoiceFrame();
+    private TimeSpan _nextVoice;
     private readonly Random _rng;
     private readonly Dictionary<int, FileType> _transfers = new();
     private readonly HashSet<string> _scriptResources = new();
@@ -162,10 +165,11 @@ internal sealed class LoadBot
     private bool _moving;
     private TimeSpan _nextTurn, _nextPure, _nextLight, _lastMove;
 
-    public LoadBot(int index, string name, NetPeerConfiguration config, bool encrypt, float moveRadius, int seed)
+    public LoadBot(int index, string name, NetPeerConfiguration config, bool encrypt, float moveRadius, int seed, bool voice = false)
     {
         Name = name;
         _moveRadius = moveRadius;
+        _voice = voice;
         _rng = new Random(seed);
         _client = new NetClient(config);
         if (encrypt) _key = KeyPair.Generate();
@@ -226,6 +230,23 @@ internal sealed class LoadBot
             SendSync(false);
             _nextLight = now + TimeSpan.FromMilliseconds(1500);
         }
+        if (_voice && now >= _nextVoice)
+        {
+            // a 60-byte stand-in for a 24 kbit/s Opus frame; the server relays without decoding
+            var voiceMsg = _client.CreateMessage();
+            voiceMsg.Write((byte)PacketType.Voice);
+            voiceMsg.Write(VoiceFrame.Length);
+            voiceMsg.Write(VoiceFrame);
+            Send(voiceMsg, NetDeliveryMethod.UnreliableSequenced, (int)ConnectionChannel.Voice);
+            _nextVoice = now + TimeSpan.FromMilliseconds(20);
+        }
+    }
+
+    private static byte[] MakeVoiceFrame()
+    {
+        var frame = new byte[60];
+        new Random(7).NextBytes(frame);
+        return frame;
     }
 
     public void Leave()
