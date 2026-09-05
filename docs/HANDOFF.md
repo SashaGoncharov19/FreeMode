@@ -53,8 +53,9 @@ rendering can only be verified in game by the owner.
   `gtan.rpc.call` in CEF pages, `API.callClient`; the `auth` form and `freeroam` use it; bot round trips in `eng/integration-test.sh`.
   The owner's install was synced afterwards (client, browser host, `ui/`, server with `runtime/`, bot); the running local server
   must be restarted to speak RPC.
-* **In PR**: T-013 the main menu on CEF (`task/T-013-cef-menu`, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent,
-  LAN, master list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Merge when green.
+* **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
+  list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
+  in-game check is pending (task status "needs owner").
 * The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out, up to 6.5 s of memory stall per
   second, Chromium took 42 s to start); the loader did not show for that reason and the idle timer then stopped the host as
   soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07
@@ -265,7 +266,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): merge T-013 when green → **T-005** client TypeScript resources (bundled by
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): **T-005** client TypeScript resources (bundled by
    the server with Bun) → **T-007** freeroam in TypeScript → **T-009** session encryption → **T-010** launcher GUI → **T-011**
    master list (needs Q-07; the CEF menu then gets ping and player counts from it). Each on its own `task/T-NNN-*` branch from the
    integration branch, one PR, `eng/dev-test.sh` green.
