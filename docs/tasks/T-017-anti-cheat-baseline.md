@@ -1,6 +1,6 @@
 # T-017 — Anti-cheat baseline: server-side validation, cheat events, client integrity report, signed manifest
 
-Status: ready
+Status: in progress
 Epic: E-10 Anti-cheat
 Size: L
 Branch: task/T-017-anticheat from the integration branch
@@ -35,6 +35,7 @@ clients send a hash report of their binaries and resources at connect and the se
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 17:50 agent — started.
 
 ## Result
 
