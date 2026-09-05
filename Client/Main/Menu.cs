@@ -859,6 +859,42 @@ namespace GTANetwork
                 }
                 #endregion
 
+                #region Voice
+                var VoiceMenu = new TabInteractiveListItem("Voice", new List<UIMenuItem>());
+                {
+                    var voiceItem = new UIMenuCheckboxItem("Voice chat", PlayerSettings.VoiceEnabled) { Description = "Hear other players and talk with the push-to-talk key." };
+                    voiceItem.CheckboxEvent += (sender, @checked) =>
+                    {
+                        PlayerSettings.VoiceEnabled = @checked;
+                        if (!@checked) { Voice.VoiceCapture.Close(); Voice.VoicePlayback.Close(); }
+                        SaveSettings();
+                    };
+                    VoiceMenu.Items.Add(voiceItem);
+                }
+                {
+                    var keys = new List<dynamic> { "N", "B", "V", "K", "CapsLock", "LMenu", "RControl", "Mouse4" };
+                    var current = keys.IndexOf(PlayerSettings.VoiceKey ?? "N");
+                    var keyItem = new UIMenuListItem("Push-to-talk key", keys, current < 0 ? 0 : current) { Description = "Hold it to talk." };
+                    keyItem.OnListChanged += (sender, index) =>
+                    {
+                        PlayerSettings.VoiceKey = keys[index];
+                        SaveSettings();
+                    };
+                    VoiceMenu.Items.Add(keyItem);
+                }
+                {
+                    var volumes = new List<dynamic>();
+                    for (var v = 0; v <= 100; v += 10) volumes.Add(v);
+                    var volumeItem = new UIMenuListItem("Voice volume", volumes, Math.Max(0, Math.Min(10, PlayerSettings.VoiceVolume / 10))) { Description = "Playback volume of other players." };
+                    volumeItem.OnListChanged += (sender, index) =>
+                    {
+                        PlayerSettings.VoiceVolume = index * 10;
+                        SaveSettings();
+                    };
+                    VoiceMenu.Items.Add(volumeItem);
+                }
+                #endregion
+
                 #region Experimental
                 var ExpMenu = new TabInteractiveListItem("Experimental", new List<UIMenuItem>());
                 {
@@ -957,6 +993,7 @@ namespace GTANetwork
                 {
                     GeneralMenu,
                     ChatboxMenu,
+                    VoiceMenu,
                     //DisplayMenu,
                     //GraphicsMenu,
                     ExpMenu,

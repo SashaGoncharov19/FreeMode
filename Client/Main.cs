@@ -343,6 +343,7 @@ namespace GTANetwork
                 {
                     _wasTyping = false;
                 }
+                if (args.KeyCode == Voice.VoiceKeys.PushToTalk) Voice.VoiceCapture.Talking = false;
             };
 
             _config = new NetPeerConfiguration("GTANETWORK") { Port = 8888, ConnectionTimeout = 30f };
@@ -481,6 +482,8 @@ namespace GTANetwork
 
             CefMenu.Tick();
             AutoTest.Tick(this);
+            Voice.VoicePlayback.MasterVolume = PlayerSettings.VoiceVolume / 100f;
+            Voice.VoicePlayback.Tick(Environment.TickCount);
             PauseMenu();
             _mainWarning?.Draw();
 
@@ -555,6 +558,8 @@ namespace GTANetwork
                 Process.GetCurrentProcess().Kill();
             }
             Chat.OnKeyDown(e.KeyCode);
+            if (e.KeyCode == Voice.VoiceKeys.PushToTalk && PlayerSettings.VoiceEnabled && IsOnServer() && !Chat.IsFocused && !MainMenu.Visible)
+                Voice.VoiceCapture.Talking = true;   // T-016: push-to-talk
             switch (e.KeyCode)
             {
                 case Keys.Escape:

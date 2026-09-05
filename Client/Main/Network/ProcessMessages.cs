@@ -89,6 +89,16 @@ namespace GTANetwork
                         HandleBulletPacket(nethandle, shooting, position.ToVector());
                     }
                     break;
+                case PacketType.Voice:
+                    {
+                        // T-016: [talker handle][length][Opus frame] -> decoded and mixed by position
+                        var talker = msg.ReadInt32();
+                        var len = msg.ReadInt32();
+                        if (len <= 0 || len > 400) break;
+                        var frame = msg.ReadBytes(len);
+                        Voice.VoicePlayback.Enqueue(talker, frame, Environment.TickCount);
+                    }
+                    break;
                 case PacketType.BulletPlayerSync:
                     {
                         //Util.Util.SafeNotify("Bullet Player Packet" + DateTime.Now.Millisecond);

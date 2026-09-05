@@ -167,6 +167,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Voice chat in the client** (T-016): hold the push-to-talk key (`N`; Settings → Voice) to talk — the microphone is captured
+  (WASAPI shared mode, WinMM as the fallback), converted to 48 kHz mono, encoded with Opus and sent as `Voice` packets; other
+  players' frames are decoded per talker and mixed with distance attenuation (silent at 45 m) and stereo panning from their synced
+  position relative to the camera; a green `*` after the nametag marks who is talking; `<VoiceEnabled>`, `<VoiceKey>`,
+  `<VoiceVolume>` in `settings.xml`. `CefHarness --capture-test <s>` records the microphone under Wine without the game.
+  __T016_NUMBERS__
 * **Voice chat protocol** (T-015): `PacketType.Voice` carries 20 ms Opus frames (48 kHz mono, 24 kbit/s; at most 400 bytes and
   60 frames/s per player) on an unreliable channel; the server relays them without decoding — channel 0 is proximity voice within
   `<voicerange>` (40 m; `API.setPlayerVoiceRange` per player), a channel above 0 is a radio heard by everyone on it
