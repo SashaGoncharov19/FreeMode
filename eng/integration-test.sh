@@ -92,6 +92,24 @@ grep -q 'player #[0-9]* "Alice"' "$server_dir/it-bob.log" || { echo "Bob's map d
 echo "---- server log ----"; cat "$server_dir/it-server.log"; echo "--------------------"
 [ "$phase2_ok" -eq 1 ] || { echo "phase 2 failed"; exit 1; }
 
+# ---- phase 3 (T-015): voice - a talker 5 m from a listener and 990 m from a third player; 5 s of Opus frames at 50/s
+echo "---- phase 3: voice ----"
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Listener --say "/tp 205 200 72" --voice-expect 245 --voice-jitter 40 --duration 10 --timeout 40 > "$server_dir/it-listener.log" 2>&1 &
+listener_pid=$!
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name FarAway --say "/tp 900 900 72" --voice-max 0 --duration 10 --timeout 40 > "$server_dir/it-far.log" 2>&1 &
+far_pid=$!
+sleep 3
+set +e
+"${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Talker --say "/tp 200 200 72" --voice-send 5 --duration 1 --timeout 40 > "$server_dir/it-talker.log" 2>&1
+rc_talker=$?
+wait "$listener_pid"; rc_listener=$?
+wait "$far_pid"; rc_far=$?
+set -e
+grep -h "\[voice\]\|\[result\]" "$server_dir/it-talker.log" "$server_dir/it-listener.log" "$server_dir/it-far.log" || true
+[ "$rc_talker" -eq 0 ] && [ "$rc_listener" -eq 0 ] && [ "$rc_far" -eq 0 ] || { echo "voice phase failed (talker=$rc_talker listener=$rc_listener far=$rc_far)"; tail -n 5 "$server_dir/it-talker.log" "$server_dir/it-listener.log" "$server_dir/it-far.log"; exit 1; }
+grep -q "\[voice\] sent 250 frames" "$server_dir/it-talker.log" || { echo "the talker did not send 250 frames"; exit 1; }
+echo "voice: the listener heard the talker, the far player did not"
+
 grep -q "Connection established: CIBot" "$server_dir/it-server.log" || { echo "server never confirmed the bot"; exit 1; }
 # freeroam's client script is TypeScript (T-005): the server bundles it (or reads the bundle the smoke test cached) and the bot gets client/index.js
 grep -qE "(bundled|cached bundle of) client/index.ts -> client/index.js" "$server_dir/it-server.log" || { echo "freeroam's TypeScript client script was not bundled"; exit 1; }

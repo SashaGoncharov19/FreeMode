@@ -685,6 +685,28 @@ namespace GTANetworkServer
             }));
         }
 
+        public void InvokePlayerStartTalking(Client sender)
+        {
+            if (Runtime != null) { Runtime.Event(this, "playerStartTalking", sender); return; }
+            lock (_mainQueue.SyncRoot)
+            _mainQueue.Enqueue(new Action(() =>
+            {
+                if (Language == ScriptingEngineLanguage.compiled)
+                    _compiledScript.API.invokePlayerStartTalking(sender);
+            }));
+        }
+
+        public void InvokePlayerStopTalking(Client sender)
+        {
+            if (Runtime != null) { Runtime.Event(this, "playerStopTalking", sender); return; }
+            lock (_mainQueue.SyncRoot)
+            _mainQueue.Enqueue(new Action(() =>
+            {
+                if (Language == ScriptingEngineLanguage.compiled)
+                    _compiledScript.API.invokePlayerStopTalking(sender);
+            }));
+        }
+
         public void InvokePlayerRespawn(Client sender)
         {
             if (Runtime != null) { Runtime.Event(this, "playerRespawn", sender); return; }

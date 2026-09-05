@@ -33,6 +33,10 @@ namespace GTANetworkShared
         [XmlElement("relaythreads")]
         public int RelayThreads { get; set; }
 
+        /// <summary>Metres a talker is heard within on the proximity voice channel (T-015); a script can override it per player.</summary>
+        [XmlElement("voicerange")]
+        public float VoiceRange { get; set; }
+
         /// <summary>Who receives whose sync packets at which rate (T-003): grid cell size, the full/medium tier distances, the streaming range, the per-player byte budget, the caps.</summary>
         [XmlElement("interest")]
         public InterestSettings Interest { get; set; }
@@ -134,6 +138,7 @@ namespace GTANetworkShared
             MasterServer = "";
             RelayThreads = 0;
             Interest = new InterestSettings();
+            VoiceRange = 40f;
             DlcPacks = new List<DlcPackSettings>();
             UseACL = true;
             AnnounceToLan = true;

@@ -93,6 +93,10 @@ namespace GTANetworkServer
         public event CommandEvent onChatCommand;
         public event PlayerConnectingEvent onPlayerBeginConnect;
         public event PlayerEvent onPlayerConnected;
+        /// <summary>T-015: the player's first voice frame after silence.</summary>
+        public event PlayerEvent onPlayerStartTalking;
+        /// <summary>T-015: 300 ms without a voice frame from the player.</summary>
+        public event PlayerEvent onPlayerStopTalking;
         public event PlayerEvent onPlayerFinishedDownload;
         public event PlayerDisconnectedEvent onPlayerDisconnected;
         public event PlayerKilledEvent onPlayerDeath;
@@ -320,6 +324,16 @@ namespace GTANetworkServer
         internal void invokePlayerRespawn(Client player)
         {
             onPlayerRespawn?.Invoke(player);
+        }
+
+        internal void invokePlayerStartTalking(Client player)
+        {
+            onPlayerStartTalking?.Invoke(player);
+        }
+
+        internal void invokePlayerStopTalking(Client player)
+        {
+            onPlayerStopTalking?.Invoke(player);
         }
 
         #endregion
@@ -3301,6 +3315,39 @@ namespace GTANetworkServer
         public void kickPlayer(Client player, string reason)
         {
             player.NetConnection.Disconnect(reason);
+        }
+
+        /// <summary>Voice (T-015): 0 = proximity voice (heard within the voice range), N &gt; 0 = radio channel N (heard by everyone on it).</summary>
+        public void setPlayerVoiceChannel(Client player, int channel)
+        {
+            Program.ServerInstance.Voice.SetChannel(player, channel);
+        }
+
+        public int getPlayerVoiceChannel(Client player)
+        {
+            return Program.ServerInstance.Voice.GetChannel(player);
+        }
+
+        /// <summary>Voice (T-015): metres this player is heard within on the proximity channel; 0 = the server's default (&lt;voicerange&gt;).</summary>
+        public void setPlayerVoiceRange(Client player, float metres)
+        {
+            Program.ServerInstance.Voice.SetRange(player, metres);
+        }
+
+        public float getPlayerVoiceRange(Client player)
+        {
+            return Program.ServerInstance.Voice.GetRange(player);
+        }
+
+        /// <summary>Voice (T-015): <paramref name="listener"/> stops (or resumes) hearing <paramref name="talker"/>.</summary>
+        public void mutePlayerFor(Client listener, Client talker, bool muted)
+        {
+            Program.ServerInstance.Voice.Mute(listener, talker, muted);
+        }
+
+        public bool isPlayerMutedFor(Client listener, Client talker)
+        {
+            return Program.ServerInstance.Voice.IsMuted(listener, talker);
         }
 
         public void kickPlayer(Client player)

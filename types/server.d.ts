@@ -12,6 +12,10 @@ interface API {
     readonly onChatCommand: HostEvent<APICommandEvent>;
     readonly onPlayerBeginConnect: HostEvent<APIPlayerConnectingEvent>;
     readonly onPlayerConnected: HostEvent<APIPlayerEvent>;
+    /** T-015: the player's first voice frame after silence. */
+    readonly onPlayerStartTalking: HostEvent<APIPlayerEvent>;
+    /** T-015: 300 ms without a voice frame from the player. */
+    readonly onPlayerStopTalking: HostEvent<APIPlayerEvent>;
     readonly onPlayerFinishedDownload: HostEvent<APIPlayerEvent>;
     readonly onPlayerDisconnected: HostEvent<APIPlayerDisconnectedEvent>;
     readonly onPlayerDeath: HostEvent<APIPlayerKilledEvent>;
@@ -331,6 +335,15 @@ interface API {
     getPlayerCurrentWeapon(player: Client): WeaponHash;
     getPlayerAddress(player: Client): string;
     kickPlayer(player: Client, reason: string): void;
+    /** Voice (T-015): 0 = proximity voice (heard within the voice range), N > 0 = radio channel N (heard by everyone on it). */
+    setPlayerVoiceChannel(player: Client, channel: number): void;
+    getPlayerVoiceChannel(player: Client): number;
+    /** Voice (T-015): metres this player is heard within on the proximity channel; 0 = the server's default (<voicerange>). */
+    setPlayerVoiceRange(player: Client, metres: number): void;
+    getPlayerVoiceRange(player: Client): number;
+    /** Voice (T-015):  stops (or resumes) hearing . */
+    mutePlayerFor(listener: Client, talker: Client, muted: boolean): void;
+    isPlayerMutedFor(listener: Client, talker: Client): boolean;
     kickPlayer(player: Client): void;
     banPlayer(player: Client, reason: string): void;
     banPlayer(player: Client): void;

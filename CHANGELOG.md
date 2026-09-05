@@ -167,6 +167,13 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Voice chat protocol** (T-015): `PacketType.Voice` carries 20 ms Opus frames (48 kHz mono, 24 kbit/s; at most 400 bytes and
+  60 frames/s per player) on an unreliable channel; the server relays them without decoding — channel 0 is proximity voice within
+  `<voicerange>` (40 m; `API.setPlayerVoiceRange` per player), a channel above 0 is a radio heard by everyone on it
+  (`API.setPlayerVoiceChannel`); `API.mutePlayerFor(listener, talker, muted)`; events `onPlayerStartTalking` / `onPlayerStopTalking`
+  (also `playerStartTalking` / `playerStopTalking` in TypeScript). The bot talks (`--voice-send <seconds|wav>`, Opus via Concentus)
+  and listens (`--voice-expect`, `--voice-max`, `--voice-jitter`); the integration test has a voice phase; `/metrics.json` → `voice`.
+  The in-game capture and playback are T-016. Measured: 100 talkers at 50 frames/s cost the server 115 000 relays/s and ~0.8 CPU-core with a 1.1 ms tick.
 * **Custom DLC packs, first half** (T-014, D-10): a server declares packs in `settings.xml` (`<dlcpack name url sha256 size
   required/>`) and serves them as `GET /dlcpacks.json`; the launcher downloads and verifies them — `GTANetwork.Launcher prepare
   <host:port>` or the window's *Packs* page — into `<install>/dlcpacks/<name>/dlc.rpf` (SHA-256 and size checked, a wrong file is

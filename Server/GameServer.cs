@@ -119,6 +119,7 @@ namespace GTANetworkServer
             MasterServer = (conf.MasterServer ?? "").Trim().TrimEnd('/');
             RelayThreads = conf.RelayThreads;
             Interest = conf.Interest ?? new InterestSettings();
+            Voice = new VoiceRouter(this) { DefaultRange = conf.VoiceRange > 0 ? conf.VoiceRange : 40f };
             if (conf.DlcPacks != null)
             {
                 foreach (var pack in conf.DlcPacks)
@@ -178,6 +179,8 @@ namespace GTANetworkServer
         public int LogLevel { get; set; }
         public int RelayThreads { get; set; }
         public InterestSettings Interest { get; set; }
+        /// <summary>Voice frames relay (T-015).</summary>
+        internal VoiceRouter Voice { get; private set; }
         /// <summary>The custom DLC packs of settings.xml (T-014), as served by /dlcpacks.json.</summary>
         public List<DlcPackInfo> DlcPacks { get; set; } = new List<DlcPackInfo>();
         public bool AnnounceToLAN { get; set; }
@@ -733,6 +736,7 @@ namespace GTANResource
 
             Runtime?.Tick();
             Rpc.Tick();
+            Voice.Tick(Program.MonotonicMs());
             Metrics.MaybeSample(Clients);
 
             if (Downloads.Count > 0)
@@ -900,6 +904,7 @@ namespace GTANResource
                 if (ACLEnabled) ACL.LogOutClient(client);
 
                 Downloads.RemoveAll(d => d.Parent == client);
+                Voice.Remove(client);
             }
         }
 

@@ -129,6 +129,8 @@ export interface ServerApi {
     getPlayerVehicle(player: Handle /* Client */): Promise<Handle>;
     getPlayerVehicleSeat(player: Handle /* Client */): Promise<number>;
     getPlayerVelocity(player: Handle /* Client */): Promise<Vec3>;
+    getPlayerVoiceChannel(player: Handle /* Client */): Promise<number>;
+    getPlayerVoiceRange(player: Handle /* Client */): Promise<number>;
     getPlayerWantedLevel(player: Handle /* Client */): Promise<number>;
     getPlayerWeaponAmmo(player: Handle /* Client */, weaponHash: number /* WeaponHash */): Promise<number>;
     getPlayerWeaponComponents(player: Handle /* Client */, weapon: number /* WeaponHash */): Promise<number /* WeaponComponent */[]>;
@@ -223,6 +225,7 @@ export interface ServerApi {
     isPlayerInCover(player: Handle /* Client */): Promise<boolean>;
     isPlayerInFreefall(player: Handle /* Client */): Promise<boolean>;
     isPlayerLoggedIn(player: Handle /* Client */): Promise<boolean>;
+    isPlayerMutedFor(listener: Handle /* Client */, talker: Handle /* Client */): Promise<boolean>;
     isPlayerOnFire(player: Handle /* Client */): Promise<boolean>;
     isPlayerOnLadder(player: Handle /* Client */): Promise<boolean>;
     isPlayerParachuting(player: Handle /* Client */): Promise<boolean>;
@@ -242,6 +245,8 @@ export interface ServerApi {
     logoutPlayer(player: Handle /* Client */): Promise<void>;
     moveEntityPosition(netHandle: Handle, target: Vec3, duration: number): Promise<void>;
     moveEntityRotation(netHandle: Handle, target: Vec3, duration: number): Promise<void>;
+    /** Voice (T-015):  stops (or resumes) hearing . */
+    mutePlayerFor(listener: Handle /* Client */, talker: Handle /* Client */, muted: boolean): Promise<void>;
     pedNameToModel(modelName: string): Promise<number /* PedHash */>;
     pickupNameToModel(modelName: string): Promise<number /* PickupHash */>;
     playPedAnimation(ped: Handle, looped: boolean, animDict: string, animName: string): Promise<void>;
@@ -333,6 +338,10 @@ export interface ServerApi {
     setPlayerToSpectatePlayer(player: Handle /* Client */, target: Handle /* Client */): Promise<void>;
     setPlayerToSpectator(player: Handle /* Client */): Promise<void>;
     setPlayerVelocity(player: Handle /* Client */, velocity: Vec3): Promise<void>;
+    /** Voice (T-015): 0 = proximity voice (heard within the voice range), N > 0 = radio channel N (heard by everyone on it). */
+    setPlayerVoiceChannel(player: Handle /* Client */, channel: number): Promise<void>;
+    /** Voice (T-015): metres this player is heard within on the proximity channel; 0 = the server's default (<voicerange>). */
+    setPlayerVoiceRange(player: Handle /* Client */, metres: number): Promise<void>;
     setPlayerWantedLevel(player: Handle /* Client */, wantedLevel: number): Promise<void>;
     setPlayerWeaponAmmo(player: Handle /* Client */, weaponHash: number /* WeaponHash */, ammo: number): Promise<void>;
     setPlayerWeaponTint(player: Handle /* Client */, weapon: number /* WeaponHash */, tint: number /* WeaponTint */): Promise<void>;

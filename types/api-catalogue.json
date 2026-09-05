@@ -5613,6 +5613,131 @@
       "needsResult": false
     },
     {
+      "name": "setPlayerVoiceChannel",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "channel",
+          "type": "System.Int32",
+          "ts": "number",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "getPlayerVoiceChannel",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Int32",
+      "returnsTs": "number",
+      "needsResult": true
+    },
+    {
+      "name": "setPlayerVoiceRange",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "metres",
+          "type": "System.Single",
+          "ts": "number",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "getPlayerVoiceRange",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Single",
+      "returnsTs": "number",
+      "needsResult": true
+    },
+    {
+      "name": "mutePlayerFor",
+      "parameters": [
+        {
+          "name": "listener",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "talker",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "muted",
+          "type": "System.Boolean",
+          "ts": "boolean",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Void",
+      "returnsTs": "void",
+      "needsResult": false
+    },
+    {
+      "name": "isPlayerMutedFor",
+      "parameters": [
+        {
+          "name": "listener",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        },
+        {
+          "name": "talker",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client",
+          "optional": false,
+          "isParams": false
+        }
+      ],
+      "returns": "System.Boolean",
+      "returnsTs": "boolean",
+      "needsResult": true
+    },
+    {
       "name": "kickPlayer",
       "parameters": [
         {
@@ -7962,6 +8087,26 @@
     },
     {
       "name": "onPlayerConnected",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client"
+        }
+      ]
+    },
+    {
+      "name": "onPlayerStartTalking",
+      "parameters": [
+        {
+          "name": "player",
+          "type": "GTANetworkServer.Client",
+          "ts": "Client"
+        }
+      ]
+    },
+    {
+      "name": "onPlayerStopTalking",
       "parameters": [
         {
           "name": "player",
