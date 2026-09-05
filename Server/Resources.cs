@@ -158,6 +158,36 @@ namespace GTANetworkServer
                     multithreaded = ourResource.Info.Info.Multithreaded;
                 }
 
+                // A client script as the game gets it: one JavaScript text per file, hashed for the file manifest.
+                void AddClientScript(string filename, string text)
+                {
+                    var csScript = new ClientsideScript()
+                    {
+                        ResourceParent = resourceName,
+                        Script = text,
+                        Filename = filename,
+                    };
+
+                    string hash;
+
+                    using (var md5 = MD5.Create())
+                    {
+                        var myData = md5.ComputeHash(Encoding.UTF8.GetBytes(text));
+                        hash = myData.Select(byt => byt.ToString("x2")).Aggregate((left, right) => left + right);
+                        csScript.MD5Hash = hash;
+
+                        if (FileHashes.ContainsKey(ourResource.DirectoryName + "_" + filename))
+                            FileHashes[ourResource.DirectoryName + "_" + filename] = hash;
+                        else
+                            FileHashes.Add(ourResource.DirectoryName + "_" + filename, hash);
+                    }
+
+                    FileModule.ExportedFiles[resourceName].Add(new FileDeclaration(filename, hash, FileType.Script));
+
+                    ourResource.ClientsideScripts.Add(csScript);
+                    csScripts.Add(csScript);
+                }
+
                 foreach (var script in currentResInfo.Scripts)
                 {
                     if (script.Language == ScriptingEngineLanguage.javascript)
@@ -165,32 +195,7 @@ namespace GTANetworkServer
                         var scrTxt = File.ReadAllText(baseDir + script.Path);
                         if (script.Type == ScriptType.client)
                         {
-                            var csScript = new ClientsideScript()
-                            {
-                                ResourceParent = resourceName,
-                                Script = scrTxt,
-                                //Filename = Path.GetFileNameWithoutExtension(script.Path)?.Replace('.', '_'),
-                                Filename = script.Path,
-                            };
-
-                            string hash;
-
-                            using (var md5 = MD5.Create())
-                            {
-                                var myData = md5.ComputeHash(Encoding.UTF8.GetBytes(scrTxt));
-                                hash = myData.Select(byt => byt.ToString("x2")).Aggregate((left, right) => left + right);
-                                csScript.MD5Hash = hash;
-
-                                if (FileHashes.ContainsKey(ourResource.DirectoryName + "_" + script.Path))
-                                    FileHashes[ourResource.DirectoryName + "_" + script.Path] = hash;
-                                else
-                                    FileHashes.Add(ourResource.DirectoryName + "_" + script.Path, hash);
-                            }
-
-                            FileModule.ExportedFiles[resourceName].Add(new FileDeclaration(script.Path, hash, FileType.Script));
-
-                            ourResource.ClientsideScripts.Add(csScript);
-                            csScripts.Add(csScript);
+                            AddClientScript(script.Path, scrTxt);
                             continue;
                         }
                     }
@@ -230,8 +235,21 @@ namespace GTANetworkServer
                     }
                     else if (script.Language == ScriptingEngineLanguage.typescript)
                     {
-                        if (script.Type == ScriptType.server) tsServer.Add(script.Path);
-                        else Program.Output("Resource " + resourceName + ": client TypeScript (" + script.Path + ") is not bundled yet (T-005); skipped", LogCat.Warn);
+                        if (script.Type == ScriptType.server) { tsServer.Add(script.Path); continue; }
+
+                        // Client TypeScript (T-005): bundled with Bun into the one JavaScript text the game runs; the client sees client/index.js.
+                        // No Bun: the script is skipped and the rest of the resource starts. A bundle error (syntax, tsc) stops the resource.
+                        var bun = RuntimeProcess.FindBun(out var bunError);
+                        if (bun == null)
+                        {
+                            Program.Output("Resource " + resourceName + ": client script " + script.Path + " skipped: " + bunError, LogCat.Error);
+                            continue;
+                        }
+                        var bundle = TypeScriptBundler.Bundle(resourceName, baseDir, script.Path, bun);
+                        var bundleName = Path.ChangeExtension(script.Path, ".js").Replace('\\', '/');
+                        Program.Output("Resource " + resourceName + ": " + (bundle.Cached ? "cached bundle of " : "bundled ") + script.Path + " -> " + bundleName +
+                                       " (" + (bundle.Bytes / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " KB, " + bundle.Milliseconds + " ms)");
+                        AddClientScript(bundleName, bundle.JavaScript);
                     }
                 }
 

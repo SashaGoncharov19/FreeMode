@@ -234,6 +234,10 @@ Server/bans.xml
 # Bun dependencies of the bridge benchmark
 runtime/bench/node_modules/
 
+# bundles of TypeScript client scripts (Server/Managers/TypeScriptBundler.cs)
+resources/.cache/
+Server/resources/.cache/
+
 # core dumps of crashed tools
 core
 core.*

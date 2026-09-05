@@ -201,7 +201,9 @@ client events `API.triggerClientEvent` (`Server/API.cs:2622`) ⇄ `PacketType.Sc
 request/response calls `API.registerRpc(name, handler, allow?)` / `API.callClient(player, name, args)` (§8 RPC). TypeScript
 resources (Bun runtime, `runtime/gtan/index.ts`): `gtan.rpc.register(name, handler, { allow })`, `gtan.rpc.callClient`.
 
-**Client scripts** — `ClientsideScript` records delivered during download, started by `Client/Main/Misc.cs:212` →
+**Client scripts** — JavaScript as written, or TypeScript bundled at resource start by `Server/Managers/TypeScriptBundler.cs`
+(Bun, `--format=iife`, cache `resources/.cache/<resource>/<hash>.js`, optional `tsc --noEmit` when the resource has TypeScript
+installed; the client receives `client/index.js`). `ClientsideScript` records delivered during download, started by `Client/Main/Misc.cs:212` →
 `JavascriptHook.StartScripts` (`Client/Javascript/JavascriptHook.cs:366`): one `V8ScriptEngine` per file, host object
 `API` (`ScriptContext` :586), `resource`, `exported`; events use `.connect(handler)`; dispatch on the game thread through
 `ThreadJumper`. Debug mode opens the V8 inspector on 9222. `API.rpc.call(name, args)` → Promise of the server handler's answer,
@@ -214,9 +216,9 @@ game → page `Browser.eval/call` (:1137/:1143). `gtan.rpc.call(name, args)` →
 → the owning script's `API.rpc` (its own handler or the server's) → `gtan.rpc._settle(id, …)` evaluated in the page.
 
 **meta.xml** (schema `Server/ResourceInfo.cs:688+`): `<info name author version type={script|gamemode|map} …/>`,
-`<script src type={server|client} lang={javascript|csharp|vbasic|compiled}/>`, `<file src/>`, `<assembly ref/>`,
+`<script src type={server|client} lang={javascript|typescript|csharp|vbasic|compiled}/>`, `<file src/>`, `<assembly ref/>`,
 `<include resource/>`, `<map src dimension/>`, `<export class function event/>`, `<acl src/>`, `<settings>`, `<config src type/>`.
-Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (C# gamemode + `client.js`; RPC `freeroam:ping`,
+Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (C# gamemode + `client/index.ts`; RPC `freeroam:ping`,
 `freeroam:secret`), `auth` (accounts, PBKDF2, CEF login page `ui/index.html` + `ui/app.js` calling `auth:login` / `auth:register`
 over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo`).
 

@@ -51,8 +51,12 @@ Ukrainian version: [README.uk.md](README.uk.md).
 `types/` holds the TypeScript typings of the scripting APIs, generated from the built assemblies by
 `Tools/GTANetwork.TypeGen` (`types/README.md`): `client.d.ts` (the in-game `API`, host types, events), `server.d.ts` (the
 server `API` and the element classes), `shared.d.ts` (enums, `Vector3`, …), `cef.d.ts` (the page bridge). `samples/ts-resource/`
-is a resource written against them; `bun run check` type-checks it. Client and server TypeScript resources run through the
-build pipeline of `docs/PLAN.md` E-04 (tasks T-005, T-006).
+is a resource written against them; `bun run check` type-checks it. Both sides of a resource can be TypeScript
+(`lang="typescript"` in `meta.xml`): a **client** entry (`client/index.ts`) is bundled by the server with Bun at resource start
+into the JavaScript the game runs (`Server/Managers/TypeScriptBundler.cs`; cached under `resources/.cache`), a **server** entry
+(`server/index.ts`) runs in the Bun runtime next to the server (`runtime/`, `docs/PLAN.md` E-04). Either way the server machine
+needs Bun 1.4.x: `GTAN_BUN=<path>`, a copy in `<server>/runtime/bun/`, or `bun` on `PATH`. `Server/resources/freeroam` (client) and
+`Server/resources/tsdemo` (server) are the shipped examples; `types/README.md` explains the tsconfig files.
 
 ## How it works
 

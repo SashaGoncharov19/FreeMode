@@ -45,6 +45,8 @@ for _ in $(seq 1 40); do
 done
 grep -q "Started! Waiting for connections." "$server_dir/it-server.log" || { echo "server did not start:"; cat "$server_dir/it-server.log"; exit 1; }
 grep -q "auth: 0 account(s) loaded" "$server_dir/it-server.log" || { echo "the auth resource did not start:"; grep -i -E "auth|exception|error" "$server_dir/it-server.log" || true; exit 1; }
+# the copy of the server folder brought the bundle cache along: this start must not run Bun again (T-005)
+grep -q "cached bundle of client/index.ts -> client/index.js" "$server_dir/it-server.log" || { echo "freeroam's client bundle was not taken from the cache:"; grep "client/index" "$server_dir/it-server.log" || true; exit 1; }
 
 # ---- the resource's CEF page (<file src="ui/..."/>) must be served the way the game client fetches it:
 # GET /manifest.json lists it, GET /<resource>/<path> returns it byte for byte, nothing else leaks.

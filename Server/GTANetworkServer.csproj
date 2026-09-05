@@ -47,7 +47,7 @@
     <!-- The Bun runtime for TypeScript server resources (Server/Runtime, docs/tasks/T-006): shipped as runtime/ next to the server. -->
     <None Include="..\runtime\**" Exclude="..\runtime\**\node_modules\**;..\runtime\bench\**;..\runtime\.bun-version" Link="runtime\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\types\api-catalogue.json" Link="runtime\gtan\catalogue.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="resources\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="resources\**\*" Exclude="resources\.cache\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Resource scripts are compiled by the server at runtime (Roslyn), never into this assembly. -->
     <Compile Remove="resources\**" />
   </ItemGroup>
