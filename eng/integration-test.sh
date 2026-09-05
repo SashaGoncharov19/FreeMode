@@ -70,7 +70,7 @@ echo "encryption: an old client is refused, a wrong pin is refused"
 
 # ---- phase 2: two players at once, so that the server relays sync packets and entity events between them
 echo "---- phase 2: two bots ----"
-# freeroam spawns at random points up to ~7 km apart; players beyond the 2000 m streaming range only exchange a position every
+# freeroam spawns at one of four points up to 2.2 km apart; players beyond the 2000 m streaming range only exchange a position every
 # 3 s (T-003), so both teleport to the same spot first - the relay of pure sync is what this phase checks.
 "${bot_cmd[@]}" --host 127.0.0.1 --port "$port" --name Alice --verbose --say "/tp 200 200 72" --say "/players" --say "hi Bob" --duration 6 --timeout 40 > "$server_dir/it-alice.log" 2>&1 &
 alice_pid=$!
