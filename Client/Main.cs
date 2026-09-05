@@ -486,6 +486,7 @@ namespace GTANetwork
             AutoConnect.Tick(this);   // T-024: GTAN_CONNECT from the launcher
             Voice.VoicePlayback.MasterVolume = PlayerSettings.VoiceVolume / 100f;
             Voice.VoicePlayback.Tick(Environment.TickCount);
+            Voice.VoiceHud.Draw();   // T-027: what the push-to-talk key does, visible
             PauseMenu();
             _mainWarning?.Draw();
 

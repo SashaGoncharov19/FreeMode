@@ -25,6 +25,7 @@ local player while frames are sent.
 ## Log
 
 * 2026-09-05 20:10 agent — created as draft from T-016's follow-ups; ready after the owner's T-016 check.
+* 2026-09-05 14:40 agent — the local talking indicator is done ahead of the task (`Client/Voice/VoiceHud.cs`, asked for by the owner); device selection and voice activation remain.
 
 ## Result
 
