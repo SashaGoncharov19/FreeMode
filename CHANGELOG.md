@@ -167,6 +167,14 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Master list** (`Tools/GTANetwork.Master`: ASP.NET Core minimal API on .NET 10, SQLite, Docker image): servers announce
+  themselves every 60 s (`POST /addserver`; `settings.xml` `<announce>true</announce>` and `<master>https://...</master>`) with
+  their public key and a token from `master.token` that owns the address; the master pings the announced UDP port with a Lidgren
+  discovery request before listing a server. `GET /servers`, `/verified`, `/stats` and `/welcome.json` keep the 2016 shapes,
+  `GET /servers/full` adds name, players, gamemode, map, version, public key and the verified flag. The in-game menu reads
+  `/servers/full` when `MasterServerAddress` is set and pins the listed server's key when connecting from the list. The 2016
+  master's address (`master.gtanet.work`) is gone from the server: with an empty `<master>` nothing is announced.
+  `eng/integration-test-master.sh` runs a master and a server together (in `eng/dev-test.sh` and CI).
 * **Debug mode**: one switch for all diagnostic log lines (client-script API probe, overlay frame geometry,
   `[PROFILE] Present hook overlay`, CEF frames, request traces, `resourceCall`s, page console output below
   warning level). On in Debug builds, with `<DebugMode>true</DebugMode>` in `settings.xml` (also the "Enable

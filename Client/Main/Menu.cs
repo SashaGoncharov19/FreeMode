@@ -247,6 +247,9 @@ namespace GTANetwork
                             response = wc.DownloadString(masterServerAddress + "/servers");
                             responseVerified = wc.DownloadString(masterServerAddress + "/verified");
                             responseStats = wc.DownloadString(masterServerAddress + "/stats");
+                            // the full list (T-011): names, players and the servers' public keys for the CEF menu, without waiting for discovery
+                            try { CefMenu.OnMasterList(JsonConvert.DeserializeObject<List<CefMenu.MasterRow>>(wc.DownloadString(masterServerAddress + "/servers/full"))); }
+                            catch (Exception fullEx) { LogManager.RuntimeLog("master: /servers/full not available (" + fullEx.Message + "); the 2016 list only"); }
                         }
                     }
                     catch (Exception e)

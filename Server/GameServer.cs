@@ -115,7 +115,9 @@ namespace GTANetworkServer
             PasswordProtected = !string.IsNullOrWhiteSpace(conf.Password);
             Password = conf.Password;
             AnnounceSelf = conf.Announce;
-            MasterServer = "http://master.gtanet.work";
+            // the 2016 master (master.gtanet.work) is gone: announce only to the master in settings.xml (<master>, T-011)
+            MasterServer = (conf.MasterServer ?? "").Trim().TrimEnd('/');
+            if (AnnounceSelf && MasterServer.Length == 0) AnnounceSelf = false;
             AnnounceToLAN = conf.AnnounceToLan;
             UseUPnP = conf.UseUPnP;
             MinimumClientVersion = ParseableVersion.Parse(conf.MinimumClientVersion);
@@ -271,49 +273,87 @@ namespace GTANetworkServer
             // Uncomment to start a stress test
         }
 
+        private static readonly System.Net.Http.HttpClient MasterHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        private string _masterToken;
+        private int _announceFailuresLogged;
+
+        /// <summary>The token that owns this server's address on the master: master.token next to the server, created at the first announce.</summary>
+        private string MasterToken()
+        {
+            if (_masterToken != null) return _masterToken;
+            var path = Path.Combine(AppContext.BaseDirectory, "master.token");
+            try
+            {
+                if (File.Exists(path)) _masterToken = File.ReadAllText(path).Trim();
+                if (string.IsNullOrEmpty(_masterToken))
+                {
+                    _masterToken = Guid.NewGuid().ToString("N");
+                    File.WriteAllText(path, _masterToken + Environment.NewLine);
+                    Program.Output("master.token created: it owns this server's entry on the master list; keep it with server.key", LogCat.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Program.Output("master.token could not be read or written (" + ex.Message + "); using a token for this run only", LogCat.Warn);
+                _masterToken = Guid.NewGuid().ToString("N");
+            }
+            return _masterToken;
+        }
+
+        /// <summary>Tells the master list (settings.xml &lt;master&gt;) that this server is here: every 60 s, with the public key clients can pin.</summary>
         public void AnnounceSelfToMaster()
         {
-            if (LogLevel > 0)
-                Program.Output("Announcing self to master server...", LogCat.Debug);
+            if (string.IsNullOrEmpty(MasterServer)) return;
+            if (LogLevel > 1) Program.Output("Announcing self to the master list " + MasterServer, LogCat.Debug);
 
-            var annThread = new Thread((ThreadStart) delegate
+            var annObject = new MasterServerAnnounce
             {
-                using (var wb = new WebClient())
+                ServerName = Name,
+                CurrentPlayers = Clients.Count,
+                MaxPlayers = MaxPlayers,
+                Map = CurrentMap?.DirectoryName,
+                Gamemode = string.IsNullOrEmpty(GamemodeName) ? Gamemode?.DirectoryName ?? "GTA Network" : GamemodeName,
+                Port = Port,
+                Passworded = PasswordProtected,
+                fqdn = fqdn,
+                ServerVersion = _serverVersion.ToString(),
+                PublicKey = ServerKey?.PublicKeyHex ?? "",
+                Token = MasterToken(),
+            };
+            var json = JsonConvert.SerializeObject(annObject);
+            var master = MasterServer;
+            Task.Run(async () =>
+            {
+                try
                 {
-                    try
+                    using (var content = new System.Net.Http.StringContent(json, Encoding.UTF8, "application/json"))
+                    using (var response = await MasterHttp.PostAsync(master + "/addserver", content))
                     {
-                        var annObject = new MasterServerAnnounce
+                        var body = await response.Content.ReadAsStringAsync();
+                        if (!response.IsSuccessStatusCode)
                         {
-                            ServerName = Name,
-                            CurrentPlayers = Clients.Count,
-                            MaxPlayers = MaxPlayers,
-                            Map = CurrentMap?.DirectoryName,
-                            Gamemode = string.IsNullOrEmpty(GamemodeName)
-                                ? Gamemode?
-                                      .DirectoryName ?? "GTA Network"
-                                : GamemodeName,
-                            Port = Port,
-                            Passworded = PasswordProtected,
-                            fqdn = fqdn,
-                            ServerVersion = _serverVersion.ToString()
-                        };
-
-
-                        wb.UploadData(MasterServer.Trim('/') + "/addserver",
-                            Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(annObject)));
-                    }
-                    catch (WebException)
-                    {
-                        Program.Output("Failed to announce self: master server is not available at this time.",
-                            LogCat.Error);
-                        //if (LogLevel >= 2)
-                        //{
-                        //    Program.Output("\n====\n" + ex.ToString() + "\n====\n");
-                        //}
+                            if (_announceFailuresLogged++ < 5) Program.Output("Master list refused the announce (" + (int)response.StatusCode + "): " + body, LogCat.Warn);
+                            return;
+                        }
+                        _announceFailuresLogged = 0;
+                        var answer = JsonConvert.DeserializeObject<MasterAnswer>(body);
+                        if (answer != null && !answer.listed) Program.Output("Master list took the announce but does not list this server: " + (answer.reason ?? "no reason given"), LogCat.Warn);
+                        else if (LogLevel > 1) Program.Output("Master list: listed as " + (answer?.address ?? "?"), LogCat.Debug);
                     }
                 }
-            }) {IsBackground = true};
-            annThread.Start();
+                catch (Exception ex)
+                {
+                    if (_announceFailuresLogged++ < 5) Program.Output("Failed to announce to the master list " + master + ": " + ex.Message, LogCat.Error);
+                }
+            });
+        }
+
+        private sealed class MasterAnswer
+        {
+            public bool ok { get; set; }
+            public bool listed { get; set; }
+            public string address { get; set; }
+            public string reason { get; set; }
         }
 
         private bool isIPLocal(string ipaddress)
@@ -725,7 +765,7 @@ namespace GTANResource
                 }
             }
 
-            if (AnnounceSelf && DateTime.Now.Subtract(_lastAnnounceDateTime).TotalMinutes >= 2)
+            if (AnnounceSelf && DateTime.Now.Subtract(_lastAnnounceDateTime).TotalSeconds >= 60)
             {
                 _lastAnnounceDateTime = DateTime.Now;
                 AnnounceSelfToMaster();

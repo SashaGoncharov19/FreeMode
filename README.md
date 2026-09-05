@@ -251,6 +251,30 @@ with the bot, runs a handful of commands and asserts the replies, then connects 
 that chat, vehicle creation and position sync are relayed between them; CI runs it on every push. The bot is
 also a good way to see what a gamemode does over the wire while developing server scripts on Linux.
 
+## Listing a server on a master list
+
+The 2016 master (`master.gtanet.work`) is gone. `Tools/GTANetwork.Master` replaces it: a small ASP.NET Core service with a
+SQLite file that any host can run. Servers announce themselves to it; the in-game menu reads the list.
+
+Run a master (Docker; the list lives in the `master-data` volume):
+
+```bash
+docker build -t gtanetwork-master Tools/GTANetwork.Master && docker run -d --name master -p 8080:8080 -v master-data:/data gtanetwork-master
+```
+
+Point a server at it in `server/settings.xml`:
+
+```xml
+<announce>true</announce>
+<master>https://master.example.org</master>
+```
+
+The server announces every minute with its public key and a token from `master.token` (created next to the server at the
+first announce; the first token to announce an address keeps it, so keep the file with `server.key`). The master pings the
+announced UDP port before listing a server, so an unreachable server never appears. Players put the same address into
+`MasterServerAddress` in their `settings.xml` (the launcher window's Settings tab): the in-game menu then lists the master's
+servers and pins their keys when connecting from the list. Endpoints and configuration: `Tools/GTANetwork.Master/README.md`.
+
 ## Playing on Linux (Proton)
 
 Only **GTA V Legacy** (Steam app 271590) is supported; the Enhanced edition has a different executable.

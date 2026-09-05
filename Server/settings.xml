@@ -7,6 +7,8 @@
   <minclientversion_auto_update>false</minclientversion_auto_update>
   <!-- The public master server (master.gtanet.work) is gone; keep announcing off unless you host your own. -->
   <announce>false</announce>
+  <!-- The master list to announce to (Tools/GTANetwork.Master, T-011), e.g. https://master.example.org; empty = none. -->
+  <master></master>
   <upnp>false</upnp>
   <announce_lan>true</announce_lan>
   <password></password>
