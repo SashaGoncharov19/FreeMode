@@ -15,6 +15,7 @@ using System.Xml.Serialization;
 using GTANetworkServer.Constant;
 using GTANetworkServer.Managers;
 using GTANetworkShared;
+using GTANetworkShared.Crypto;
 using Lidgren.Network;
 using Newtonsoft.Json;
 using ProtoBuf;
@@ -48,40 +49,50 @@ namespace GTANetworkServer
             return client != sender;
         }
 
-        private static List<NetConnection> CollectNear(Client sender, bool requirePosition)
-        {
-            var connections = new List<NetConnection>();
+        // Interest management (T-003): a sender's recipients come from its Streamer's tiers; the sender's packet sequence
+        // picks which tiers a packet reaches (full: every packet, medium: every 3rd, low: every 10th, far: every 30th, a
+        // position only), and the recipient's byte budget drops the farther tiers when it is exhausted.
+        private const int TierFull = 0, TierMedium = 1, TierLow = 2, TierFar = 3;
 
-            foreach (var client in sender.Streamer.GetNearClients())
+        private void AddTier(List<NetConnection> recipients, Client[] tier, Client sender, int bytes, bool requirePosition, int tierIndex, long now)
+        {
+            var budget = Interest?.BudgetBytesPerSecond ?? 0;
+            for (var i = 0; i < tier.Length; i++)
             {
+                var client = tier[i];
                 if (!CanReceive(client, sender)) continue;
                 if (requirePosition && client.Position == null) continue;
-                connections.Add(client.NetConnection);
+                if (budget > 0)
+                {
+                    var second = now / 1000;
+                    if (client.BudgetSecond != second) { client.BudgetSecond = second; client.BudgetBytes = 0; }
+                    var wire = client.Session != null ? bytes + SessionCipher.Overhead : bytes;   // what leaves the socket, minus Lidgren's header
+                    if (tierIndex != TierFull && client.BudgetBytes + wire > budget) { Metrics.InterestDropped(); continue; }
+                    client.BudgetBytes += wire;
+                }
+                recipients.Add(client.NetConnection);
+                Metrics.InterestSent(tierIndex);
             }
-
-            return connections;
         }
 
-        private static List<NetConnection> CollectFar(Client sender)
+        /// <summary>The recipients of one pure or light packet of <paramref name="sender"/> (the three near tiers by the sequence).</summary>
+        private List<NetConnection> CollectNear(Client sender, uint sequence, int bytes, bool pure, long now)
         {
-            var connections = new List<NetConnection>();
-            var now = Program.MonotonicMs();
+            var streamer = sender.Streamer;
+            var recipients = new List<NetConnection>();
+            AddTier(recipients, streamer.Full, sender, bytes, pure, TierFull, now);
+            if (!pure || sequence % 3 == 0) AddTier(recipients, streamer.Medium, sender, bytes, pure, TierMedium, now);
+            if (!pure || sequence % 10 == 0) AddTier(recipients, streamer.Low, sender, bytes, pure, TierLow, now);
+            return recipients;
+        }
 
-            foreach (var client in sender.Streamer.GetFarClients())
-            {
-                if (!CanReceive(client, sender)) continue;
-
-                lock (client.LastPacketReceived)
-                {
-                    long last;
-                    if (client.LastPacketReceived.TryGetValue(sender.handle.Value, out last) && now - last <= 1000) continue;
-                    client.LastPacketReceived[sender.handle.Value] = now;
-                }
-
-                connections.Add(client.NetConnection);
-            }
-
-            return connections;
+        /// <summary>The far recipients of a position-only packet: everyone outside the tiers, every 30th pure packet (3 s).</summary>
+        private List<NetConnection> CollectFar(Client sender, uint sequence, int bytes, long now)
+        {
+            var recipients = new List<NetConnection>();
+            if (sequence % 30 != 0) return recipients;
+            AddTier(recipients, sender.Streamer.Far, sender, bytes, false, TierFar, now);
+            return recipients;
         }
 
         private void SendBasicSync(int netHandle, Vector3 position, List<NetConnection> connections)
@@ -100,8 +111,10 @@ namespace GTANetworkServer
         internal void ResendPacket(PedData fullPacket, Client exception, bool pure)
         {
             var full = pure ? PacketOptimization.WritePureSync(fullPacket) : PacketOptimization.WriteLightSync(fullPacket);
+            var now = Program.MonotonicMs();
+            var sequence = pure ? ++exception.SyncSequence : exception.SyncSequence;
 
-            var connectionsNear = CollectNear(exception, pure);
+            var connectionsNear = CollectNear(exception, sequence, full.Length + 5, pure, now);
             if (connectionsNear.Count > 0)
             {
                 var msg = Server.CreateMessage();
@@ -115,7 +128,7 @@ namespace GTANetworkServer
 
             if (!pure || fullPacket.NetHandle == null || fullPacket.Position == null) return;
 
-            var connectionsFar = CollectFar(exception);
+            var connectionsFar = CollectFar(exception, sequence, 25, now);
             if (connectionsFar.Count > 0) SendBasicSync(fullPacket.NetHandle.Value, fullPacket.Position, connectionsFar);
         }
 
@@ -123,8 +136,10 @@ namespace GTANetworkServer
         internal void ResendPacket(VehicleData fullPacket, Client exception, bool pure)
         {
             var full = pure ? PacketOptimization.WritePureSync(fullPacket) : PacketOptimization.WriteLightSync(fullPacket);
+            var now = Program.MonotonicMs();
+            var sequence = pure ? ++exception.SyncSequence : exception.SyncSequence;
 
-            var connectionsNear = CollectNear(exception, pure);
+            var connectionsNear = CollectNear(exception, sequence, full.Length + 5, pure, now);
             if (connectionsNear.Count > 0)
             {
                 var msg = Server.CreateMessage();
@@ -138,7 +153,7 @@ namespace GTANetworkServer
 
             if (!pure || fullPacket.NetHandle == null) return;
 
-            var connectionsFar = CollectFar(exception);
+            var connectionsFar = CollectFar(exception, sequence, 25, now);
             if (connectionsFar.Count == 0) return;
 
             // Passengers carry no position of their own; use the vehicle's last known one.

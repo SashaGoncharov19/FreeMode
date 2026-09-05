@@ -85,8 +85,11 @@ rendering can only be verified in game by the owner.
   `GET /metrics.json`, `eng/load-test.sh`. **Baseline** (`docs/SYNC.md` §6): 100 players — tick 1.9 ms; 300 — 66 ms and the
   loop at 11 Hz *because of per-recipient encryption* (1.1 ms in plaintext) — T-023 + Q-14; 1000 — the server collapses: the tick lags, the backlog grows (one tick of 81 s) and the connections time out (272 dropped with the bots half-starved; 969 → 4 at full rate). The
   egress per player is 4× over the plan's budget at 300 already: T-003 is about recipients and rates.
-* **In review 5 Sept**: T-023 relay workers (`task/T-023-encrypted-relay-cost`, PR): the per-player copy + AES-GCM of every
+* **Merged 5 Sept** (#22): T-023 relay workers: the per-player copy + AES-GCM of every
   message runs on 1–4 relay threads (`<relaythreads>`), not on the tick thread. 300 encrypted players: tick p50 66 → 0.5 ms, 11 → 51 ticks/s; the server emits the full rate, but Lidgren now drops 25 % at its per-connection send window (Q-10 evidence); 1000 join with a healthy tick, 437 time out at 16 MB/s of relay.
+* **In review 5 Sept**: T-003 interest management (`task/T-003-interest-management`, PR): a 200 m grid per dimension, tiers 10/3/1 Hz
+  by distance, a position every 3 s beyond range, at most 64 full-rate and 250 tiered recipients per sender, a 30 KB/s budget per
+  player. 1000 bots hold (tick p99 10 ms, 15 KB/s per player — both plan targets met on the harness); 300 players 120 → 32.5 KB/s per player. `needs owner`: the two-player smoothness check (task file → Owner check).
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
@@ -300,7 +303,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 ## What is next
 
 0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
-   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers in review (its PR); next **T-003** interest management (the recipient count and the rates — the baseline says egress per player is 4× the budget at 300 players). Each on its own `task/T-NNN-*`
+   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** interest management in review (its PR, `needs owner` for the two-player check); next in the plan: **T-014** DLC packs manifest (M2) or **T-020** dead code, unless the owner reorders. Each on its own `task/T-NNN-*`
    branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
    empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
    owner is away (the owner allowed it on 5 Sept).

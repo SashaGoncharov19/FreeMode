@@ -1,38 +1,106 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using GTANetworkServer.Constant;
 using GTANetworkShared;
 using Lidgren.Network;
 
 namespace GTANetworkServer.Managers
 {
-    // Recipient sets of one player's sync packets, refreshed once per second by the streamer thread:
-    // "near" players (same or global dimension, within NearRange, closest first, at most MaxNear) receive
-    // every pure and light sync packet; everyone else receives one position-only packet per second.
+    /// <summary>
+    /// Recipient sets of one player's sync packets (T-003 interest management). Every 250 ms the streamer thread indexes all
+    /// confirmed players in a grid of <c>cell</c>-metre cells per dimension and computes, for every player as a *sender*, who
+    /// receives its packets at which rate: <c>Full</c> (within <c>full</c> m, nearest first, at most <c>maxfull</c>) gets every
+    /// pure packet (10 Hz), <c>Medium</c> (within <c>medium</c> m) every third, <c>Low</c> (within <c>range</c> m, at most
+    /// <c>maxnear</c> in all three tiers together) every tenth; <c>Far</c> (everyone else, other dimensions included) gets one
+    /// position-only packet every 3 s. Players in dimension 0 see and are seen by every dimension. The per-recipient byte budget
+    /// is applied when the packets are sent (Packets.cs). The arrays are replaced atomically and never mutated.
+    /// </summary>
     internal class Streamer
     {
-        public const float NearRange = 2500f;   // the client streams players in at 2000 m; margin for 1 s old positions
-        public const int MaxNear = 250;         // the client's player budget
-
         public static bool Stop;
+
+        private struct Entry
+        {
+            public Client Client;
+            public Vector3 Position;
+            public int Dimension;
+        }
+
+        private struct Candidate : IComparable<Candidate>
+        {
+            public float DistanceSquared;
+            public Client Client;
+            public int CompareTo(Candidate other) => DistanceSquared.CompareTo(other.DistanceSquared);
+        }
+
         public static void MainThread()
         {
             while (!Stop)
             {
-                foreach (var client in Program.ServerInstance.PublicAPI.getAllPlayers())
+                try
                 {
-                    try
-                    {
-                        client.Streamer.Pulse();
-                    }
-                    catch (Exception)
-                    {
-                        // a player that vanished mid-pulse; the next pulse starts from scratch
-                    }
+                    Pass();
                 }
-
-                Thread.Sleep(100);
+                catch (Exception ex)
+                {
+                    Program.Output("Streamer pass failed: " + ex.GetType().Name + ": " + ex.Message, LogCat.Warn);
+                }
+                Thread.Sleep(250);
             }
+        }
+
+        /// <summary>One pass: index everyone, then compute every sender's tiers.</summary>
+        private static void Pass()
+        {
+            var server = Program.ServerInstance;
+            if (server == null) return;
+            var settings = server.Interest ?? new InterestSettings();
+            var cell = Math.Max(50f, settings.CellSize);
+
+            List<Client> players;
+            lock (server.Clients) players = new List<Client>(server.Clients);
+            var properties = server.NetEntityHandler.ToDict();
+
+            var entries = new List<Entry>(players.Count);
+            var grids = new Dictionary<int, Dictionary<long, List<Client>>>();
+            foreach (var client in players)
+            {
+                if (client == null || client.Fake || client.NetConnection == null || !client.ConnectionConfirmed) continue;
+                if (client.NetConnection.Status == NetConnectionStatus.Disconnected) continue;
+                var position = client.Position;
+                EntityProperties props;
+                var dimension = properties.TryGetValue(client.handle.Value, out props) ? props.Dimension : 0;
+                entries.Add(new Entry { Client = client, Position = position, Dimension = dimension });
+                if (position == null) continue;
+                Dictionary<long, List<Client>> grid;
+                if (!grids.TryGetValue(dimension, out grid)) grids[dimension] = grid = new Dictionary<long, List<Client>>();
+                var key = CellKey(position, cell);
+                List<Client> bucket;
+                if (!grid.TryGetValue(key, out bucket)) grid[key] = bucket = new List<Client>();
+                bucket.Add(client);
+            }
+
+            var candidates = new List<Candidate>();
+            var seen = new HashSet<Client>();
+            foreach (var entry in entries)
+            {
+                try
+                {
+                    entry.Client.Streamer?.Compute(entry, entries, grids, settings, cell, candidates, seen);
+                }
+                catch (Exception)
+                {
+                    // a player that vanished mid-pass; the next pass starts from scratch
+                }
+            }
+        }
+
+        private static long CellKey(Vector3 position, float cell)
+        {
+            var cx = (int)Math.Floor(position.X / cell);
+            var cy = (int)Math.Floor(position.Y / cell);
+            return ((long)cx << 32) | (uint)cy;
         }
 
         public Streamer(Client f)
@@ -41,69 +109,92 @@ namespace GTANetworkServer.Managers
         }
 
         private readonly Client _parent;
-        private Client[] _near = Array.Empty<Client>();   // replaced atomically, never mutated
-        private Client[] _far = Array.Empty<Client>();
-        private long _lastUpdate;
+        private Client[] _full = Array.Empty<Client>();     // every pure packet
+        private Client[] _medium = Array.Empty<Client>();   // every third
+        private Client[] _low = Array.Empty<Client>();      // every tenth
+        private Client[] _near = Array.Empty<Client>();     // the three tiers together (bullets, unoccupied vehicles, light sync)
+        private Client[] _far = Array.Empty<Client>();      // one position every 3 s
 
-        public IEnumerable<Client> GetNearClients()
-        {
-            return _near;
-        }
+        public Client[] Full => _full;
+        public Client[] Medium => _medium;
+        public Client[] Low => _low;
+        public Client[] Far => _far;
 
-        /// <summary>How many players this one currently receives at the pure rate (Metrics).</summary>
+        public IEnumerable<Client> GetNearClients() => _near;
+        public IEnumerable<Client> GetFarClients() => _far;
+
+        /// <summary>How many players receive this one within range (the three rate tiers together; Metrics).</summary>
         public int NearCount => _near.Length;
 
-        public IEnumerable<Client> GetFarClients()
+        private void Compute(Entry me, List<Entry> all, Dictionary<int, Dictionary<long, List<Client>>> grids, InterestSettings settings, float cell, List<Candidate> candidates, HashSet<Client> seen)
         {
-            return _far;
-        }
+            if (me.Position == null) return;   // nothing received from this player yet; keep the previous sets
 
-        private static int DimensionOf(Client client)
-        {
-            EntityProperties properties;
-            return Program.ServerInstance.NetEntityHandler.ToDict().TryGetValue(client.handle.Value, out properties) ? properties.Dimension : 0;
-        }
+            var range = Math.Max(cell, settings.Range);
+            var rangeSquared = range * range;
+            var fullSquared = (float)settings.FullRange * settings.FullRange;
+            var mediumSquared = (float)settings.MediumRange * settings.MediumRange;
+            var cells = (int)Math.Ceiling(range / cell);
+            var cx = (int)Math.Floor(me.Position.X / cell);
+            var cy = (int)Math.Floor(me.Position.Y / cell);
 
-        public void Pulse()
-        {
-            var now = Program.MonotonicMs();
-            if (now - _lastUpdate <= 1000) return;
-            _lastUpdate = now;
-
-            var parentPosition = _parent.Position;
-            if (parentPosition == null) return;   // nothing received from this player yet; keep the previous sets
-            var parentDimension = DimensionOf(_parent);
-
-            var near = new List<KeyValuePair<float, Client>>();
-            var far = new List<Client>();
-
-            foreach (var client in Program.ServerInstance.PublicAPI.getAllPlayers())
+            candidates.Clear();
+            seen.Clear();
+            foreach (var pair in grids)
             {
-                if (client == _parent || client.Fake || client.NetConnection == null || !client.ConnectionConfirmed) continue;
-                if (client.NetConnection.Status == NetConnectionStatus.Disconnected) continue;
-
-                var position = client.Position;
-                if (position == null)
+                // a dimension-0 player sees every dimension; everyone sees dimension 0 and their own
+                if (me.Dimension != 0 && pair.Key != 0 && pair.Key != me.Dimension) continue;
+                var grid = pair.Value;
+                for (var x = cx - cells; x <= cx + cells; x++)
                 {
-                    far.Add(client);
-                    continue;
+                    for (var y = cy - cells; y <= cy + cells; y++)
+                    {
+                        List<Client> bucket;
+                        if (!grid.TryGetValue(((long)x << 32) | (uint)y, out bucket)) continue;
+                        foreach (var other in bucket)
+                        {
+                            if (other == _parent) continue;
+                            var position = other.Position;
+                            if (position == null) continue;
+                            var distance = me.Position.DistanceToSquared(position);
+                            if (distance > rangeSquared) continue;
+                            candidates.Add(new Candidate { DistanceSquared = distance, Client = other });
+                        }
+                    }
                 }
+            }
+            candidates.Sort();
 
-                var dimension = DimensionOf(client);
-                var sameWorld = parentDimension == 0 || dimension == 0 || parentDimension == dimension;
-                var distance = parentPosition.DistanceToSquared(position);
-
-                if (sameWorld && distance <= NearRange * NearRange) near.Add(new KeyValuePair<float, Client>(distance, client));
-                else far.Add(client);
+            var maxNear = Math.Max(1, settings.MaxNear);
+            var maxFull = Math.Max(0, settings.MaxFull);
+            var full = new List<Client>();
+            var medium = new List<Client>();
+            var low = new List<Client>();
+            for (var i = 0; i < candidates.Count && i < maxNear; i++)
+            {
+                var c = candidates[i];
+                if (c.DistanceSquared <= fullSquared && full.Count < maxFull) full.Add(c.Client);
+                else if (c.DistanceSquared <= mediumSquared) medium.Add(c.Client);
+                else low.Add(c.Client);
+                seen.Add(c.Client);
             }
 
-            near.Sort((a, b) => a.Key.CompareTo(b.Key));
+            var far = new List<Client>();
+            foreach (var entry in all)
+            {
+                if (entry.Client == _parent || seen.Contains(entry.Client)) continue;
+                far.Add(entry.Client);
+            }
 
-            var nearArray = new Client[Math.Min(near.Count, MaxNear)];
-            for (var i = 0; i < nearArray.Length; i++) nearArray[i] = near[i].Value;
-            for (var i = nearArray.Length; i < near.Count; i++) far.Add(near[i].Value);
+            var near = new Client[full.Count + medium.Count + low.Count];
+            full.CopyTo(near, 0);
+            medium.CopyTo(near, full.Count);
+            low.CopyTo(near, full.Count + medium.Count);
 
-            _near = nearArray;
+            _full = full.ToArray();
+            _medium = medium.ToArray();
+            _low = low.ToArray();
+            _near = near;
             _far = far.ToArray();
         }
     }

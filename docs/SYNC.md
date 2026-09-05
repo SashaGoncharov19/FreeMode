@@ -188,6 +188,8 @@ loop asks for 60 ticks/s (`Thread.Sleep(1000/60)` after each tick).
 | 1000 (10 pump threads; loaded phase, before the collapse) | 973 | 66.6 / 814 / 80861 | ~13 | 1.0, 0.1 | ~527, ~25 | ~24500 | 668/245/108 | ~240 / 250 | 870 | 6353 |
 | 300, after T-023 (relay workers) | 300 | 0.52 / 19.63 / 29.0 | 51 | 10.1, 0.7 | 2512.5, 120.2 | 36058.7 | 258/212/14 | 250 / 250 | 191 | 138 |
 | 1000, after T-023 (6 pump threads) | 1000 | 3.37 / 16.61 / 75.1 | 49 | 2.2, 0.1 | 713.4, 25.3 | 15756.3 | 414/171/17 | 243 / 250 | 285 | 981 |
+| 300, after T-003 (interest management) | 300 | 1.09 / 4.29 / 11.7 | 58 | 10.7, 0.8 | 712.7, 32.5 | 9744.2 | 142/119/3 | 221 / 250 | 169 | 118 |
+| 1000, after T-003 | 1000 | 2.08 / 10.31 / 24.4 | 54 | 2.7, 0.2 | 423.2, 15.1 | 15109.0 | 394/361/13 | 250 / 250 | 283 | 443 |
 
 What the numbers say:
 
@@ -230,6 +232,19 @@ not drain 750 k messages/s. 1000 players: all join and the tick stays at 3.4 ms 
 collapse is gone — but 437 connections time out during the 120 s at ~16 MB/s of relay. The transport (one socket thread,
 per-connection windows) is the visible limit now: that is Q-10's question, to be decided after T-003 cuts the message count.
 The relay workers dropped 2324 messages at their own queues (0.002 %).
+
+**After T-003 (interest management, same day)** — tiers by distance (10 Hz ≤ 50 m, ~3 Hz ≤ 200 m, 1 Hz ≤ 2000 m, a position
+every 3 s beyond) from a 200 m grid recomputed every 250 ms, at most 64 players at the full rate and 250 in the tiers per
+sender, and a 30 KB/s budget per recipient (`Server/Managers/Streamer.cs`, `Packets.cs`, `<interest>`). 300 players: the server sends 713 packets/s and 32.5 KB/s per player instead of 2512 and 120 KB/s, and Lidgren refuses nothing
+(tick p50 1.1 ms, p99 4.3 ms, 58 ticks/s; the receivers got 740 packets/s per bot). The budget drops ~54 k messages/s of the medium
+and low tiers; the full tier alone (64 players at 10 Hz in the crowd) is most of what remains — tier mix per second: full 130 k,
+medium 23 k, low 38 k, far 4.8 k. **1000 players hold**: all 1000 join and stay for the 120 s (before: 437 timed out), tick p50 2.1 ms / p99 10.3 ms (target ≤ 16),
+54 ticks/s, 423 packets/s and 15.1 KB/s per player (target ≤ 30 KB/s), 15 MB/s in total, server RSS 283 MB; Lidgren refused 26 k of
+82 M messages (0.03 %) and the receivers got what was sent (424 packets/s per bot). The tier mix at 1000 in one 1500 m cluster:
+full 150 k/s, medium 220 k/s, low 4 k/s, far 48 k/s — the 250-recipient cap is reached inside the medium tier, so most players see
+the rest of the crowd at ~3 Hz and the budget hardly triggers. Both E-03 targets of `docs/PLAN.md` §1 are met on the harness; the
+owner's two-player check decides whether the tiers feel right in game. Still broadcast to everyone: entity create/update/delete
+packets and unoccupied-vehicle sync (§5).
 
 Reproduce: `docker compose run --rm dev eng/load-test.sh 100 120` (then 300, 1000); `LOAD_NO_ENCRYPTION=1` runs the same
 with plaintext sessions (`--no-encryption`, `RequireEncryption` off) to isolate the cipher's share. Samples and reports land in

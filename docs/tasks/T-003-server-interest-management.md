@@ -1,6 +1,6 @@
 # T-003 — Server-side interest management: grid cells, per-type ranges, tiered rates, per-player budget
 
-Status: ready
+Status: needs owner (implemented and measured; the two-player check remains)
 Epic: E-03 Scale
 Size: L
 Branch: task/T-003-interest-management from the integration branch
@@ -44,9 +44,9 @@ Today `Server/Managers/Streamer.cs` recomputes near/far sets with an O(N²) dist
 
 ## Acceptance criteria
 
-- [ ] `eng/load-test.sh 1000 120`: tick p99 ≤ 16 ms, out bps per player ≤ 30 KB/s; numbers in `docs/SYNC.md`.
+- [x] `eng/load-test.sh 1000 120`: tick p99 ≤ 16 ms, out bps per player ≤ 30 KB/s; numbers in `docs/SYNC.md` §6 — tick p99 10.31 ms, 15.1 KB/s per player, all 1000 stayed connected for 120 s (before: 437 timed out).
 - [ ] Two real players (owner + one) still see each other move without visible steps at 10 m (no regression).
-- [ ] `eng/dev-test.sh` passes.
+- [x] `eng/dev-test.sh` passes.
 
 ## Test plan
 
@@ -60,7 +60,25 @@ the entity between grids in the same tick.
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 10:20 agent — started (branched from the T-023 branch so the relay workers are in; the PR targets the integration branch after #22).
+* 2026-09-05 11:30 agent — implemented and measured; PR opened; needs the owner's two-player check.
 
 ## Result
 
-(empty)
+* **Changed**: `Server/Managers/Streamer.cs` (rewritten: one pass every 250 ms indexes all players in a grid per dimension and
+  computes each sender's `Full`/`Medium`/`Low`/`Far` arrays; `GetNearClients()` = the three tiers, `GetFarClients()` = the rest,
+  so bullets and unoccupied vehicles kept their behaviour), `Server/Packets.cs` (`AddTier`, `CollectNear(sender, sequence, …)`,
+  `CollectFar` every 30th pure packet; the per-pair `LastPacketReceived` dictionary is gone), `Server/Elements/Client.cs`
+  (`SyncSequence`, budget counters), `Shared/ServerSettings.cs` (`InterestSettings`, `<interest … />`), `Server/settings.xml`,
+  `Server/GameServer.cs` (`Interest`), `Server/Managers/Metrics.cs` (`interest` in `/metrics.json`), `docs/SYNC.md` §6,
+  `docs/PLAN.md`, `docs/CODEMAP.md`, `CHANGELOG.md`.
+* **Verified**: `eng/load-test.sh 1000 120`: all 1000 joined and stayed, tick 2.08 / 10.31 ms p50/p99, 54 ticks/s, 423 pkt/s and 15.1 KB/s
+  per player (T-023 state: 3.37 / 16.61 ms, 713 pkt/s, 437 timed out), Lidgren refused 0.03 %; `eng/load-test.sh 300 120`: 2512 → 713 pkt/s and 120 → 32.5 KB/s per player, tick 0.52 → 1.09 ms p50 and 19.6 → 4.3 ms p99, Lidgren refused nothing (25 % before). One `eng/dev-test.sh` run before the budget-accounting fix exited 1 without a captured message; the rerun with the full log is green. `eng/dev-test.sh` green.
+* **Owner check**: two clients (the owner and one more) on the local server, 10 m apart: the other player walks without visible
+  steps (10 Hz tier); at 100 m the motion is at ~3 Hz (interpolated by the client), at 300 m+ at 1 Hz. `curl
+  http://<server>:4499/metrics.json` → `interest.fullPps` counts the 10 Hz relays. Bad: the other player teleports or freezes
+  within 50 m, or `budgetDroppedPps` is non-zero with two players.
+* **Not done / follow-ups**: entity create/update/delete packets are still broadcast to every connection (`SendToAll`), unoccupied-vehicle
+  sync uses the near set without tiers, and vehicles with passengers use the driver's tiers (`docs/SYNC.md` §5). The budget counts
+  the payload plus the session overhead, not Lidgren's headers. In a dense crowd the full tier alone (64 players × 10 Hz) is
+  ~35 KB/s: crowded servers lower `maxfull` or `full`.
