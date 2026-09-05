@@ -58,13 +58,13 @@ namespace GTANetwork.Util
                         if (Clock.ElapsedMilliseconds - _stageStart > 120000) { Log("FAILED: not connected with scripts after 120 s (on server " + Main.IsOnServer() + ", loader " + ConnectLoader.Visible + ", scripts " + JavascriptHook.ScriptEngines.Count + ")"); Finish(); }
                         return;
                     case 3:
-                        if ((_scriptResult != null && _pageResult != null) || Clock.ElapsedMilliseconds - _stageStart > 30000)
+                        if ((_scriptResult != null && _pageResult != null) || Clock.ElapsedMilliseconds - _stageStart > 60000)
                         {
-                            Log("script rpc: " + (_scriptResult ?? "NO RESULT in 30 s"));
-                            Log("page rpc: " + (_pageResult ?? "NO RESULT in 30 s"));
+                            Log("script rpc: " + (_scriptResult ?? "NO RESULT in 60 s"));
+                            Log("page rpc: " + (_pageResult ?? "NO RESULT in 60 s"));
                             var ok = _scriptResult != null && _scriptResult.StartsWith("ok") && _pageResult != null && _pageResult.StartsWith("ok");
                             Log(ok ? "RESULT: OK" : "RESULT: FAILED");
-                            if (StaySeconds > 0) { Log("staying " + StaySeconds + " s for measurements (GTAN_AUTOTEST_STAY)"); Next(4); }
+                            if (StaySeconds > 0) { LogManager.Verbose = true; Log("staying " + StaySeconds + " s for measurements (GTAN_AUTOTEST_STAY); verbose logging on"); Next(4); }
                             else Finish();
                         }
                         return;

@@ -44,7 +44,7 @@ timestamps) so the same movement can be compared before and after a sync change.
 * **Deviation from the Files list**: the route is recorded by the client (`GTAN_RECORD_ROUTE=1`), as the task's note suggested, not
   by the bot; the summary goes through `LogManager.VerboseLog` (debug mode) as specified.
 * **Verified**: the client builds against the real ScriptHookVDotNet build; `eng/dev-test.sh` green; the bot's `--route` is exercised only by hand (the replay moves the bot; nothing in CI asserts on it).
-  __T018_VERIFIED__
+  Two headless runs on the owner's machine (`GTAN_AUTOTEST=127.0.0.1:4498 GTAN_AUTOTEST_STAY=60`, a private server, four bots walking at freeroam's spawn points): the autotest passed (`RESULT: OK`, script and page RPC) and the `[SYNC]` summary was written every 10 s for the 60 s stay — but with `players 0 (nobody streamed in with a ped)`: no bot became a streamed-in ped within the minute (the second run also reused a server left over from the first, so the setup is not trusted); the in-game numbers therefore stay the owner's check. The first run also showed that a loaded machine needs more than 30 s to start the browser for the page check, so the autotest now waits 60 s.
 * **Owner check**: `GTAN_RECORD_ROUTE=1 ~/GTANetwork/play.sh --debug`, walk and drive for a minute, quit; then
   `~/GTANetwork/GTANetwork.Bot --route ~/GTANetwork/logs/route-<stamp>.jsonl --duration 300 --name Route` and play with debug mode
   on: the overlay lists "Route" with err / age / Hz, `grep "\[SYNC\]" ~/GTANetwork/logs/Runtime.log` shows the summaries. Record

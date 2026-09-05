@@ -48,7 +48,7 @@ namespace GTANetwork.Sync
                 ages.Add(ped.TicksSinceLastUpdate);
                 rates.Add(ped.PacketRateHz);
             }
-            if (errors.Count == 0) { LastSummary = "[SYNC] players 0"; return; }
+            if (errors.Count == 0) { LastSummary = "[SYNC] players 0 (nobody streamed in with a ped)"; LogManager.VerboseLog(LastSummary); return; }
             errors.Sort(); ages.Sort();
             LastSummary = string.Format("[SYNC] players {0}, error p50 {1:0.00} m / p95 {2:0.00} m, age p95 {3} ms, rate {4:0.0} Hz, fps {5:0}",
                 errors.Count, Percentile(errors, 0.5), Percentile(errors, 0.95), Percentile(ages, 0.95), rates.Average(), Game.FPS);

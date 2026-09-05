@@ -266,4 +266,4 @@ with plaintext sessions (`--no-encryption`, `RequireEncryption` off) to isolate 
 * **Without a person at the keyboard**: `GTAN_AUTOTEST=host:port GTAN_AUTOTEST_STAY=60 ~/GTANetwork/play.sh --debug` keeps the
   game on the server for 60 s after the RPC checks; with a bot moving nearby the `[SYNC]` lines land in `Runtime.log`.
 
-Baseline: __T018_BASELINE__
+Baseline: not recorded yet — it needs a player in game with a bot streamed in nearby (the owner's check in the task file); the two headless attempts on 5 Sept 2026 logged the summaries but no streamed-in ped within 60 s.
