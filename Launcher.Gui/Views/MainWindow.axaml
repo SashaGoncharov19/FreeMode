@@ -23,6 +23,7 @@
         <TextBlock Text="GTA" FontSize="30" FontWeight="Bold" Foreground="White" Margin="8,4,0,0"/>
         <TextBlock Text="Network" FontSize="22" FontWeight="Bold" Foreground="#f5a623" Margin="8,-8,0,16"/>
         <Button Classes="nav" Content="Home" Command="{Binding ShowHomeCommand}"/>
+        <Button Classes="nav" Content="Servers" Command="{Binding ShowServersCommand}"/>
         <Button Classes="nav" Content="Settings" Command="{Binding ShowSettingsCommand}"/>
         <Button Classes="nav" Content="Packs" Command="{Binding ShowPacksCommand}"/>
         <Button Classes="nav" Content="Logs" Command="{Binding ShowLogsCommand}"/>
@@ -96,6 +97,38 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
+
+    <!-- servers (T-024) -->
+    <Grid Grid.Column="1" IsVisible="{Binding IsServers}" RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="24">
+      <TextBlock Grid.Row="0" Classes="h1" Text="Servers"/>
+      <TextBlock Grid.Row="1" Classes="muted" Text="The master list (Settings → master list address), your favourites and recent servers. Connect starts the game and joins the server as soon as it has loaded." TextWrapping="Wrap" Margin="0,4,0,8"/>
+      <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
+        <TextBox Text="{Binding DirectAddress}" Width="260" Watermark="host:port"/>
+        <Button Classes="primary" Content="Connect" Command="{Binding ConnectDirectCommand}" IsEnabled="{Binding CanPlay}"/>
+        <Button Content="Refresh" Command="{Binding RefreshServersCommand}" IsEnabled="{Binding !ServersBusy}"/>
+      </StackPanel>
+      <ScrollViewer Grid.Row="3" Margin="0,12,0,0">
+        <ItemsControl ItemsSource="{Binding ServerRows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Background="#141a21" Padding="10" Margin="0,0,0,6" CornerRadius="4">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                  <Button Grid.Column="0" Content="{Binding FavoriteGlyph}" Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).ToggleFavoriteCommand}" CommandParameter="{Binding}" Width="36" Margin="0,0,10,0"/>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding Address}" Classes="muted" FontSize="12"/>
+                    <TextBlock Text="{Binding Details}" Classes="muted" FontSize="12"/>
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding Players}" VerticalAlignment="Center" Margin="12,0"/>
+                  <Button Grid.Column="3" Classes="primary" Content="Connect" Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).ConnectToCommand}" CommandParameter="{Binding}" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <TextBlock Grid.Row="4" Text="{Binding ServersStatus}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    </Grid>
 
     <!-- DLC packs (T-014) -->
     <Grid Grid.Column="1" IsVisible="{Binding IsPacks}" RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="24">

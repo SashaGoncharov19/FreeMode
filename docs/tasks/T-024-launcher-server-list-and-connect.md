@@ -1,6 +1,6 @@
 # T-024 — Launcher window: server list from the master, favourites and recent, connect in one click
 
-Status: in progress
+Status: needs owner (implemented; the one-click connect must be seen in game)
 Epic: E-06 Launcher with a GUI (Linux and Windows) and an updater
 Size: M
 Branch: task/T-024-launcher-server-list from the integration branch
@@ -36,15 +36,26 @@ the launcher only had Play.
 
 ## Acceptance criteria
 
-- [ ] `GTANetwork.Launcher.Gui --self-test` still passes; the Servers page lists the rows of a master (`eng/integration-test-master.sh`'s
-      shape) and the favourites/recent of `settings.xml`.
+- [x] `GTANetwork.Launcher.Gui --self-test` passes; the Servers page merges the master rows (`MasterServerRow`, the `/servers/full` shape) with the favourites/recent of `settings.xml` (`ServerList.Merge`).
 - [ ] Owner check: *Connect* on the local server starts the game and joins without touching the menu; `Runtime.log` has
       `autoconnect: connecting to host:port`.
 
 ## Log
 
 * 2026-09-05 20:10 agent — created and started (follows T-011; the plan's "server list in the GUI").
+* 2026-09-05 20:50 agent — page, fetch, favourites/recent, connect hand-over and the CLI flag done; PR opened; needs the owner in game.
 
 ## Result
 
-(empty)
+* **Changed**: `Shared/MasterList.cs` (new: `MasterServerRow`), `Client/Util/AutoConnect.cs` (new) + `Client/Main.cs` (the tick),
+  `Launcher.Core/ServerList.cs` (new: fetch, merge, favourites, recent, the `GTAN_CONNECT` target), `Launcher.Core/LaunchSession.cs`
+  (forwards `GTAN_CONNECT` and `GTAN_AUTOTEST_STAY`), `Launcher/Program.cs` (`--connect`), `Launcher.Gui` (the Servers page:
+  master rows with players/gamemode/version/verified/pinned, ★ favourites written to `settings.xml`, recent, direct connect;
+  Connect sets `GTAN_CONNECT`, remembers the server as recent and runs Play), `CHANGELOG.md`, `docs/CODEMAP.md`.
+* **Verified**: the solution builds, the GUI headless self-test passes, the client builds against the real ScriptHookVDotNet build;
+  `eng/dev-test.sh` green. The join itself needs the game.
+* **Owner check**: `~/GTANetwork/gui/GTANetwork.Launcher.Gui` → Servers → type `127.0.0.1:4499` → Connect (or
+  `~/GTANetwork/GTANetwork.Launcher run --connect 127.0.0.1:4499`): the game starts and joins the local server without the menu;
+  `Runtime.log` has `autoconnect: game ready ...` and `autoconnect: connecting to 127.0.0.1:4499`. With `MasterServerAddress` set,
+  the page lists the master's servers and Connect on one of them pins its key (`session: ... pinned` in `Runtime.log`).
+* **Not done / follow-ups**: LAN discovery in the launcher; ping per server; the updater (E-06).

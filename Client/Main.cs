@@ -483,6 +483,7 @@ namespace GTANetwork
 
             CefMenu.Tick();
             AutoTest.Tick(this);
+            AutoConnect.Tick(this);   // T-024: GTAN_CONNECT from the launcher
             Voice.VoicePlayback.MasterVolume = PlayerSettings.VoiceVolume / 100f;
             Voice.VoicePlayback.Tick(Environment.TickCount);
             PauseMenu();

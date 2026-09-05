@@ -167,6 +167,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Servers in the launcher window, connect in one click** (T-024): a *Servers* page lists the master's servers (`MasterServerAddress`
+  → `/servers/full`: name, players, gamemode, version, verified, pinned key) with your favourites (★) and recent servers from
+  `settings.xml`, plus a direct-connect field; *Connect* starts the game and joins the server as soon as it has loaded, without the
+  menu, pinning the key the master gave. The same from the command line: `GTANetwork.Launcher run --connect host:port[#key]`. The
+  hand-over is `GTAN_CONNECT` in the game's environment (`Client/Util/AutoConnect.cs`).
 * **Voice chat in the client** (T-016): hold the push-to-talk key (`N`; Settings → Voice) to talk — the microphone is captured
   (WASAPI shared mode, WinMM as the fallback), converted to 48 kHz mono, encoded with Opus and sent as `Voice` packets; other
   players' frames are decoded per talker and mixed with distance attenuation (silent at 45 m) and stereo panning from their synced
