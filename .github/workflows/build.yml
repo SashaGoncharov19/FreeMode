@@ -46,7 +46,7 @@ jobs:
             --client "$(ls Client/bin/Release/net*/GTANetwork.dll | head -1)" \
             --server "$(ls Server/bin/Release/net*/GTANetworkServer.dll | head -1)" \
             --net48-refs "$refs" --probe "$(dirname "$(ls Shv.NET/ref/bin/Release/net48/ScriptHookVDotNet.dll | head -1)")" --out types --runtime-lib runtime/gtan
-          git diff --exit-code -- types/ runtime/gtan/api.generated.d.ts || { echo "types/ is stale: run Tools/GTANetwork.TypeGen (types/README.md) and commit the result"; exit 1; }
+          git diff --exit-code -- types/ runtime/gtan/api.generated.d.ts runtime/gtan/enums.generated.ts || { echo "types/ is stale: run Tools/GTANetwork.TypeGen (types/README.md) and commit the result"; exit 1; }
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -78,8 +78,11 @@ jobs:
           set -euo pipefail
           dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/bot-linux-x64
           dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/bot-win-x64
+          dotnet publish Tools/GTANetwork.Cli/GTANetwork.Cli.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true  -p:PublishSingleFile=true -o artifacts/cli-linux-x64
+          dotnet publish Tools/GTANetwork.Cli/GTANetwork.Cli.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r win-x64   --self-contained false -p:PublishSingleFile=true -o artifacts/cli-win-x64
           eng/integration-test.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
           eng/integration-test-auth.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
+          eng/integration-test-template.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot artifacts/cli-linux-x64/gtanetwork
 
       - uses: actions/upload-artifact@v4
         with:
@@ -121,6 +124,18 @@ jobs:
         with:
           name: gtanetwork-bot-win-x64-${{ env.GTAN_VERSION }}
           path: artifacts/bot-win-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-cli-linux-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/cli-linux-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-cli-win-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/cli-win-x64
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------------------------

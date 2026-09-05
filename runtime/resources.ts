@@ -25,6 +25,7 @@ export class Resources {
       const main = mod.default ?? mod.main;
       if (typeof main !== "function") throw new Error(entry + " must export default function main(gtan)");
       await main(gtan);
+      if (this.loaded.get(resource) !== item) { this.log("info", resource, "unloaded while " + entry + " was loading; not started"); return; }
       await gtan.dispatch("resourceStart", []);
       this.log("info", resource, "started " + entry + " (Bun " + Bun.version + ")");
     } catch (e) {

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The GTA Network command line: `gtanetwork create <name>` writes a resource skeleton in TypeScript (server script for the
+    Bun runtime, client script bundled by the server, a CEF page, the typings it type-checks against, package.json with
+    `check`). The templates (templates/resource) and the typings (types/, runtime/gtan) ship next to the executable.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>gtanetwork</AssemblyName>
+    <RootNamespace>GTANetwork.Cli</RootNamespace>
+    <AssemblyTitle>GTA Network command line</AssemblyTitle>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RollForward>LatestMajor</RollForward>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\templates\**\*" Link="templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\types\shared.d.ts;..\..\types\client.d.ts;..\..\types\cef.d.ts;..\..\runtime\gtan\*.generated.d.ts;..\..\runtime\gtan\*.generated.ts" Link="typings\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

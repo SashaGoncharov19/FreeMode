@@ -359,6 +359,8 @@ namespace GTANetworkServer
                 case string s: return new JValue(s);
                 case bool b: return new JValue(b);
                 case Enum e: return new JValue(System.Convert.ToInt64(e));
+                // integral doubles (MessagePack from the runtime carries JavaScript numbers as float64) print as integers, not "…​.0"
+                case double d when Math.Abs(d) < 9007199254740992.0 && Math.Floor(d) == d: return new JValue((long)d);
                 case byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal: return new JValue(value);
                 case NetHandle h: return new JValue(h.Value);
                 case Client c: return new JValue(c.handle.Value);

@@ -1,0 +1,6 @@
+html, body { margin: 0; height: 100%; background: transparent; color: #e8e8e8; font: 15px/1.4 "Segoe UI", "Noto Sans", sans-serif; }
+.panel { margin: 16px; padding: 20px 24px; background: rgba(15, 18, 22, 0.92); border: 1px solid #2b3644; border-radius: 10px; }
+h1 { margin: 0 0 12px; font-size: 22px; color: #f5a623; }
+.row { display: flex; gap: 10px; margin-top: 16px; }
+button { background: #263241; border: 1px solid #34435a; color: #fff; font: inherit; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+button:hover { background: #2f3d4f; }

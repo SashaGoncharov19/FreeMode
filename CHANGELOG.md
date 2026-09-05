@@ -41,6 +41,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
   password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
   `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
+* **`gtanetwork create <name>`** (`Tools/GTANetwork.Cli`, published for Linux and Windows with every build) writes a self-contained
+  resource skeleton in TypeScript: `server/index.ts` for the Bun runtime, `client/index.ts` bundled by the server, a CEF page
+  talking to both through `gtan.rpc.call`, the typings it type-checks against (`types/`), `package.json` with `bun run check`.
+  **freeroam is TypeScript on both sides now** (`server/index.ts` + `client/index.ts`; `freeroam.cs` is gone) with the same
+  commands and messages. The runtime library gained `gtan.enums` (the enums the server API uses, generated as runtime tables:
+  `gtan.enums.VehicleHash.Adder`) and `gtan.parseEnum` / `gtan.enumName` for chat arguments (`/veh adder` → `Adder`).
 * **Client scripts in TypeScript** (`<script src="client/index.ts" type="client" lang="typescript"/>`): at resource start the server
   bundles the entry with Bun (`bun build --target=browser --format=iife`; imports resolved, types erased) into the one JavaScript
   text the in-game engine already runs, and caches it under `resources/.cache/<resource>/` by the hash of the resource's sources
