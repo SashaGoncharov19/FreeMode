@@ -210,6 +210,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   release. `eng/dev-test.sh` runs the Linux CI checks (server smoke test + headless-bot integration) locally.
   See `docs/DEVCONTAINER.md`.
 
+### Removed
+* Dead code and unused binaries (T-020): the legacy client sources that were excluded from the build (`Client/Networking/*Sync*`,
+  root `Chat.cs`/`ClassicChat.cs`, `Main/Math.cs`, `Misc/Program.cs`, `Util/DebugWindow.cs`, the D3D10 hooks), the unused
+  `libs/` DLLs (`EasyHook.dll`, `Interop.WMPLib.dll`, `Ionic.Zip.dll`, Owin/Nancy, `NAudio.WindowsMediaFormat.dll`,
+  `Newtonsoft.Json.dll`, `protobuf-net.dll` — NuGet supplies them), the root `natives.txt` copy and the placeholder `whitelist.txt`.
+
 ### Not yet
 * Server, launcher and bot stay on .NET 8; the client stays on .NET Framework 4.8 (ScriptHookVDotNet hosts the
   desktop CLR). The route to .NET 10 for the client is in `docs/ROADMAP.md`.

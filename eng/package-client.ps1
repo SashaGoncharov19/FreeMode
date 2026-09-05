@@ -97,7 +97,7 @@ $keepLocales = "en-US", "en-GB", "uk", "ru", "pl", "de", "fr", "es", "pt-BR", "t
 Get-ChildItem "$Out/cef/locales" -Filter *.pak | Where-Object { $keepLocales -notcontains $_.BaseName } | Remove-Item -Force
 Copy-Item "$Root/images/*" "$Out/images" -Recurse -Force
 Copy-Item "$Root/ui/*" "$Out/ui" -Recurse -Force   # the client's own pages (connect loader), served by the browser host as https://gtan/
-Copy-Item "$Root/vehicleData.json", "$Root/whitelist.txt", "$Root/LICENSE" $Out
+Copy-Item "$Root/vehicleData.json", "$Root/LICENSE" $Out
 
 # 6. Version stamp (read from the in-game client)
 $version = (Get-Item "$Out/bin/scripts/GTANetwork.dll").VersionInfo.FileVersion

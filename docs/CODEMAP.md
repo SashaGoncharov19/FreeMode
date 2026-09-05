@@ -264,15 +264,14 @@ CEF harness (`docs/agents/testing.md`). Dev container: `.devcontainer/`, `docker
 
 ## 12. Data, vendored and dead files
 
-* `libs/`: used — `Lidgren.Network.dll`, `NAudio.dll`, `SharpDX*.dll`; copied at packaging — `EasyHook64.dll`,
-  `EasyLoad64.dll`, `sharpdx_direct3d11*_x64.dll`; **unused leftovers** — `EasyHook.dll`, `Interop.WMPLib.dll`,
-  `Ionic.Zip.dll`, `Microsoft.Owin*.dll`, `Nancy*.dll`, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `Owin.dll`,
-  `protobuf-net.dll` (NuGet versions are used).
+* `libs/`: `Lidgren.Network.dll` (the fork), `NAudio.dll`, `SharpDX*.dll` (referenced), `EasyHook64.dll`, `EasyLoad64.dll`,
+  `sharpdx_direct3d11*_x64.dll` (copied at packaging). The unused leftovers (`EasyHook.dll`, `Interop.WMPLib.dll`, `Ionic.Zip.dll`,
+  Owin/Nancy, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `protobuf-net.dll`) were removed in T-020; NuGet supplies those.
 * `ui/loader/` — the connect loading screen (HTML/CSS/JS), shipped as `<install>/ui`.
 * `ui/menu/` — the main menu page (`index.html`, `menu.js`, `style.css`), same folder.
-* `natives.txt` (root) = `Client/natives.txt` (embedded, 4281 hashes); `Client/soundlist.txt`; `vehicleData.json`
-  (read by `Server/Constant/ConstantVehicleData.cs`); `whitelist.txt` (1-byte placeholder); `images/**` (HUD, blips,
-  radio art, `cef/cursor.png`).
+* `Client/natives.txt` (embedded, 4281 hashes; the root copy is gone), `Client/soundlist.txt`, `vehicleData.json` (read by
+  `Server/Constant/ConstantVehicleData.cs`), `images/**` (HUD, blips, radio art, `cef/cursor.png`).
 * Generated: `Shv.NET/ref/Core/NativeHashes.g.cs` (from `Shv.NET/ref/generate-hashes.py`), `Server/Constant/NativeHashes.cs`.
-* Excluded from the client build (legacy): `Client/Chat.cs`, `ClassicChat.cs` (root copies), `Client/Networking/{PedThread,StreamedItems,Streamer,SyncEventWatcher,SyncPed,SyncSender,UnoccupiedVehicleSync,WeaponManager}.cs`,
-  `Client/Main/Math.cs`, `Client/Misc/Program.cs`, `Client/Util/DebugWindow.cs`, D3D10 hooks.
+* The legacy client files that were excluded from the build (`Client/Networking/*Sync*`, root `Chat.cs`/`ClassicChat.cs`,
+  `Main/Math.cs`, `Misc/Program.cs`, `Util/DebugWindow.cs`, the D3D10 hooks) were deleted in T-020; the csproj has no
+  `Compile Remove` list any more.
