@@ -265,6 +265,29 @@ namespace GTANetwork
             return Client?.ConnectionStatus == NetConnectionStatus.Connected;
         }
 
+        /// <summary>
+        /// The connection could not be made or ended with a reason the player must see. With the CEF menu on, the menu (which
+        /// ResetWorld brings back) shows it as a banner and a notification is drawn as well; otherwise the classic full-screen
+        /// Warning takes the screen until Accept. The warning is never raised over the CEF menu: the overlay is not drawn while
+        /// a warning is up, so after a failed connect the menu stayed invisible behind the warning's black rectangle.
+        /// </summary>
+        internal void ConnectionProblem(string header, string message)
+        {
+            var text = (message ?? "").Replace("\r", "").Trim();
+            LogManager.RuntimeLog("connection: " + header + ": " + text.Replace('\n', ' '));
+            if (CefMenu.Enabled)
+            {
+                CefMenu.Notice(header + ": " + text.Replace('\n', ' '));
+                Util.Util.SafeNotify("~r~" + header + "~w~~n~" + text.Replace("\n", "~n~"));
+                return;
+            }
+            MainMenu.Visible = false;
+            _mainWarning = new Warning(header, text)
+            {
+                OnAccept = () => { _mainWarning.Visible = false; MainMenu.Visible = true; }
+            };
+        }
+
         private void OnLocalDisconnect()
         {
             Session = null;
