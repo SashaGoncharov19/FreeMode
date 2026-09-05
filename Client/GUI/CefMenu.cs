@@ -51,6 +51,8 @@ namespace GTANetwork.GUI
         private static Timer _fallbackTimer;
         private static string _status = "";
         private static int _shown;
+        /// <summary>The browser exists but the page is hidden (the classic menu is on top); Show() brings it back without a new page.</summary>
+        private static bool _concealed;
 
         /// <summary>The CEF menu is switched on and CEF is available.</summary>
         internal static bool Enabled
@@ -65,16 +67,46 @@ namespace GTANetwork.GUI
         /// <summary>A connection is being made or exists: the menu stays away until the disconnect.</summary>
         internal static volatile bool Suspended;
 
+        /// <summary>The page is on screen (a concealed browser does not count).</summary>
         internal static bool Visible
         {
-            get { lock (Lock) return _browser != null; }
+            get { lock (Lock) return _browser != null && !_concealed; }
+        }
+
+        /// <summary>
+        /// Client start-up: create the browser and load the page now, concealed, so that the menu is on screen the moment the
+        /// game has loaded (Show() only un-conceals it). Needs the screen size, so it runs after Main.screen is known.
+        /// </summary>
+        internal static void Prepare()
+        {
+            if (!Enabled) return;
+            lock (Lock) if (_browser != null) return;
+            Show();
+            Conceal("prepared at start-up");
         }
 
         /// <summary>Main's script thread: show the page (the browser host is started when it is not running yet).</summary>
         internal static void Show()
         {
             if (!Enabled || Suspended) return;
-            lock (Lock) if (_browser != null) return;
+            Browser kept = null;
+            lock (Lock)
+            {
+                if (_browser != null && !_concealed) return;
+                if (_browser != null) { kept = _browser; _concealed = false; }
+            }
+            if (kept != null)
+            {
+                // the classic menu closed: the same browser and page come back; no new renderer, no new textures, no reload
+                kept.Headless = false;
+                kept.SetFrameRate(Main.PlayerSettings?.CefFrameRate > 0 ? Main.PlayerSettings.CefFrameRate : 60);
+                CEFManager.Draw = true;
+                CefController.ShowCursor = true;
+                if (Main.MainMenu != null) Main.MainMenu.Visible = false;
+                LogManager.RuntimeLog("menu: shown again (kept browser)");
+                Refresh();
+                return;
+            }
 
             CEFManager.Initialize(Main.screen);
             CEFManager.InitializeCef();
@@ -89,6 +121,7 @@ namespace GTANetwork.GUI
                 browser.PageLoaded = (url, status) => { if (url != null && url.StartsWith(Page, StringComparison.OrdinalIgnoreCase)) PageReady(); };
                 browser.GoToPage(Page);
                 _browser = browser;
+                lock (CEFManager.Browsers) if (!CEFManager.Browsers.Contains(browser)) CEFManager.Browsers.Add(browser); // input (mouse, keys) goes to this list
                 _fallbackTimer?.Dispose();
                 _fallbackTimer = new Timer(_ => Fallback(), null, PageTimeoutMs, Timeout.Infinite);
                 _shown++;
@@ -98,6 +131,25 @@ namespace GTANetwork.GUI
             if (Main.MainMenu != null) Main.MainMenu.Visible = false;
             LogManager.RuntimeLog("menu: shown (" + Main.screen.Width + "x" + Main.screen.Height + ", " + (_shown == 1 ? "first time" : "again") + ")");
             Refresh();
+        }
+
+        /// <summary>
+        /// The classic menu goes on top: the page is hidden and slowed to 1 frame/s but the browser stays, so coming back costs
+        /// nothing (a new browser meant a new renderer process and a new texture ring: a second-long stall on a swapping machine).
+        /// </summary>
+        internal static void Conceal(string reason)
+        {
+            Browser browser;
+            lock (Lock)
+            {
+                browser = _browser;
+                if (browser == null || _concealed) return;
+                _concealed = true;
+            }
+            CefController.ShowCursor = false;
+            browser.Headless = true;
+            browser.SetFrameRate(1);
+            LogManager.RuntimeLog("menu: concealed (" + reason + ")");
         }
 
         /// <summary>Any thread: fade the page out and close the browser; <paramref name="reason"/> goes to Runtime.log.</summary>
@@ -110,6 +162,7 @@ namespace GTANetwork.GUI
                 browser = _browser;
                 _browser = null;
                 _pageReady = false;
+                _concealed = false;
                 elapsed = _clock?.ElapsedMilliseconds ?? 0;
                 _fallbackTimer?.Dispose();
                 _fallbackTimer = null;
@@ -117,6 +170,7 @@ namespace GTANetwork.GUI
                 _closeTimer = null;
             }
             if (browser == null) return;
+            lock (CEFManager.Browsers) CEFManager.Browsers.Remove(browser);
             CefController.ShowCursor = false;
             LogManager.RuntimeLog("menu: hidden after " + elapsed + " ms (" + reason + ")");
             try { browser.eval("window.gtanMenu && gtanMenu.hide()"); }
@@ -234,7 +288,7 @@ namespace GTANetwork.GUI
         {
             lock (Lock)
             {
-                if (_browser == null) return;
+                if (_browser == null || _pageReady) return; // "loadEnd" and "menu:ready" both arrive; one is enough
                 _pageReady = true;
                 _fallbackTimer?.Dispose();
                 _fallbackTimer = null;
@@ -442,10 +496,10 @@ namespace GTANetwork.GUI
             return false;
         }
 
-        /// <summary>The NativeUI menu (host tab, debug switches, or the fallback): the page goes, the classic menu opens.</summary>
+        /// <summary>The NativeUI menu (host tab, debug switches, or the fallback): the page is concealed, the classic menu opens.</summary>
         private static void OpenNativeMenu()
         {
-            Hide("classic menu");
+            Conceal("classic menu");
             var menu = Main.MainMenu;
             if (menu == null) return;
             menu.Visible = true;

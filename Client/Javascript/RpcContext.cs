@@ -143,7 +143,8 @@ namespace GTANetwork.Javascript
 
         internal void FromPage(uint id, string name, string payload, int timeoutMs, Action<uint, bool, string, string, string> respond)
         {
-            if (_helper == null) { respond(id, false, null, RpcCodes.Unknown, "the owning script is gone"); return; }
+            if (_helper == null) { LogManager.RuntimeLog("rpc: page #" + id + " " + name + ": the owning script has no rpc helper"); respond(id, false, null, RpcCodes.Unknown, "the owning script is gone"); return; }
+            LogManager.RuntimeLog("rpc: page #" + id + " " + name + " -> " + (has(name) ? "this script" : "the server") + " (" + ResourceName + ")");
             _helper.fromPage(id, name, payload, timeoutMs, respond);
         }
 
@@ -180,11 +181,12 @@ namespace GTANetwork.Javascript
         /// <summary>Script thread: sends a request; 0 when not connected to a server.</summary>
         internal static uint Send(RpcContext context, string name, string payload, int timeoutMs)
         {
-            if (!Main.IsOnServer()) return 0;
+            if (!Main.IsOnServer()) { LogManager.RuntimeLog("rpc: " + name + " not sent: not connected to a server"); return 0; }
             var timeout = RpcCodes.ClampTimeout(timeoutMs);
             uint id;
             do { id = (uint)Interlocked.Increment(ref _nextId); } while (id == 0);
             lock (Lock) PendingCalls[id] = new Pending { Context = context, Name = name, Deadline = Clock.ElapsedMilliseconds + timeout };
+            LogManager.RuntimeLog("rpc: -> server #" + id + " " + name + " (" + (payload == null ? 0 : payload.Length) + " chars, timeout " + timeout + " ms, from " + context.ResourceName + ")");
             Main.SendRpc(PacketType.RpcRequest, new RpcRequest
             {
                 Id = id,
@@ -209,9 +211,10 @@ namespace GTANetwork.Javascript
             Pending pending;
             lock (Lock)
             {
-                if (!PendingCalls.TryGetValue(response.Id, out pending)) return;
+                if (!PendingCalls.TryGetValue(response.Id, out pending)) { LogManager.RuntimeLog("rpc: <- server #" + response.Id + " for an unknown call (answered already, or timed out)"); return; }
                 PendingCalls.Remove(response.Id);
             }
+            LogManager.RuntimeLog("rpc: <- server #" + response.Id + " " + pending.Name + " " + (response.Ok ? "ok (" + (response.Payload == null ? 0 : response.Payload.Length) + " chars)" : "error " + response.ErrorCode + ": " + response.ErrorMessage));
             Queue(() => pending.Context.Settle(response.Id, response.Ok, response.Payload, response.ErrorCode, response.ErrorMessage));
         }
 
@@ -221,6 +224,7 @@ namespace GTANetwork.Javascript
             if (request == null) return;
             RpcContext context;
             lock (Lock) Handlers.TryGetValue(request.Name ?? "", out context);
+            LogManager.RuntimeLog("rpc: <- server call #" + request.Id + " " + request.Name + (context == null ? " (no handler)" : " -> " + context.ResourceName));
             if (context == null)
             {
                 Respond(request.Id, false, null, RpcCodes.Unknown, "no client handler for " + request.Name);

@@ -34,6 +34,12 @@ today), Quit. NativeUI remains for the pause-menu tabs until they are ported.
 * 2026-09-05 agent — implemented on `task/T-013-cef-menu` without waiting for T-011: the page lists favourites, recent, LAN and the
   master list the NativeUI browser already reads; the master service itself stays T-011. PR opened; the in-game check is the owner's.
 
+* 2026-09-05 owner's first run: the page came up (`menu: page ready after 884 ms`) but took no input — the client-owned browser
+  was not in `CEFManager.Browsers`, the list the input routing reads; every pause-key toggle created a new browser (1.5 s stalls
+  in `[HITCH]`); the owner wants the menu right after the intro. Fixed on `task/T-013-menu-keep-browser`: input registration,
+  `CefMenu.Prepare()` at client start (page loads concealed while the game loads), `Conceal()` instead of `Hide()` for the
+  classic menu, `rpc:` log lines for the RPC path the owner reported as silent.
+
 ## Result
 
 * **Changed**: new `Client/GUI/CefMenu.cs` (the client-owned full-screen browser, its state, the page's actions run on Main's tick,

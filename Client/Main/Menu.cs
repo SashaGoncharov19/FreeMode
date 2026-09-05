@@ -1264,7 +1264,7 @@ namespace GTANetwork
             if (Game.IsControlJustPressed(Control.FrontendPauseAlternate) && !MainMenu.Visible && !_wasTyping && !_mainWarning.Visible)
             {
                 // the classic menu over the CEF main menu (host tab, debug switches); Back brings the CEF page back
-                if (!IsOnServer() && CefMenu.Visible) CefMenu.Hide("pause key: classic menu");
+                if (!IsOnServer() && CefMenu.Visible) CefMenu.Conceal("pause key: classic menu");
                 MainMenu.Visible = true;
 
                 if (!IsOnServer())
