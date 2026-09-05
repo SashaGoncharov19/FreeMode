@@ -138,8 +138,16 @@ namespace GTANetworkServer.Managers
                 gc = new { gen0 = GC.CollectionCount(0), gen1 = GC.CollectionCount(1), gen2 = GC.CollectionCount(2), heapBytes = GC.GetTotalMemory(false) },
                 near = new { avg = Math.Round(nearAvg, 1), max = nearMax },
                 process = new { rssBytes = process.WorkingSet64, threads = process.Threads.Count, cpuSeconds = Math.Round(process.TotalProcessorTime.TotalSeconds, 1) },
+                relay = RelaySnapshot(),
             };
             return JsonConvert.SerializeObject(doc);
+        }
+
+        private static object RelaySnapshot()
+        {
+            var relay = Program.ServerInstance?.Relay;
+            if (relay == null) return new { workers = 0, queued = 0, dropped = 0L, lidgrenDropped = 0L };
+            return new { workers = relay.Workers, queued = relay.Queued, dropped = relay.Dropped, lidgrenDropped = relay.LidgrenDropped };
         }
 
         private static double Percentile(double[] sorted, double p)

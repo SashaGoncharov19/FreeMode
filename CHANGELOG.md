@@ -167,6 +167,10 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Relay workers** (T-023): the per-player copy and AES-GCM sealing of every message moved off the server's tick thread onto
+  1–4 relay threads (`<relaythreads>` in `settings.xml`, 0 = automatic); each client stays on one worker so its message order is
+  unchanged; when a worker's queue is full, unreliable sync is dropped instead of stalling the tick (`/metrics.json` → `relay`).
+  Measured with the load harness at 300 players: tick p50 66 → 0.5 ms, p99 135 → 20 ms, 11 → 51 ticks/s; the tick thread no longer pays for the cipher (`docs/SYNC.md` §6).
 * **Load harness** (T-002): `GTANetwork.Bot --bots N --move <m> --report <file>` holds N simulated players in one process
   (each joins like a client and sends pure sync every 100 ms and light sync every 1500 ms while walking within the radius);
   the server exposes `GET /metrics.json` (tick p50/p99/max, packets and bytes in/out, GC, near-set sizes, players, RSS) when

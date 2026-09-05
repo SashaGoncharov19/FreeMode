@@ -61,15 +61,23 @@ namespace GTANetworkShared.Crypto
         /// <summary>Encrypts a message; the result holds the counter, the ciphertext and the tag.</summary>
         public byte[] Seal(byte[] plaintext, int offset, int count)
         {
+            var output = new byte[CounterBytes + count + TagBytes];
+            SealInto(plaintext, offset, count, output, 0);
+            return output;
+        }
+
+        /// <summary>Encrypts a message into <paramref name="output"/> at <paramref name="outputOffset"/> (needs <c>count + Overhead</c> bytes there); returns the bytes written. No allocation: the relay's per-recipient path (T-023).</summary>
+        public int SealInto(byte[] plaintext, int offset, int count, byte[] output, int outputOffset)
+        {
+            if (output == null || output.Length - outputOffset < CounterBytes + count + TagBytes) throw new ArgumentException("the output buffer is too small for the sealed message");
             lock (_sendLock)
             {
                 var counter = ++_sendCounter;
                 WriteCounter(_sendNonce, counter);
-                var output = new byte[CounterBytes + count + TagBytes];
-                for (var i = 0; i < CounterBytes; i++) output[i] = _sendNonce[4 + i];
-                _sealer.Seal(_sendNonce, plaintext, offset, count, output, CounterBytes);
+                for (var i = 0; i < CounterBytes; i++) output[outputOffset + i] = _sendNonce[4 + i];
+                _sealer.Seal(_sendNonce, plaintext, offset, count, output, outputOffset + CounterBytes);
                 MessagesSealed++;
-                return output;
+                return CounterBytes + count + TagBytes;
             }
         }
 

@@ -9,6 +9,8 @@
   <announce>false</announce>
   <!-- The master list to announce to (Tools/GTANetwork.Master, T-011), e.g. https://master.example.org; empty = none. -->
   <master></master>
+  <!-- Threads that encrypt and enqueue the per-player copies of every message off the tick thread (T-023); 0 = automatic (cores minus two, 1..4). -->
+  <relaythreads>0</relaythreads>
   <upnp>false</upnp>
   <announce_lan>true</announce_lan>
   <password></password>
