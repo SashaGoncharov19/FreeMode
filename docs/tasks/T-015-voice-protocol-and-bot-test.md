@@ -1,6 +1,6 @@
 # T-015 — Voice chat protocol: Opus frames over Lidgren, server relay by range, bot test
 
-Status: ready
+Status: in progress
 Epic: E-09 Voice
 Size: M
 Branch: task/T-015-voice-protocol from the integration branch
@@ -31,6 +31,7 @@ the test asserts delivery and jitter.
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 15:00 agent — started (branched from the T-014 branch; the PR targets the integration branch after #26).
 
 ## Result
 
