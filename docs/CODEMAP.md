@@ -145,8 +145,9 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 
 | File | Content |
 | --- | --- |
-| `Launcher/Program.cs` | Commands (play/restore/doctor/…), `--debug`, launch methods `steam`/`proton`/`direct`, waits for `GTA5.exe`, restores the game folder. |
-| `Launcher/Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | Deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, logging, the `--debug` system monitor. |
+| `Launcher/Program.cs` | The command line front end: commands (run/deploy/restore/doctor), options, `--debug`; calls `Launcher.Core`. |
+| `Launcher.Core/LaunchSession.cs`, `Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | The launcher's logic as a library: `DetectedEnvironment.Detect`, `SettingsStore`, `LaunchSession.Play/Launch/Doctor` (steam/proton/direct, wait for `GTA5.exe`, restore), deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, `Log` with a `Written` event, the `--debug` system monitor. |
+| `Launcher.Gui/` (`Program.cs`, `App.axaml`, `Views/MainWindow.axaml`, `ViewModels/MainViewModel.cs`) | The launcher window (Avalonia 12, CommunityToolkit.Mvvm): Home (doctor lines, Play/Stop, the log), Settings (`PlayerSettings` ↔ `settings.xml`), Logs (`logs/*.log` tail). `--self-test` runs it headless (`Avalonia.Headless`). Installed into `<install>/gui/`. |
 | `Tools/GTANetwork.Bot/Program.cs` | Options (`--host`, `--port`, `--name`, `--password`, `--say`, `--expect`, `--duration`, `--no-sync`, `--discover`, `--download-files`, `-i`), one Lidgren connection, the protocol handshake and sync loop, chat assertions. Also compiles `Shv.NET/ref/Core/NativeHashes.g.cs`. |
 | `Map2Resource/` | Map Editor XML → resource. |
 | `Tools/GTANetwork.Cli/Program.cs`, `templates/resource/**` | `gtanetwork create <name>`: copies the template resource (`meta.xml`, `server/index.ts`, `client/index.ts`, `ui/`, `package.json`, `types/gtan.d.ts`) with `__NAME__` replaced and the typings (`types/*.d.ts`, `runtime/gtan/*.generated.*`) into a self-contained folder. Published for Linux and Windows. |

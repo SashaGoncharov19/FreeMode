@@ -399,15 +399,18 @@ if [ "$BUILD" -eq 1 ]; then
   [ -f "$src/GTANetwork.sln" ] || die "--build must be run from a git checkout (GTANetwork.sln not found next to eng/)"
   info "Building launcher, server and bot from $src"
   dotnet publish "$src/Launcher/GTANetwork.Launcher.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$DIR" -v quiet
+  dotnet publish "$src/Launcher.Gui/GTANetwork.Launcher.Gui.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$DIR/gui" -v quiet
   dotnet publish "$src/Tools/GTANetwork.Bot/GTANetwork.Bot.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$DIR" -v quiet
   dotnet publish "$src/Server/GTANetworkServer.csproj" -c Release -r linux-x64 --self-contained true -o "$DIR/server" -v quiet
   cp "$src/vehicleData.json" "$DIR/server/"
   AUTO_UPDATE=0   # a build from source must not be replaced by a release behind your back
 else
   download "gtanetwork-launcher-linux-x64-" "$DIR/downloads/launcher.zip"
+  if [ -n "$(asset_url gtanetwork-launcher-gui-linux-x64-)" ]; then download "gtanetwork-launcher-gui-linux-x64-" "$DIR/downloads/launcher-gui.zip"; else rm -f "$DIR/downloads/launcher-gui.zip"; fi   # older releases have no GUI
   download "gtanetwork-bot-linux-x64-" "$DIR/downloads/bot.zip"
   download "gtanetwork-server-linux-x64-" "$DIR/downloads/server.zip"
   unzip -oq "$DIR/downloads/launcher.zip" -d "$DIR"
+  [ -f "$DIR/downloads/launcher-gui.zip" ] && { mkdir -p "$DIR/gui"; unzip -oq "$DIR/downloads/launcher-gui.zip" -d "$DIR/gui"; }
   unzip -oq "$DIR/downloads/bot.zip" -d "$DIR"
   if [ -f "$DIR/server/settings.xml" ]; then
     unzip -oq "$DIR/downloads/server.zip" -x settings.xml -d "$DIR/server"   # keep the server configuration
@@ -415,7 +418,7 @@ else
     unzip -oq "$DIR/downloads/server.zip" -d "$DIR/server"
   fi
 fi
-chmod +x "$DIR/GTANetwork.Launcher" "$DIR/GTANetwork.Bot" "$DIR/server/GTANetworkServer" 2>/dev/null || true
+chmod +x "$DIR/GTANetwork.Launcher" "$DIR/GTANetwork.Bot" "$DIR/server/GTANetworkServer" "$DIR/gui/GTANetwork.Launcher.Gui" 2>/dev/null || true
 ok "Files in place: $(ls "$DIR" | tr '\n' ' ')"
 
 # ---------------------------------------------------------------------------------------------------
@@ -977,10 +980,10 @@ cat > "$HOME/.local/share/applications/gtanetwork.desktop" <<DESKTOP
 Type=Application
 Name=GTA Network
 Comment=Multiplayer for GTA V (Legacy) through Proton
-Exec=$DIR/play.sh
+Exec=$( [ -x "$DIR/gui/GTANetwork.Launcher.Gui" ] && echo "$DIR/gui/GTANetwork.Launcher.Gui" || echo "$DIR/play.sh" )
 Path=$DIR
 Icon=$DIR/images/logo64.ico
-Terminal=true
+Terminal=$( [ -x "$DIR/gui/GTANetwork.Launcher.Gui" ] && echo false || echo true )
 Categories=Game;
 DESKTOP
 

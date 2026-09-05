@@ -29,7 +29,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Shared\GTANetworkShared.csproj" />
+    <!-- The logic lives in Launcher.Core (shared with the GUI, Launcher.Gui); this project is the command line front end. -->
+    <ProjectReference Include="..\Launcher.Core\GTANetwork.Launcher.Core.csproj" />
   </ItemGroup>
 
 </Project>

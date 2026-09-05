@@ -1,7 +1,7 @@
 namespace GTANetwork.Launcher;
 
 /// <summary>Minimal parser for Valve's KeyValues ("VDF") text format used by Steam config files.</summary>
-internal static class Vdf
+public static class Vdf
 {
     public static Dictionary<string, object> Parse(string text)
     {

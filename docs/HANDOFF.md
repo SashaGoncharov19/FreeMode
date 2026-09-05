@@ -58,6 +58,8 @@ rendering can only be verified in game by the owner.
   `~/GTANetwork/server/runtime/bun/bun` (the server looks there), so TypeScript resources run on it.
 * **Merged 5 Sept**: T-007 `gtanetwork create` + freeroam entirely in TypeScript (#14): `Tools/GTANetwork.Cli` (also at
   `~/GTANetwork/gtanetwork`), `templates/resource/`, `runtime/gtan/enums.generated.ts` + `gtan.parseEnum`.
+* **In PR**: T-010 the launcher window (`task/T-010-launcher-gui`, D-15): `Launcher.Core` + `Launcher.Gui` (Avalonia 12), headless
+  self-test in CI; the window on a display is the owner's check (`~/GTANetwork/gui/GTANetwork.Launcher.Gui` after the deploy).
 * **Merged 5 Sept, NOT yet in the owner's install**: T-009 encrypted sessions (#15, D-14): X25519 + HKDF in the hail, AES-256-GCM
   per message, `server.key`, `RequireEncryption` default true (old clients are refused), pin with `host:port#key`. It changes the
   protocol: the install's client and server must be synced together and both restarted; the owner was testing the earlier build
@@ -275,7 +277,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): deploy T-009 into the install when the owner says so → **T-010** launcher GUI → **T-011**
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): deploy T-009 into the install when the owner says so → merge T-010 when green → **T-011**
    master list (needs Q-07; the CEF menu then gets ping and player counts from it). Each on its own `task/T-NNN-*` branch from the
    integration branch, one PR, `eng/dev-test.sh` green.
 1. **In-game run by the owner** (quiet machine, `play.sh --debug`): (a) hitches — read `[HITCH]` lines in `Runtime.log`

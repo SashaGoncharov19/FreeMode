@@ -3,7 +3,7 @@ using System.Xml.Linq;
 namespace GTANetwork.Launcher;
 
 /// <summary>The same tweaks the classic launcher applied to the player's GTA V profile.</summary>
-internal static class GamePatcher
+public static class GamePatcher
 {
     /// <summary>"Documents\Rockstar Games\GTA V" of the user that runs the game (inside the Wine prefix on Linux).</summary>
     public static string? DocumentsDir(string? prefix)

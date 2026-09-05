@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The launcher's logic as a library, shared by the command line launcher (Launcher/) and the GUI (Launcher.Gui/):
+    Steam/Proton/prefix detection, deploying the mod into the game folder and restoring it, patching the game settings,
+    the launch pipeline (LaunchSession), the process watch, the debug-mode system monitor, settings.xml, the log.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>GTANetwork.Launcher.Core</AssemblyName>
+    <RootNamespace>GTANetwork.Launcher</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\GTANetworkShared.csproj" />
+  </ItemGroup>
+
+</Project>

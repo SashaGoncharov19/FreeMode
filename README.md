@@ -58,6 +58,13 @@ into the JavaScript the game runs (`Server/Managers/TypeScriptBundler.cs`; cache
 needs Bun 1.4.x: `GTAN_BUN=<path>`, a copy in `<server>/runtime/bun/`, or `bun` on `PATH`. `Server/resources/freeroam` (client) and
 `Server/resources/tsdemo` (server) are the shipped examples; `types/README.md` explains the tsconfig files.
 
+## The launcher window
+
+`gui/GTANetwork.Launcher.Gui` in the install (Avalonia, Linux and Windows; the desktop entry opens it): Home — the state of the
+install and Play, Settings — `settings.xml` (launch method, paths, name, master server, the CEF switches), Logs — `logs/*.log`.
+The command line launcher (`GTANetwork.Launcher`, `play.sh`) still works and uses the same logic (`Launcher.Core`).
+`GTANetwork.Launcher.Gui --self-test` builds the window headless and exits 0, which CI runs.
+
 ## Connections are encrypted
 
 Every connection does an X25519 key exchange during the connect (T-009) and then talks AES-256-GCM. The server's static key

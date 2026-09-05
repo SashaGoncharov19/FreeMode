@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace GTANetwork.Launcher;
 
 /// <summary>Finds the (Wine) game process by executable name, e.g. "GTA5.exe".</summary>
-internal static class GameProcess
+public static class GameProcess
 {
     public static bool IsRunning(string exeName) => Find(exeName).Count > 0;
 

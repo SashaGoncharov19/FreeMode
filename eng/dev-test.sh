@@ -27,6 +27,9 @@ else
   echo "bun not found: skipping the TypeScript sample check"
 fi
 
+echo "== Launcher GUI (Avalonia, headless self-test) =="
+dotnet run --project Launcher.Gui/GTANetwork.Launcher.Gui.csproj -c Release --no-build -- --install-dir "$art" --self-test
+
 echo "== Publishing server + bot (linux-x64) =="
 dotnet publish Server/GTANetworkServer.csproj -c Release -r linux-x64 --self-contained true  -o "$art/server" -v quiet
 dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$art/bot" -v quiet
