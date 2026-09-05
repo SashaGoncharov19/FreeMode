@@ -421,6 +421,7 @@ namespace GTANetwork
                 {
                     LogManager.RuntimeLog("Initializing CEF (" + (PlayerSettings.CefPreload ? "CefPreload" : "CefMenu: the main menu is a CEF page") + ").");
                     CEFManager.InitializeCef();
+                    CefMenu.Prepare(); // the page loads while the game still loads; Init() shows it
                 }
                 else
                 {

@@ -76,7 +76,10 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   players and a password mark, a filter, favourites (★), direct connect (host, port, password) and the settings the NativeUI menu had
   (display name, chat, FPS counter, the CEF switches, the master server URL), and Quit. The browser host starts with the game so the
   page is up within a second or two; the NativeUI menu stays on the pause key (host tab, debug switches) and takes over when the page
-  does not come up within 30 s. `eng/cef-harness.sh` renders the page (`menu page OK`).
+  does not come up within 30 s. `eng/cef-harness.sh` renders the page (`menu page OK`). After the owner's first run: the menu
+  browser now receives the mouse and the keyboard (it was missing from the input list), it is created during the game's loading
+  so the menu is on screen the moment the game is ready, and it stays alive while the classic menu is on top (a new browser per
+  toggle meant a new renderer and a second-long stall); the client logs every hop of an RPC in `Runtime.log` (`rpc: …`).
 * **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the

@@ -894,7 +894,11 @@ namespace GTANetwork.GUI
             var wrapper = _wrapper;
             var engine = _parent;
             Action<uint, bool, string, string, string> respond = (requestId, ok, result, code, message) =>
+            {
+                LogManager.RuntimeLog("rpc: -> page #" + requestId + " " + (ok ? "ok" : "error " + code + ": " + message));
                 wrapper.eval("gtan.rpc._settle(" + requestId + ", " + (ok ? "true" : "false") + ", " + ToLiteral(result) + ", " + ToLiteral(code) + ", " + ToLiteral(message) + ");");
+            };
+            LogManager.RuntimeLog("rpc: page #" + id + " " + name + " received from browser " + _wrapper.Id);
             Queue(() =>
             {
                 var context = JavascriptHook.ContextOf(engine);
