@@ -1,6 +1,6 @@
 # T-014 — Custom DLC packs: server manifest, launcher download and install-time overlay (design + first implementation)
 
-Status: ready
+Status: in progress
 Epic: E-08 DLC packs
 Size: L
 Branch: task/T-014-dlc-packs from the integration branch
@@ -40,6 +40,7 @@ required pack with a message naming the packs. In-game download and restart-to-a
 
 * 2026-09-04 22:10 agent — created as draft.
 * 2026-09-04 23:00 agent — ready: D-10 decided (download anywhere, apply at game start); the overlay question stays inside this task.
+* 2026-09-05 13:00 agent — started (branched from the T-003 branch; the PR targets the integration branch after #23).
 
 ## Result
 
