@@ -34,7 +34,7 @@ rendering can only be verified in game by the owner.
   ClearScript native), `bin/scripts/` (managed client DLLs), `cef/` (browser host + Chromium runtime),
   `server/`, `logs/`, `resources/` (downloaded resource files), and `play.sh` / `setup-linux.sh`.
 
-## Current state (5 September 2026, 09:00)
+## Current state (5 September 2026, 15:40)
 
 * **`master`**: `v0.1.1` — the **old** browser stack (CefGlue, Chromium 57, single-process). Last release verified working in game.
 * **`claude/modernize-deps-4d8uyn`** — the **integration branch**; pushed. Contains the modernisation (CefSharp 151 in its own
@@ -114,6 +114,18 @@ rendering can only be verified in game by the owner.
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
+* **The owner's 5 Sept afternoon session** (the first with the CEF menu in game) gave two fixes, both merged and synced into the
+  install: **#33** — the menu never came up on a cold start (the first browser's page load was sent before the host was ready and
+  dropped; loads now queue behind readiness; `menu: page ready after 1809 ms` in the autotest afterwards) — and **#34** — connecting
+  to a stale "recent" server (`127.0.0.1:4498`, left in `settings.xml` by the T-018 smoke tests) ended after 15 s in a black screen:
+  the disconnect brought the CEF menu back but also raised the classic full-screen `Warning`, and `SwapchainHooker` does not draw the
+  overlay while a warning is up. `Main.ConnectionProblem` now puts the reason into the menu (`CefMenu.Notice`, a banner) plus a game
+  notification; the `Warning` stays for the classic menu; recent rows get a `×` to forget them; `GTAN_AUTOTEST` stays out of
+  `RecentServers`. Verified with the in-game autotest against a dead port (`connection: Disconnected: …`, `menu: shown (again)`, the
+  Present hook profile lines continue). The owner confirmed RPC works in game. **Still `needs owner`**: the `● TALKING` HUD line while
+  `N` is held, voice both ways with the Talker/Listener bots, a bot standing next to the player (`/tp 240 -993 30`), the `[SYNC]`
+  block. The owner's machine swaps hard with Firefox/ChatGPT/the desktop app open (frames of 14–66 s in the 14:21 session): test on a
+  quiet machine.
 * The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out, up to 6.5 s of memory stall per
   second, Chromium took 42 s to start); the loader did not show for that reason and the idle timer then stopped the host as
   soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07 hosting of the master list (the service exists since T-011; the domain and the host are the owner's), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
@@ -324,7 +336,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 ## What is next
 
 0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
-   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-016** merged (#29, `needs owner` in game); **T-017** merged (#28); **T-018** merged (#30, `needs owner` for the baseline); **T-024** merged (#31, `needs owner` for the join in game); the install holds the merged build as of 5 Sept 08:50; **T-026** entity broadcasts under interest management merged (#32, `needs owner`: a vehicle 3 km away must appear on approach — the install's server has it once redeployed); **T-025** manifest signing needs the owner's secret; T-022 waits for Q-15.
+   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-016** merged (#29, `needs owner` in game); **T-017** merged (#28); **T-018** merged (#30, `needs owner` for the baseline); **T-024** merged (#31, `needs owner` for the join in game); the install holds the merged build as of 5 Sept 08:50; **T-026** entity broadcasts under interest management merged (#32, `needs owner`: a vehicle 3 km away must appear on approach — the install's server has it once redeployed); **T-025** manifest signing needs the owner's secret; T-022 waits for Q-15. The owner's first CEF-menu session (5 Sept afternoon) gave two merged fixes, #33 (the menu on a cold start) and #34 (a failed connect returns to the menu with the reason instead of a black screen); the install holds both.
    branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
    empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
    owner is away (the owner allowed it on 5 Sept).
