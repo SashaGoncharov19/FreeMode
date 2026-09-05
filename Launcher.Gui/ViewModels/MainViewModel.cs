@@ -48,6 +48,7 @@ public partial class MainViewModel : ObservableObject
     public bool IsSettings => Section == "settings";
     public bool IsLogs => Section == "logs";
     public bool IsPacks => Section == "packs";
+    public bool IsServers => Section == "servers";
 
     partial void OnSectionChanged(string value)
     {
@@ -55,6 +56,8 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSettings));
         OnPropertyChanged(nameof(IsLogs));
         OnPropertyChanged(nameof(IsPacks));
+        OnPropertyChanged(nameof(IsServers));
+        if (IsServers && ServerRows.Count == 0 && !ServersBusy) _ = RefreshServers();
         if (IsLogs) RefreshLogs();
     }
 
@@ -62,6 +65,86 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void ShowSettings() => Section = "settings";
     [RelayCommand] private void ShowLogs() => Section = "logs";
     [RelayCommand] private void ShowPacks() => Section = "packs";
+    [RelayCommand] private void ShowServers() => Section = "servers";
+
+    // ---- servers (T-024): the master list + favourites + recent, connect in one click ----
+
+    public sealed partial class ServerRow : ObservableObject
+    {
+        public ServerRow(ServerList.Entry e) { Entry = e; _favorite = e.Favorite; }
+        public ServerList.Entry Entry { get; }
+        public string Address => Entry.Address;
+        public string Name => Entry.Name;
+        public string Players => Entry.OnMaster ? Entry.Players + " / " + Entry.MaxPlayers : "";
+        public string Details => Entry.OnMaster ? Entry.Gamemode + (string.IsNullOrEmpty(Entry.Version) ? "" : "  ·  " + Entry.Version) + (Entry.Verified ? "  ·  verified" : "") + (Entry.PublicKey != null ? "  ·  key pinned" : "") + (Entry.Passworded ? "  ·  password" : "") : (Entry.Favorite ? "favourite" : "recent") + " — not on the master list";
+        [ObservableProperty] private bool _favorite;
+        public string FavoriteGlyph => Favorite ? "★" : "☆";
+        partial void OnFavoriteChanged(bool value) => OnPropertyChanged(nameof(FavoriteGlyph));
+    }
+
+    public ObservableCollection<ServerRow> ServerRows { get; } = new();
+    [ObservableProperty] private string _serversStatus = "";
+    [ObservableProperty] private bool _serversBusy;
+    [ObservableProperty] private string _directAddress = "127.0.0.1:4499";
+
+    [RelayCommand]
+    private async Task RefreshServers()
+    {
+        if (ServersBusy) return;
+        ServersBusy = true;
+        try
+        {
+            var master = _settings.MasterServerAddress ?? "";
+            List<GTANetworkShared.MasterServerRow> rows;
+            string note;
+            if (string.IsNullOrWhiteSpace(master)) { rows = new(); note = "No master list address in Settings; showing favourites and recent servers."; }
+            else
+            {
+                try { rows = await ServerList.FetchAsync(master); note = rows.Count + " server(s) on " + master.Trim(); }
+                catch (Exception ex) { rows = new(); note = "The master list " + master.Trim() + " did not answer: " + ex.Message; }
+            }
+            ServerRows.Clear();
+            foreach (var e in ServerList.Merge(rows, _settings)) ServerRows.Add(new ServerRow(e));
+            ServersStatus = note + (ServerRows.Count == 0 ? " Nothing to show yet: type an address below." : "");
+        }
+        finally { ServersBusy = false; }
+    }
+
+    [RelayCommand]
+    private void ToggleFavorite(ServerRow row)
+    {
+        if (row == null) return;
+        row.Favorite = ServerList.ToggleFavorite(_settings, row.Address);
+        SettingsStore.Save(Paths.SettingsPath, _settings);
+    }
+
+    [RelayCommand]
+    private async Task ConnectTo(ServerRow row)
+    {
+        if (row == null) return;
+        await ConnectAsync(row.Address, row.Entry.PublicKey);
+    }
+
+    [RelayCommand]
+    private async Task ConnectDirect()
+    {
+        var address = (DirectAddress ?? "").Trim();
+        if (address.Length == 0) { ServersStatus = "Type host:port first."; return; }
+        await ConnectAsync(address, null);
+    }
+
+    private async Task ConnectAsync(string address, string? publicKey)
+    {
+        if (IsPlaying || !Ready) { ServersStatus = IsPlaying ? "The game is already running." : "Fix the Home page's warnings first."; return; }
+        ServerList.RememberRecent(_settings, address);
+        SettingsStore.Save(Paths.SettingsPath, _settings);
+        Environment.SetEnvironmentVariable("GTAN_CONNECT", ServerList.ConnectTarget(address, publicKey));
+        ServersStatus = "Starting the game and joining " + address + " ...";
+        Log.Info("Connect: " + address + (publicKey != null ? " (the master's key is pinned)" : ""));
+        Section = "home";
+        try { await Play(); }
+        finally { Environment.SetEnvironmentVariable("GTAN_CONNECT", null); }
+    }
 
     // ---- DLC packs (T-014): a server's list, what we have, download the rest ----
 

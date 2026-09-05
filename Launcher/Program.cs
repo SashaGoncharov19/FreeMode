@@ -14,6 +14,8 @@ Commands:
   restore   undo ""deploy"" (also done automatically at the start of ""run"")
   prepare <host:port>
             download the server's custom DLC packs (GET /dlcpacks.json) into <install>/dlcpacks/<name>/ and verify them
+  --connect <host:port[#serverkey][;password]>
+            with ""run"": the game joins that server as soon as it has loaded, without the menu
   doctor    show what was detected and what is missing
 
 Options:
@@ -73,6 +75,7 @@ Options:
             {
                 case "run": case "deploy": case "restore": case "doctor": command = args[i]; break;
                 case "prepare": command = "prepare"; prepareTarget = Next(); break;
+                case "--connect": Environment.SetEnvironmentVariable("GTAN_CONNECT", Next()); break;   // T-024: the game joins this server as soon as it is ready
                 case "--game-path": gamePath = Next(); break;
                 case "--method": method = Next(); break;
                 case "--steam": steamPath = Next(); break;

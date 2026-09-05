@@ -167,6 +167,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Servers in the launcher window, connect in one click** (T-024): a *Servers* page lists the master's servers (`MasterServerAddress`
+  → `/servers/full`: name, players, gamemode, version, verified, pinned key) with your favourites (★) and recent servers from
+  `settings.xml`, plus a direct-connect field; *Connect* starts the game and joins the server as soon as it has loaded, without the
+  menu, pinning the key the master gave. The same from the command line: `GTANetwork.Launcher run --connect host:port[#key]`. The
+  hand-over is `GTAN_CONNECT` in the game's environment (`Client/Util/AutoConnect.cs`).
 * **Sync instrumentation** (T-018): in debug mode the client shows, per streamed player, the render error (metres between the drawn
   ped and the last received position), the age of the last packet and the packet rate, and writes a `[SYNC]` summary (error
   p50/p95, age p95, rate, fps) to `Runtime.log` every 10 s; `GTAN_RECORD_ROUTE=1` records the local player's route to

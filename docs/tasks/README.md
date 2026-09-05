@@ -41,3 +41,7 @@ done
 | [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
 | [T-022-dlc-in-game-download-and-restart-to-apply](T-022-dlc-in-game-download-and-restart-to-apply.md) | DLC packs in game: download for the next server, restart-to-apply through the launcher, auto-join | ready | E-08 DLC packs | T-014, T-012 |
 | [T-023-encrypted-relay-cost](T-023-encrypted-relay-cost.md) | Encrypted relay cost: pooled buffers, and a per-server relay key (Q-14) | done | E-03 Scale | T-002 |
+| [T-024-launcher-server-list-and-connect](T-024-launcher-server-list-and-connect.md) | Launcher window: server list from the master, favourites and recent, connect in one click | needs owner (implemented; the one-click connect must be seen in game) | E-06 Launcher with a GUI (Linux and Windows) and an updater | T-010, T-011 |
+| [T-025-manifest-signing](T-025-manifest-signing.md) | Signed client manifest: the release job signs manifest.json, the server verifies the signature | ready | E-10 Anti-cheat | T-017 |
+| [T-026-entity-broadcast-interest](T-026-entity-broadcast-interest.md) | Entity create/update/delete and unoccupied-vehicle sync under interest management | ready | E-03 Scale | T-003 |
+| [T-027-voice-devices-and-activation](T-027-voice-devices-and-activation.md) | Voice: input device selection, voice activation, a local talking indicator | draft | E-09 Voice | T-016 (the owner's in-game check first) |
