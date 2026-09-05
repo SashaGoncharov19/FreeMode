@@ -52,6 +52,7 @@ namespace GTANetwork.Streamer
                         //try
                         //{
                             Main.Send(msg, NetDeliveryMethod.UnreliableSequenced, (int) ConnectionChannel.PureSync);
+                            if (GTANetwork.Sync.RouteRecorder.Enabled) GTANetwork.Sync.RouteRecorder.Write(data.Position, data.Quaternion?.Z ?? 0f);   // T-018
                         //}
                         //catch (Exception ex)
                         //{

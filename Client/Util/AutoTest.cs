@@ -19,6 +19,8 @@ namespace GTANetwork.Util
     {
         private static readonly string Target = Environment.GetEnvironmentVariable("GTAN_AUTOTEST");
         private static readonly bool QuitWhenDone = Environment.GetEnvironmentVariable("GTAN_AUTOTEST_QUIT") != "0";
+        /// <summary>GTAN_AUTOTEST_STAY=N keeps the game on the server N seconds after the checks (the [SYNC] summaries need time, T-018).</summary>
+        private static readonly int StaySeconds = int.TryParse(Environment.GetEnvironmentVariable("GTAN_AUTOTEST_STAY"), out var stay) ? stay : 0;
         private static readonly Stopwatch Clock = Stopwatch.StartNew();
         private static int _stage;
         private static long _stageStart;
@@ -56,15 +58,19 @@ namespace GTANetwork.Util
                         if (Clock.ElapsedMilliseconds - _stageStart > 120000) { Log("FAILED: not connected with scripts after 120 s (on server " + Main.IsOnServer() + ", loader " + ConnectLoader.Visible + ", scripts " + JavascriptHook.ScriptEngines.Count + ")"); Finish(); }
                         return;
                     case 3:
-                        if ((_scriptResult != null && _pageResult != null) || Clock.ElapsedMilliseconds - _stageStart > 30000)
+                        if ((_scriptResult != null && _pageResult != null) || Clock.ElapsedMilliseconds - _stageStart > 60000)
                         {
-                            Log("script rpc: " + (_scriptResult ?? "NO RESULT in 30 s"));
-                            Log("page rpc: " + (_pageResult ?? "NO RESULT in 30 s"));
+                            Log("script rpc: " + (_scriptResult ?? "NO RESULT in 60 s"));
+                            Log("page rpc: " + (_pageResult ?? "NO RESULT in 60 s"));
                             var ok = _scriptResult != null && _scriptResult.StartsWith("ok") && _pageResult != null && _pageResult.StartsWith("ok");
                             Log(ok ? "RESULT: OK" : "RESULT: FAILED");
-                            Finish();
+                            if (StaySeconds > 0) { LogManager.Verbose = true; Log("staying " + StaySeconds + " s for measurements (GTAN_AUTOTEST_STAY); verbose logging on"); Next(4); }
+                            else Finish();
                         }
                         return;
+                    case 4:
+                        if (Clock.ElapsedMilliseconds - _stageStart > StaySeconds * 1000L) Finish();
+                        break;
                 }
             }
             catch (Exception ex)

@@ -14,6 +14,8 @@ namespace GTANetwork.Util
         public static bool ShowFps = true;
         public static bool StreamerDebug = false;
         public static bool PlayerDebug = false;
+        /// <summary>T-018: per streamed player the render error, the packet age and the rate; on in debug mode.</summary>
+        public static bool SyncDebug = false;
 
         private const int Position = 400;
 
@@ -71,6 +73,22 @@ namespace GTANetwork.Util
 
                 new UIResText(output, new Point(5, Position), 0.35f) { Outline = true }.Draw(new Size());
 
+            }
+
+            if (SyncDebug || Main.PlayerSettings?.DebugMode == true)
+            {
+                var lines = new System.Text.StringBuilder();
+                lines.Append(string.IsNullOrEmpty(Sync.SyncMetrics.LastSummary) ? "[SYNC] collecting..." : Sync.SyncMetrics.LastSummary).Append('\n');
+                Sync.SyncPed[] bubble;
+                lock (Streamer.StreamerThread.StreamedInPlayers) { bubble = Streamer.StreamerThread.StreamedInPlayers.ToArray(); }
+                var shown = 0;
+                foreach (var ped in bubble)
+                {
+                    if (ped == null || !ped.StreamedIn || ped.Character == null) continue;
+                    lines.Append(string.Format("{0,-14} err {1,5:0.00} m  age {2,4} ms  {3,4:0.0} Hz\n", ped.Name != null && ped.Name.Length > 14 ? ped.Name.Substring(0, 14) : ped.Name, ped.LastRenderError, ped.TicksSinceLastUpdate, ped.PacketRateHz));
+                    if (++shown >= 12) break;
+                }
+                new UIResText(lines.ToString(), new Point(5, 420), 0.3f) { Outline = true }.Draw(new Size());
             }
 
             if (PlayerDebug)

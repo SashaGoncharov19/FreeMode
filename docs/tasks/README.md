@@ -35,7 +35,7 @@ done
 | [T-015-voice-protocol-and-bot-test](T-015-voice-protocol-and-bot-test.md) | Voice chat protocol: Opus frames over Lidgren, server relay by range, bot test | done | E-09 Voice | T-003 (range sets) preferred; none required |
 | [T-016-voice-client-capture-playback](T-016-voice-client-capture-playback.md) | Voice chat in the client: capture, encode, positional playback, push-to-talk, indicator | needs owner (implemented; the microphone and the positional playback must be checked in game under Proton) | E-09 Voice | T-015 |
 | [T-017-anti-cheat-baseline](T-017-anti-cheat-baseline.md) | Anti-cheat baseline: server-side validation, cheat events, client integrity report, signed manifest | done (the manifest signing is a follow-up that needs a repository secret from the owner) | E-10 Anti-cheat | T-002 (to tune thresholds under load) |
-| [T-018-sync-instrumentation](T-018-sync-instrumentation.md) | Sync instrumentation: per-entity error overlay, packet-age stats, bot route replay | ready | E-11 Sync quality | none |
+| [T-018-sync-instrumentation](T-018-sync-instrumentation.md) | Sync instrumentation: per-entity error overlay, packet-age stats, bot route replay | needs owner (implemented; the overlay and the baseline at 0 / 150 ms RTT need the game) | E-11 Sync quality | none |
 | [T-019-3d-browsers](T-019-3d-browsers.md) | 3D browsers: pages placed in the world, depth-tested | draft | E-12 CEF UI | T-012 |
 | [T-020-remove-dead-code-and-unused-binaries](T-020-remove-dead-code-and-unused-binaries.md) | Remove dead code and unused binaries | done | E-02 Agent framework (hygiene) | none |
 | [T-021-dlc-runtime-mounting-spike](T-021-dlc-runtime-mounting-spike.md) | Spike: mounting DLC packs at runtime (no game restart) | draft | E-08 DLC packs | T-014 |
