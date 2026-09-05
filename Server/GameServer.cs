@@ -118,6 +118,7 @@ namespace GTANetworkServer
             // the 2016 master (master.gtanet.work) is gone: announce only to the master in settings.xml (<master>, T-011)
             MasterServer = (conf.MasterServer ?? "").Trim().TrimEnd('/');
             RelayThreads = conf.RelayThreads;
+            Interest = conf.Interest ?? new InterestSettings();
             if (AnnounceSelf && MasterServer.Length == 0) AnnounceSelf = false;
             AnnounceToLAN = conf.AnnounceToLan;
             UseUPnP = conf.UseUPnP;
@@ -165,6 +166,7 @@ namespace GTANetworkServer
         public bool AnnounceSelf { get; set; }
         public int LogLevel { get; set; }
         public int RelayThreads { get; set; }
+        public InterestSettings Interest { get; set; }
         public bool AnnounceToLAN { get; set; }
         internal AccessControlList ACL { get; set; }
         public bool IsClosing { get; set; }
@@ -885,15 +887,6 @@ namespace GTANResource
                 if (ACLEnabled) ACL.LogOutClient(client);
 
                 Downloads.RemoveAll(d => d.Parent == client);
-
-                // the far-sync throttle keyed by this player's handle on every other client
-                foreach (var other in Clients)
-                {
-                    lock (other.LastPacketReceived)
-                    {
-                        other.LastPacketReceived.Remove(client.handle.Value);
-                    }
-                }
             }
         }
 

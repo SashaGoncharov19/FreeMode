@@ -12,7 +12,9 @@ namespace GTANetworkServer
     {
         internal bool IsInVehicleInternal { get; set; }
         internal int VehicleHandleInternal { get; set; }
-        internal Dictionary<int, long> LastPacketReceived = new Dictionary<int, long>();
+        internal uint SyncSequence;          // pure sync packets relayed from this player (the tiers pick every 3rd / 10th / 30th)
+        internal long BudgetSecond;          // the second the budget counter belongs to
+        internal int BudgetBytes;            // bytes of other players' sync sent to this player in that second
         internal Streamer Streamer { get; set; }
         internal DateTime LastUpdate { get; set; }
 

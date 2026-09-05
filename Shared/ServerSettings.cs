@@ -32,6 +32,10 @@ namespace GTANetworkShared
         /// <summary>Threads that seal and enqueue the per-recipient copies of every message off the tick thread (T-023); 0 = cores minus two, between 1 and 4.</summary>
         [XmlElement("relaythreads")]
         public int RelayThreads { get; set; }
+
+        /// <summary>Who receives whose sync packets at which rate (T-003): grid cell size, the full/medium tier distances, the streaming range, the per-player byte budget, the caps.</summary>
+        [XmlElement("interest")]
+        public InterestSettings Interest { get; set; }
         
         [XmlElement("upnp")]
         public bool UseUPnP { get; set; }
@@ -112,6 +116,7 @@ namespace GTANetworkShared
             Announce = true;
             MasterServer = "";
             RelayThreads = 0;
+            Interest = new InterestSettings();
             UseACL = true;
             AnnounceToLan = true;
             AutoUpdateMinClientVersion = true;
@@ -178,5 +183,23 @@ namespace GTANetworkShared
     {
         [XmlAttribute("hash")]
         public string Hash { get; set; }
+    }
+
+    /// <summary>
+    /// Interest management (T-003): a player's sync packets go at the full rate (every packet, 10 Hz) to the nearest players
+    /// within <c>full</c> metres (at most <c>maxfull</c>), at a third of the rate to those within <c>medium</c> metres, at a tenth
+    /// to the rest within <c>range</c> metres (at most <c>maxnear</c> players in the three tiers together), and one position every
+    /// 3 s to everyone else. A recipient receives at most <c>budget</c> bytes of other players' sync per second: when it is
+    /// exceeded, the far tiers are skipped first (0 = no budget). <c>cell</c> is the grid cell size in metres.
+    /// </summary>
+    public class InterestSettings
+    {
+        [XmlAttribute("cell")] public int CellSize = 200;
+        [XmlAttribute("full")] public int FullRange = 50;
+        [XmlAttribute("medium")] public int MediumRange = 200;
+        [XmlAttribute("range")] public int Range = 2000;
+        [XmlAttribute("budget")] public int BudgetBytesPerSecond = 30720;
+        [XmlAttribute("maxfull")] public int MaxFull = 64;
+        [XmlAttribute("maxnear")] public int MaxNear = 250;
     }
 }

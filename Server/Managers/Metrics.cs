@@ -19,6 +19,8 @@ namespace GTANetworkServer.Managers
         private static readonly double[] TickMs = new double[Ring];
         private static int _tickIndex, _tickCount;
         private static long _ticks, _packetsIn, _bytesIn, _packetsOut, _bytesOut;
+        private static readonly long[] TierSent = new long[4];
+        private static long _budgetDropped;
         private static readonly Stopwatch Clock = Stopwatch.StartNew();
         private static readonly object SampleLock = new object();
         private static readonly Queue<Sample> Samples = new Queue<Sample>();
@@ -30,6 +32,7 @@ namespace GTANetworkServer.Managers
         {
             public double Seconds;
             public long Ticks, PacketsIn, BytesIn, PacketsOut, BytesOut;
+            public long Full, Medium, Low, Far, BudgetDropped;
         }
 
         /// <summary>One server tick took this long (Program.cs main loop).</summary>
@@ -58,6 +61,12 @@ namespace GTANetworkServer.Managers
             Interlocked.Add(ref _packetsOut, recipients);
             Interlocked.Add(ref _bytesOut, (long)bytes * recipients);
         }
+
+        /// <summary>A sync packet was queued for one recipient of this tier (0 full, 1 medium, 2 low, 3 far).</summary>
+        public static void InterestSent(int tier) { Interlocked.Increment(ref TierSent[tier]); }
+
+        /// <summary>A sync packet was not sent to a recipient because its byte budget for this second is used up.</summary>
+        public static void InterestDropped() { Interlocked.Increment(ref _budgetDropped); }
 
         /// <summary>Called every tick; once a second it snapshots the counters and measures the near sets.</summary>
         public static void MaybeSample(List<Client> clients)
@@ -91,6 +100,8 @@ namespace GTANetworkServer.Managers
                     Ticks = Interlocked.Read(ref _ticks),
                     PacketsIn = Interlocked.Read(ref _packetsIn), BytesIn = Interlocked.Read(ref _bytesIn),
                     PacketsOut = Interlocked.Read(ref _packetsOut), BytesOut = Interlocked.Read(ref _bytesOut),
+                    Full = Interlocked.Read(ref TierSent[0]), Medium = Interlocked.Read(ref TierSent[1]), Low = Interlocked.Read(ref TierSent[2]), Far = Interlocked.Read(ref TierSent[3]),
+                    BudgetDropped = Interlocked.Read(ref _budgetDropped),
                 });
                 while (Samples.Count > SampleWindow) Samples.Dequeue();
             }
@@ -139,6 +150,12 @@ namespace GTANetworkServer.Managers
                 near = new { avg = Math.Round(nearAvg, 1), max = nearMax },
                 process = new { rssBytes = process.WorkingSet64, threads = process.Threads.Count, cpuSeconds = Math.Round(process.TotalProcessorTime.TotalSeconds, 1) },
                 relay = RelaySnapshot(),
+                interest = new
+                {
+                    fullPps = Math.Round((last.Full - first.Full) / dt), mediumPps = Math.Round((last.Medium - first.Medium) / dt),
+                    lowPps = Math.Round((last.Low - first.Low) / dt), farPps = Math.Round((last.Far - first.Far) / dt),
+                    budgetDroppedPps = Math.Round((last.BudgetDropped - first.BudgetDropped) / dt), budgetDropped = last.BudgetDropped,
+                },
             };
             return JsonConvert.SerializeObject(doc);
         }

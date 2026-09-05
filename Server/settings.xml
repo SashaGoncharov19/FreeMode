@@ -11,6 +11,10 @@
   <master></master>
   <!-- Threads that encrypt and enqueue the per-player copies of every message off the tick thread (T-023); 0 = automatic (cores minus two, 1..4). -->
   <relaythreads>0</relaythreads>
+  <!-- Interest management (T-003): sync goes at 10 Hz to the nearest players within "full" m (at most "maxfull"), at ~3 Hz within
+       "medium" m, at 1 Hz within "range" m (at most "maxnear" in the three tiers), one position every 3 s to everyone else; a
+       player receives at most "budget" bytes/s of others' sync (farther tiers dropped first; 0 = unlimited); "cell" is the grid cell. -->
+  <interest cell="200" full="50" medium="200" range="2000" budget="30720" maxfull="64" maxnear="250" />
   <upnp>false</upnp>
   <announce_lan>true</announce_lan>
   <password></password>

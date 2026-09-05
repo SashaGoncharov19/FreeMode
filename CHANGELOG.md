@@ -167,6 +167,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Interest management on the server** (T-003): who receives whose sync, and how often, is decided per sender every 250 ms
+  from a grid of 200 m cells per dimension — the nearest players within 50 m (at most 64) get every pure packet (10 Hz), those
+  within 200 m every third, the rest within 2000 m (at most 250 in the three tiers) every tenth, everyone else one position every
+  3 s; a player receives at most 30 KB/s of others' sync (farther tiers dropped first). `<interest cell full medium range budget
+  maxfull maxnear/>` in `settings.xml`; `/metrics.json` → `interest` (per-tier packets/s, budget drops). Measured with the load
+  harness: 1000 players now hold (tick p99 10 ms, 15 KB/s per player, all 1000 stayed connected; before, 437 timed out); 300 players 120 → 32.5 KB/s per player, Lidgren refusing nothing (it dropped 25 % before).
 * **Relay workers** (T-023): the per-player copy and AES-GCM sealing of every message moved off the server's tick thread onto
   1–4 relay threads (`<relaythreads>` in `settings.xml`, 0 = automatic); each client stays on one worker so its message order is
   unchanged; when a worker's queue is full, unreliable sync is dropped instead of stalling the tick (`/metrics.json` → `relay`).
