@@ -259,6 +259,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   browser's creation does (`menu: page ready after 1809 ms` in the autotest afterwards).
 * **A HUD line while the push-to-talk key is held** (T-027): green `● TALKING` while frames go out, yellow while the microphone opens,
   red with the error when it did not.
+* **A failed connect from the CEF menu ended in a black screen** (the owner's 5 Sept session: a "recent" server that no longer ran,
+  15 s of loader, then black): the disconnect brought the menu back but also raised the classic full-screen Warning, and the overlay
+  is not drawn while a warning is up. With the CEF menu on, the reason now appears as a banner in the menu (plus a notification);
+  the warning stays for the classic menu. Recent servers get a × to forget them, the button for a server that did not answer reads
+  "Connect anyway", and the in-game smoke test (`GTAN_AUTOTEST`) no longer writes its server into the player's recent list.
 
 ### Removed
 * Dead code and unused binaries (T-020): the legacy client sources that were excluded from the build (`Client/Networking/*Sync*`,

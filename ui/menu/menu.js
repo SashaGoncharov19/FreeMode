@@ -1,5 +1,5 @@
 // The main menu page. The client (Client/GUI/CefMenu.cs) pushes its whole state with gtanMenu.update(state) —
-// { version, status, servers: [{address, name, gamemode, map, players, maxPlayers, passworded, source, online, favorite, recent}],
+// { version, status, notice, servers: [{address, name, gamemode, map, players, maxPlayers, passworded, source, online, favorite, recent}],
 // settings: {...} } — and gets our actions through resourceCall("menu:<action>", ...): ready, refresh, connect(host, port, password),
 // favorite(address, "true"|"false"), forget(address), settings(json), native, quit. gtanMenu.hide() fades the page before the browser closes.
 (function () {
@@ -44,12 +44,14 @@
           '<div class="mode">' + mode + "</div>" +
           '<div class="players">' + players + "</div>" +
           '<div class="where">' + esc(where(row)) + (row.pinned ? ' <span title="the master list knows this server\'s key: the connection is pinned">&#128274;</span>' : "") + (row.version ? '<div class="addr">' + esc(row.version) + "</div>" : "") + "</div>" +
-          '<button class="star' + (row.favorite ? " on" : "") + '" data-fav="' + esc(row.address) + '" title="' + (row.favorite ? "Remove from favourites" : "Add to favourites") + '">&#9733;</button>' +
+          '<div class="row-actions"><button class="star' + (row.favorite ? " on" : "") + '" data-fav="' + esc(row.address) + '" title="' + (row.favorite ? "Remove from favourites" : "Add to favourites") + '">&#9733;</button>' +
+          (row.recent && !row.favorite ? '<button class="forget" data-forget="' + esc(row.address) + '" title="Forget this server (remove it from the recent list)">&#10005;</button>' : "") + "</div>" +
           "</div>";
       }).join("");
     }
     var row = findSelected();
     el("connect-selected").disabled = !row;
+    el("connect-selected").textContent = row && !row.online ? "Connect anyway" : "Connect"; // an unanswered server may be down: say so before the 15 s wait
     el("row-password").classList.toggle("hidden", !(row && row.passworded));
     el("selected").textContent = row
       ? row.name + " — " + row.address + (row.online ? " · " + row.players + " of " + row.maxPlayers + " players" : " · no answer yet") + (row.passworded ? " · password protected" : "")
@@ -71,6 +73,12 @@
   }
 
   el("list").addEventListener("click", function (event) {
+    var forget = event.target.closest ? event.target.closest("[data-forget]") : null;
+    if (forget) {
+      call("menu:forget", forget.getAttribute("data-forget"));
+      event.stopPropagation();
+      return;
+    }
     var star = event.target.closest ? event.target.closest("[data-fav]") : null;
     if (star) {
       var address = star.getAttribute("data-fav");
@@ -86,7 +94,7 @@
   });
   el("list").addEventListener("dblclick", function (event) {
     var rowEl = event.target.closest ? event.target.closest(".row") : null;
-    if (!rowEl || (event.target.closest && event.target.closest("[data-fav]"))) return;
+    if (!rowEl || (event.target.closest && event.target.closest("[data-fav], [data-forget]"))) return;
     selected = rowEl.getAttribute("data-address");
     var row = findSelected();
     if (row) connectTo(row, el("row-password").value);
@@ -142,6 +150,8 @@
       var settingsChanged = !settingsLoaded || JSON.stringify(s.settings) !== JSON.stringify(state.settings);
       state = s;
       el("version").textContent = s.version ? "GTAN " + s.version : "";
+      el("notice").textContent = s.notice || "";
+      el("notice").classList.toggle("hidden", !s.notice);
       setStatus(s.status);
       renderList();
       if (settingsChanged) fillSettings(s.settings);

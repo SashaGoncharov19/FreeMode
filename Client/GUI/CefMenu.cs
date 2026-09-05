@@ -86,6 +86,8 @@ namespace GTANetwork.GUI
         private static Timer _closeTimer;
         private static Timer _fallbackTimer;
         private static string _status = "";
+        /// <summary>Why the last connection ended (the page shows it as a banner until the next connect); "" = nothing to show.</summary>
+        private static string _notice = "";
         private static int _shown;
         /// <summary>The browser exists but the page is hidden (the classic menu is on top); Show() brings it back without a new page.</summary>
         private static bool _concealed;
@@ -308,6 +310,18 @@ namespace GTANetwork.GUI
             Push();
         }
 
+        /// <summary>
+        /// Any thread: a connection ended (refused, timed out, kicked) — the page shows <paramref name="text"/> as a banner above
+        /// the server list until the next connect. This replaces the classic full-screen Warning while the CEF menu is on: the
+        /// warning's black rectangle covered the game and the overlay is not drawn while a warning is up, so the menu that
+        /// ResetWorld had brought back was never seen ("black screen after the loader", the owner's 5 Sept session).
+        /// </summary>
+        internal static void Notice(string text)
+        {
+            lock (Lock) _notice = text ?? "";
+            Push();
+        }
+
         // under Lock
         private static void SeedFromSettings()
         {
@@ -386,6 +400,7 @@ namespace GTANetwork.GUI
                 version = Main.CurrentVersion.ToString(),
                 loading = !_gameReady,
                 status = _status,
+                notice = _notice,
                 servers = Servers.Values
                     .OrderByDescending(r => r.Online).ThenByDescending(r => favorites.Contains(r.Address)).ThenByDescending(r => r.Players).ThenBy(r => r.Name)
                     .Select(r => new
@@ -462,7 +477,7 @@ namespace GTANetwork.GUI
                 lock (Lock) { ServerRow row; if (Servers.TryGetValue(address, out row) && !string.IsNullOrEmpty(row.PublicKey)) pinnedKey = row.PublicKey; }
             }
             Suspended = true;
-            lock (Lock) _status = "Connecting to " + address + "…";
+            lock (Lock) { _status = "Connecting to " + address + "…"; _notice = ""; }
             Push();
             Actions.Enqueue(() =>
             {

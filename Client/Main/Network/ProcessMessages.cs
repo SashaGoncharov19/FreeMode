@@ -867,7 +867,7 @@ namespace GTANetwork
                                     var spl = i.Split(':');
                                     if (_currentServerIp == Dns.GetHostAddresses(spl[0])[0].ToString()) _currentServerIp = spl[0];
                                 }
-                                AddServerToRecent(_currentServerIp + ":" + _currentServerPort);
+                                if (!Util.AutoTest.Enabled) AddServerToRecent(_currentServerIp + ":" + _currentServerPort); // a smoke test's server is not one of the player's recent servers
                                 Util.Util.SafeNotify("Connection established!");
                                 ConnectLoader.Stage("connected", "Connection established");
                                 var respLen = msg.SenderConnection.RemoteHailMessage.ReadInt32();
@@ -911,11 +911,7 @@ namespace GTANetwork
                                         if (!DownloadManager.ValidateExternalMods(respObj.Settings.ModWhitelist))
                                         {
                                             Client.Disconnect("");
-                                            MainMenu.Visible = false;
-                                            _mainWarning = new Warning("Failed to connect", "Unallowed mods!\nThe server has strictly disallowed the use of non-whitelisted mods.")
-                                            {
-                                                OnAccept = () => { _mainWarning.Visible = false; MainMenu.Visible = true; }
-                                            };
+                                            ConnectionProblem("Failed to connect", "Unallowed mods!\nThe server has strictly disallowed the use of non-whitelisted mods.");
                                         }
 
                                     }
@@ -924,11 +920,7 @@ namespace GTANetwork
                                 if (ParseableVersion.Parse(respObj.ServerVersion) < VersionCompatibility.LastCompatibleServerVersion)
                                 {
                                     Client.Disconnect("");
-                                    MainMenu.Visible = false;
-                                    _mainWarning = new Warning("Failed to connect", "Outdated server!\nPlease inform the server administrator of the issue.")
-                                    {
-                                        OnAccept = () => { _mainWarning.Visible = false; }
-                                    };
+                                    ConnectionProblem("Failed to connect", "Outdated server!\nPlease inform the server administrator of the issue.");
 
                                 }
 
@@ -954,15 +946,7 @@ namespace GTANetwork
                                 OnLocalDisconnect();
                                 if (!string.IsNullOrEmpty(reason) && reason != "Quit" && reason != "Switching servers")
                                 {
-                                    MainMenu.Visible = false;
-                                    _mainWarning = new Warning("Disconnected", reason)
-                                    {
-                                        OnAccept = () =>
-                                        {
-                                            _mainWarning.Visible = false;
-                                            MainMenu.Visible = true;
-                                        }
-                                    };
+                                    ConnectionProblem("Disconnected", reason);
                                 }
                                 else
                                 {
