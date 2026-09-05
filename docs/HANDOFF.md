@@ -98,9 +98,12 @@ rendering can only be verified in game by the owner.
 * **Merged 5 Sept** (#27): T-015 voice chat protocol: Opus frames relayed by range (40 m) or radio
   channel, mutes, start/stop-talking events, the bot talks and listens, a voice phase in the integration test. Bots: 250 of 250 frames delivered 5 m away (p99 inter-arrival 33 ms), none 990 m away; 100 talkers cost the server 115 k relays/s and ~0.8 core. The
   in-game side (capture, playback) is T-016.
-* **In review 5 Sept**: T-017 anti-cheat baseline (`task/T-017-anticheat`, PR): speed/teleport/health/armour checks with grace,
+* **Merged 5 Sept** (#28): T-017 anti-cheat baseline: speed/teleport/health/armour checks with grace,
   `onCheatDetected` + `<anticheat action>`, the client's integrity report against the package's `manifest.json`, the bot's
   `--cheat`, `eng/integration-test-anticheat.sh`. The cheating bots are kicked, an honest one is left alone, 300 honest bots for five minutes: 0 findings. Manifest signing waits for a repository secret (owner).
+* **In review 5 Sept**: T-018 sync instrumentation (`task/T-018-sync-metrics`, PR): per-player render error / packet age / rate
+  overlay and a `[SYNC]` summary in debug mode, `GTAN_RECORD_ROUTE=1` + `GTANetwork.Bot --route` for the same movement before and
+  after a change, `GTAN_AUTOTEST_STAY`. `needs owner`: the baseline at 0 and 150 ms RTT (`docs/SYNC.md` §7).
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
@@ -314,7 +317,7 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 ## What is next
 
 0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
-   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-016** voice in the client and **T-017** anti-cheat baseline in review (their PRs); next: **T-018** sync instrumentation (needs the owner in game for the overlay), or **T-022** once Q-15 is decided. Each on its own `task/T-NNN-*`
+   **T-011** merged (#20; `needs owner`: Q-07 domain + host, then the in-game list check); **T-002** load harness merged (#21); **T-023** relay workers merged (#22); **T-003** merged (#23, `needs owner` for the two-player check); **T-020** merged (#24); **T-014** first half merged (#26; Q-15 blocks the apply step); **T-015** merged (#27); **T-017** merged (#28); **T-016** voice in the client and **T-018** sync instrumentation in review (their PRs, both `needs owner` in game); the ready list is empty until Q-15 (T-022) or the owner's checks; remaining: the `needs owner` items and the follow-ups in the task files. Each on its own `task/T-NNN-*`
    branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
    empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
    owner is away (the owner allowed it on 5 Sept).

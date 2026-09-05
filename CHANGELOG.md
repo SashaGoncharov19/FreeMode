@@ -167,6 +167,11 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   `Error.log` at every start.
 
 ### Added
+* **Sync instrumentation** (T-018): in debug mode the client shows, per streamed player, the render error (metres between the drawn
+  ped and the last received position), the age of the last packet and the packet rate, and writes a `[SYNC]` summary (error
+  p50/p95, age p95, rate, fps) to `Runtime.log` every 10 s; `GTAN_RECORD_ROUTE=1` records the local player's route to
+  `logs/route-<stamp>.jsonl` and `GTANetwork.Bot --route <file>` replays it, looping, so a sync change can be compared on the same
+  movement; `GTAN_AUTOTEST_STAY=N` keeps the autotest on the server N seconds for such measurements. `docs/SYNC.md` §7.
 * **Anti-cheat baseline** (T-017): the server checks every claimed position against speed and teleport limits (60 m/s on foot,
   the vehicle's MaxSpeed × 1.3 for drivers, a jump over 200 m between two packets), health and armour against the game's maxima,
   and the client's binaries against `manifest.json` next to the server (written into every client package by

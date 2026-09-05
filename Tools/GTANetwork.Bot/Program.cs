@@ -52,6 +52,7 @@ internal sealed class Options
     public double VoiceJitter = 40;  // --voice-jitter <ms>: p99 inter-arrival limit when frames are expected
     public bool Voice;               // --voice: every load bot sends 50 dummy voice frames per second
     public string Cheat;             // --cheat speed|teleport|health: misbehave on purpose (T-017 tests)
+    public string Route;             // --route <file.jsonl>: replay a recorded route ({t,x,y,z,h} per line, GTAN_RECORD_ROUTE in game), looping (T-018)
 
     public static Options Parse(string[] args)
     {
@@ -88,6 +89,7 @@ internal sealed class Options
                 case "--voice-jitter": o.VoiceJitter = double.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--voice": o.Voice = true; break;
                 case "--cheat": o.Cheat = Next(); break;
+                case "--route": o.Route = Next(); break;
                 case "-i": case "--interactive": o.Interactive = true; break;
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "-h": case "--help":
@@ -136,6 +138,7 @@ internal sealed class Options
   --voice-max <n>      at most n voice frames may arrive (0 = this bot must hear nothing)
   --voice              with --bots: every load bot sends 50 dummy voice frames per second
   --cheat <kind>       misbehave: speed (200 m/s on foot), teleport (500 m jumps every second), health (250)
+  --route <file>       replay a route recorded in game with GTAN_RECORD_ROUTE=1 (logs/route-*.jsonl: {t,x,y,z,h} per line), looping
   -v, --verbose        print Lidgren debug messages and raw packet sizes";
 }
 
@@ -290,6 +293,7 @@ internal static class Program
 
             if (_o.Sync && _clock.Elapsed >= nextSync)
             {
+                Route();
                 Cheat();
                 SendPureSync();
                 nextSync = _clock.Elapsed + TimeSpan.FromMilliseconds(100);
@@ -773,6 +777,38 @@ internal static class Program
 
     private static int _cheatTicks;
     private static byte _health = 100;
+    private static List<(double T, float X, float Y, float Z, float H)> _route;
+    private static TimeSpan _routeStart;
+
+    /// <summary>--route: the recorded positions, interpolated by elapsed time and looped (T-018).</summary>
+    private static void Route()
+    {
+        if (_o.Route == null || !_joined) return;
+        if (_route == null)
+        {
+            _route = new List<(double, float, float, float, float)>();
+            foreach (var line in File.ReadLines(_o.Route))
+            {
+                var trimmed = line.Trim().TrimEnd(',');
+                if (trimmed.Length < 2 || trimmed[0] != '{') continue;
+                using var doc = System.Text.Json.JsonDocument.Parse(trimmed);
+                var r = doc.RootElement;
+                _route.Add((r.GetProperty("t").GetDouble(), (float)r.GetProperty("x").GetDouble(), (float)r.GetProperty("y").GetDouble(), (float)r.GetProperty("z").GetDouble(), r.TryGetProperty("h", out var h) ? (float)h.GetDouble() : 0f));
+            }
+            _route.Sort((a, b) => a.T.CompareTo(b.T));
+            _routeStart = _clock.Elapsed;
+            Log("route", $"{_route.Count} points over {(_route.Count > 0 ? (_route[_route.Count - 1].T - _route[0].T) / 1000 : 0):0.0} s from {_o.Route}");
+        }
+        if (_route.Count < 2) return;
+        var duration = _route[_route.Count - 1].T - _route[0].T;
+        var elapsed = ((_clock.Elapsed - _routeStart).TotalMilliseconds % Math.Max(1, duration)) + _route[0].T;
+        var i = _route.FindLastIndex(p => p.T <= elapsed);
+        if (i < 0) i = 0;
+        var a = _route[i]; var b = _route[Math.Min(i + 1, _route.Count - 1)];
+        var f = b.T > a.T ? (float)((elapsed - a.T) / (b.T - a.T)) : 0f;
+        _position = new Vector3(a.X + (b.X - a.X) * f, a.Y + (b.Y - a.Y) * f, a.Z + (b.Z - a.Z) * f);
+        _heading = a.H + (b.H - a.H) * f;
+    }
 
     /// <summary>--cheat: the kind of misbehaviour the server's anti-cheat must catch (T-017).</summary>
     private static void Cheat()

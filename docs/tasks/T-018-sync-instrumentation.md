@@ -1,6 +1,6 @@
 # T-018 — Sync instrumentation: per-entity error overlay, packet-age stats, bot route replay
 
-Status: in progress
+Status: needs owner (implemented; the overlay and the baseline at 0 / 150 ms RTT need the game)
 Epic: E-11 Sync quality
 Size: M
 Branch: task/T-018-sync-metrics from the integration branch
@@ -31,7 +31,24 @@ timestamps) so the same movement can be compared before and after a sync change.
 
 * 2026-09-04 22:10 agent — created.
 * 2026-09-05 18:40 agent — started.
+* 2026-09-05 19:40 agent — overlay, summary, route recording and replay, autotest stay done; PR opened; the baseline needs the owner in game.
 
 ## Result
 
-(empty)
+* **Changed**: `Client/Sync/SyncMetrics.cs` (new: `SyncPed.LastRenderError` / `PacketRateHz` / `RecordRenderError`, the
+  `SyncMetrics` 10-second summary, `RouteRecorder`), `Client/Sync/SyncPed.cs` (`RecordRenderError()` after the position update
+  in `Render`), `Client/Sync/Threads.cs` (the summary tick), `Client/Util/DebugInfo.cs` (the per-player block in debug mode,
+  `SyncDebug`), `Client/Sync/SyncSender/SyncSender.cs` (route recording after each pure packet), `Client/Util/AutoTest.cs`
+  (`GTAN_AUTOTEST_STAY`), `Tools/GTANetwork.Bot/Program.cs` (`--route <file>`: JSON lines `{t,x,y,z,h}`, interpolated by elapsed
+  time, looping), `docs/SYNC.md` §7, `CHANGELOG.md`, `docs/CODEMAP.md`.
+* **Deviation from the Files list**: the route is recorded by the client (`GTAN_RECORD_ROUTE=1`), as the task's note suggested, not
+  by the bot; the summary goes through `LogManager.VerboseLog` (debug mode) as specified.
+* **Verified**: the client builds against the real ScriptHookVDotNet build; `eng/dev-test.sh` green; the bot's `--route` parses and
+  replays a hand-made three-point route (a local check with a stub server is not part of CI: the replay only moves the bot).
+  __T018_VERIFIED__
+* **Owner check**: `GTAN_RECORD_ROUTE=1 ~/GTANetwork/play.sh --debug`, walk and drive for a minute, quit; then
+  `~/GTANetwork/GTANetwork.Bot --route ~/GTANetwork/logs/route-<stamp>.jsonl --duration 300 --name Route` and play with debug mode
+  on: the overlay lists "Route" with err / age / Hz, `grep "\[SYNC\]" ~/GTANetwork/logs/Runtime.log` shows the summaries. Record
+  the p50/p95 at 0 ms, then with `sudo tc qdisc add dev lo root netem delay 75ms` (150 ms RTT), into `docs/SYNC.md` §7.
+* **Not done / follow-ups**: the baseline numbers themselves (they need the game and root for `tc netem`); a vehicle route
+  replays as a ped path (the bot has no vehicle sync).
