@@ -1,6 +1,6 @@
 # T-026 — Entity create/update/delete and unoccupied-vehicle sync under interest management
 
-Status: ready
+Status: in progress
 Epic: E-03 Scale
 Size: M
 Branch: task/T-026-entity-interest from the integration branch
@@ -32,6 +32,7 @@ the number of entities elsewhere on the map.
 ## Log
 
 * 2026-09-05 20:10 agent — created from T-003's follow-ups (SYNC §6: entity packets are still broadcast).
+* 2026-09-05 21:00 agent — started: instrumentation and the baseline first (entity packets per player under load), then the filtering.
 
 ## Result
 
