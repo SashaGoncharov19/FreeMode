@@ -1,6 +1,6 @@
 # T-016 — Voice chat in the client: capture, encode, positional playback, push-to-talk, indicator
 
-Status: ready
+Status: in progress
 Epic: E-09 Voice
 Size: L
 Branch: task/T-016-voice-client from the integration branch
@@ -35,6 +35,7 @@ Audio capture under Wine is the risk: measure it first (a 30-line WASAPI capture
 ## Log
 
 * 2026-09-04 22:10 agent — created.
+* 2026-09-05 16:40 agent — started (branched from the T-015 branch; the PR targets the integration branch after the T-015 PR).
 
 ## Result
 
