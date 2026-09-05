@@ -1,6 +1,6 @@
 # T-023 — Encrypted relay cost: pooled buffers, and a per-server relay key (Q-14)
 
-Status: ready
+Status: in progress
 Epic: E-03 Scale
 Size: M
 Branch: task/T-023-encrypted-relay-cost from the integration branch
@@ -42,6 +42,7 @@ cost well under 300 ns without weakening T-009's guarantees, measured with `eng/
 ## Log
 
 * 2026-09-05 08:20 agent — created from the T-002 baseline.
+* 2026-09-05 09:05 agent — started.
 
 ## Result
 
