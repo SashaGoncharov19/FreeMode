@@ -87,6 +87,8 @@ jobs:
           eng/integration-test.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
           eng/integration-test-auth.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot
           eng/integration-test-template.sh artifacts/server-linux-x64 artifacts/bot-linux-x64/GTANetwork.Bot artifacts/cli-linux-x64/gtanetwork
+          dotnet publish Tools/GTANetwork.Master/GTANetwork.Master.csproj -c Release -p:GtanBuildNumber=$GTAN_BUILD -p:GtanRevision=$GTAN_REVISION -r linux-x64 --self-contained true -o artifacts/master-linux-x64
+          eng/integration-test-master.sh artifacts/server-linux-x64 artifacts/master-linux-x64
 
       - uses: actions/upload-artifact@v4
         with:
@@ -152,6 +154,12 @@ jobs:
         with:
           name: gtanetwork-cli-win-x64-${{ env.GTAN_VERSION }}
           path: artifacts/cli-win-x64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtanetwork-master-linux-x64-${{ env.GTAN_VERSION }}
+          path: artifacts/master-linux-x64
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------------------------

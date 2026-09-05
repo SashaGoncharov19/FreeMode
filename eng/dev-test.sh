@@ -34,6 +34,7 @@ echo "== Publishing server + bot (linux-x64) =="
 dotnet publish Server/GTANetworkServer.csproj -c Release -r linux-x64 --self-contained true  -o "$art/server" -v quiet
 dotnet publish Tools/GTANetwork.Bot/GTANetwork.Bot.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$art/bot" -v quiet
 dotnet publish Tools/GTANetwork.Cli/GTANetwork.Cli.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$art/cli" -v quiet
+dotnet publish Tools/GTANetwork.Master/GTANetwork.Master.csproj -c Release -r linux-x64 --self-contained true -o "$art/master" -v quiet
 cp vehicleData.json "$art/server/"
 
 echo "== Server smoke test =="
@@ -42,5 +43,6 @@ echo "== Bot integration tests =="
 eng/integration-test.sh "$art/server" "$art/bot/GTANetwork.Bot"
 eng/integration-test-auth.sh "$art/server" "$art/bot/GTANetwork.Bot"
 eng/integration-test-template.sh "$art/server" "$art/bot/GTANetwork.Bot" "$art/cli/gtanetwork"
+eng/integration-test-master.sh "$art/server" "$art/master"
 
 echo "All local checks passed."

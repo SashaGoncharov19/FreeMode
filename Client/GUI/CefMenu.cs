@@ -38,7 +38,43 @@ namespace GTANetwork.GUI
             public int MaxPlayers;
             public bool Passworded;
             public string Source;    // where it was found: "lan", "internet", "verified"; "" = only known from favourites/recent
-            public bool Online;      // answered a discovery request during the current refresh
+            public bool Online;      // answered a discovery request during the current refresh (or the master pinged it)
+            public string Version;   // from the master list
+            public string PublicKey; // from the master list: pinned when connecting from the list (T-009)
+        }
+
+        /// <summary>One entry of the master's GET /servers/full (Tools/GTANetwork.Master).</summary>
+        public sealed class MasterRow
+        {
+            public string address, name, gamemode, map, version, publicKey;
+            public int players, maxPlayers;
+            public bool passworded, verified;
+        }
+
+        /// <summary>The master list answered (thread-pool thread of RebuildServerBrowser): rows are online without a discovery answer.</summary>
+        internal static void OnMasterList(List<MasterRow> rows)
+        {
+            if (rows == null) return;
+            lock (Lock)
+            {
+                foreach (var m in rows)
+                {
+                    var row = Row(m.address);
+                    if (row == null) continue;
+                    row.Name = string.IsNullOrWhiteSpace(m.name) ? m.address : m.name;
+                    row.Gamemode = m.gamemode ?? "";
+                    row.Map = m.map ?? "";
+                    row.Players = m.players;
+                    row.MaxPlayers = m.maxPlayers;
+                    row.Passworded = m.passworded;
+                    row.Version = m.version ?? "";
+                    row.PublicKey = m.publicKey ?? "";
+                    row.Source = m.verified ? "verified" : "internet";
+                    row.Online = true;
+                }
+                _status = rows.Count + " server(s) on the master list";
+            }
+            Push();
         }
 
         private static readonly object Lock = new object();
@@ -356,6 +392,7 @@ namespace GTANetwork.GUI
                     {
                         address = r.Address, name = r.Name, gamemode = r.Gamemode, map = r.Map, players = r.Players, maxPlayers = r.MaxPlayers,
                         passworded = r.Passworded, source = r.Source, online = r.Online, favorite = favorites.Contains(r.Address), recent = recent.Contains(r.Address),
+                        version = r.Version ?? "", pinned = !string.IsNullOrEmpty(r.PublicKey),
                     }).ToList(),
                 settings = s == null ? null : new
                 {
@@ -419,6 +456,11 @@ namespace GTANetwork.GUI
             if (port <= 0 || port > 65535) port = 4499;
             var address = host + ":" + port;
             var pass = password ?? "";
+            if (pinnedKey == null)
+            {
+                // the master list gave this server's public key: connecting from the list pins it (T-009)
+                lock (Lock) { ServerRow row; if (Servers.TryGetValue(address, out row) && !string.IsNullOrEmpty(row.PublicKey)) pinnedKey = row.PublicKey; }
+            }
             Suspended = true;
             lock (Lock) _status = "Connecting to " + address + "…";
             Push();

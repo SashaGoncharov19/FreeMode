@@ -70,13 +70,23 @@ rendering can only be verified in game by the owner.
   and the RPC helper traces its own steps from JavaScript (`rpc: [js …]`); the owner's second run ended the trace at
   `rpc: page #1 auth:login -> the server (auth)` — the helper never called the `send` delegate, nothing threw, and the same
   call shape works in ClearScript outside the game. The next run's `rpc: [js auth] …` lines name the step.
+* **Merged 5 Sept** (#19) — **the RPC cause found and fixed**: the helper called `String(name)`, and in the game's script engine
+  `String` is the host type `System.String` (`AddHostType`), so the call threw "Invalid generic type argument" before `send`; the
+  error path used `String()` too, so nothing was logged. A plain `str()` now. **Verified in game by the agent**: the in-game
+  autotest (`GTAN_AUTOTEST=host:port[#key][;password]`, `Client/Util/AutoTest.cs`, passed through by the launcher) connects to
+  the server after the game is ready, calls `freeroam:ping` from a client script and from a CEF page and writes
+  `autotest: RESULT: OK` (or `FAILED`) to `Runtime.log`, then quits the game (`GTAN_AUTOTEST_QUIT=0` keeps it). Run it as
+  `GTAN_AUTOTEST=127.0.0.1:4499 ~/GTANetwork/play.sh --debug` while the local server runs. The owner's install has this build.
+* **In review 5 Sept**: T-011 the master list (`task/T-011-master-list`, PR): `Tools/GTANetwork.Master` (minimal API + SQLite, Docker),
+  server announce every 60 s to `<master>` with the public key and `master.token`, `/servers/full` in the CEF menu with key
+  pinning, `eng/integration-test-master.sh` in `dev-test.sh` and CI. Q-07 (a domain and a host) stays the owner's; until then
+  `<master>` and `MasterServerAddress` are empty and nothing is announced.
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
 * The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out, up to 6.5 s of memory stall per
   second, Chromium took 42 s to start); the loader did not show for that reason and the idle timer then stopped the host as
-  soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07
-  hosting of the master list (blocks T-011), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
+  soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07 hosting of the master list (the service exists since T-011; the domain and the host are the owner's), Q-03, Q-05, Q-06, Q-08, Q-10, Q-11, Q-13.
 * Everything except the game is verified by `eng/dev-test.sh` (CI checks) and `eng/cef-harness.sh` (browser host, both frame
   modes, latency, loader page); the bridge numbers are in `docs/PLAN.md` E-04.
 
@@ -283,15 +293,16 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): read the owner's next `Runtime.log` for the `rpc:` hops and fix the client RPC
-   path → **T-011**
-   master list (needs Q-07; the CEF menu then gets ping and player counts from it). Each on its own `task/T-NNN-*` branch from the
-   integration branch, one PR, `eng/dev-test.sh` green.
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): the client RPC path is fixed and verified by the in-game autotest (#19);
+   **T-011** master list is implemented (its PR; `needs owner`: Q-07 domain + host, then the in-game list check); then the next ready task in the plan's order (**T-002** load harness first: M2 starts with the measurement). Each on its own `task/T-NNN-*`
+   branch from the integration branch, one PR, `eng/dev-test.sh` green. **Before touching the game**: `pgrep -x GTA5.exe` must be
+   empty (never build in the container while the owner plays); the agent may run the game itself with `GTAN_AUTOTEST=…` when the
+   owner is away (the owner allowed it on 5 Sept).
 1. **In-game run by the owner** (quiet machine, `play.sh --debug`): (a) hitches — read `[HITCH]` lines in `Runtime.log`
    against `hitch-monitor.log` and SHVDN's log, as described above; (b) the idle exit — after login the host must stop a
    minute after the last browser closed ("No browser for 60 s" in `CEF.log`, counted from `CEF initialised`) and a later
    page must start it again and show; (c) the connect loader (`loader: shown` / `loader: hidden after N ms` in `Runtime.log`);
-   (d) RPC (merged, synced): a wrong password in the `auth` form shows "Wrong name or password." in the form;
+   (d) RPC (fixed in #19, verified by the autotest): a wrong password in the `auth` form shows "Wrong name or password." in the form;
    (e) after T-013 is merged and synced: the CEF main menu at game start (`menu: shown` / `menu: page ready after N ms` in
    `Runtime.log`), the local server under LAN, connect from it, the menu back after a disconnect, ★ persisted in `settings.xml`.
    If the GPU path misbehaves, `<CefGpu>false</CefGpu>` is the safe setting. Then cut `v0.2.0-alpha.6` via the `build.yml`
