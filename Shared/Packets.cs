@@ -393,6 +393,10 @@ namespace GTANetworkShared
         /// <summary>T-009: the client's ephemeral X25519 public key (32 bytes); absent on clients before the encrypted session.</summary>
         [ProtoMember(9)]
         public byte[] ClientPublicKey { get; set; }
+
+        /// <summary>T-014: the custom DLC packs mounted for this game session (names); null or empty = none.</summary>
+        [ProtoMember(10)]
+        public List<string> DlcPacks { get; set; }
     }
 
     

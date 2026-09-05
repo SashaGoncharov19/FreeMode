@@ -49,6 +49,10 @@ namespace GTANetworkShared
         [XmlElement("resource")]
         public List<SettingsResFilepath> Resources { get; set; }
 
+        /// <summary>Custom DLC packs the players need (T-014): served as GET /dlcpacks.json; players missing a required one are refused.</summary>
+        [XmlElement("dlcpack")]
+        public List<DlcPackSettings> DlcPacks { get; set; }
+
         [XmlElement("acl_enabled")]
         public bool UseACL { get; set; }
 
@@ -105,6 +109,19 @@ namespace GTANetworkShared
             public string Path { get; set; }
         }
 
+        /// <summary>&lt;dlcpack name="..." url="https://..." sha256="..." size="..." required="true"/&gt; (T-014).</summary>
+        [XmlRoot("dlcpack")]
+        public class DlcPackSettings
+        {
+            [XmlAttribute("name")] public string Name { get; set; }
+            [XmlAttribute("url")] public string Url { get; set; }
+            [XmlAttribute("sha256")] public string Sha256 { get; set; }
+            [XmlAttribute("size")] public long Size { get; set; }
+            [XmlAttribute("required")] public bool Required { get; set; } = true;
+
+            public DlcPackInfo ToInfo() => new DlcPackInfo { name = Name, url = Url, sha256 = (Sha256 ?? "").Trim().ToLowerInvariant(), size = Size, required = Required };
+        }
+
         public ServerSettings()
         {
             Port = 4499;
@@ -117,6 +134,7 @@ namespace GTANetworkShared
             MasterServer = "";
             RelayThreads = 0;
             Interest = new InterestSettings();
+            DlcPacks = new List<DlcPackSettings>();
             UseACL = true;
             AnnounceToLan = true;
             AutoUpdateMinClientVersion = true;

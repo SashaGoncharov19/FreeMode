@@ -94,6 +94,13 @@ namespace GTANetworkServer.Managers
                     return;
                 }
 
+                if (string.Equals(path, "/dlcpacks.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    // the custom DLC packs the players need (T-014), for the launcher
+                    Write(response, Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(Program.ServerInstance?.DlcPacks ?? new List<DlcPackInfo>())), "application/json", request.HttpMethod == "HEAD");
+                    return;
+                }
+
                 if (string.Equals(path, "/metrics.json", StringComparison.OrdinalIgnoreCase))
                 {
                     // the server's counters for the load harness (T-002)

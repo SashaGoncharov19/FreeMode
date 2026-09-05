@@ -119,6 +119,17 @@ namespace GTANetworkServer
             MasterServer = (conf.MasterServer ?? "").Trim().TrimEnd('/');
             RelayThreads = conf.RelayThreads;
             Interest = conf.Interest ?? new InterestSettings();
+            if (conf.DlcPacks != null)
+            {
+                foreach (var pack in conf.DlcPacks)
+                {
+                    if (pack == null) continue;
+                    if (!DlcPackNames.IsValid(pack.Name)) { Program.Output("settings.xml: <dlcpack> \"" + pack.Name + "\" ignored: the name must be letters, digits, '_' or '-' (1..64)", LogCat.Warn); continue; }
+                    if (string.IsNullOrWhiteSpace(pack.Url) || string.IsNullOrWhiteSpace(pack.Sha256)) { Program.Output("settings.xml: <dlcpack name=\"" + pack.Name + "\"> ignored: url and sha256 are required", LogCat.Warn); continue; }
+                    DlcPacks.Add(pack.ToInfo());
+                }
+                if (DlcPacks.Count > 0) Program.Output("DLC packs declared: " + string.Join(", ", DlcPacks.ConvertAll(p => p.name + (p.required ? "" : " (optional)"))) + " (GET /dlcpacks.json)", LogCat.Info);
+            }
             if (AnnounceSelf && MasterServer.Length == 0) AnnounceSelf = false;
             AnnounceToLAN = conf.AnnounceToLan;
             UseUPnP = conf.UseUPnP;
@@ -167,6 +178,8 @@ namespace GTANetworkServer
         public int LogLevel { get; set; }
         public int RelayThreads { get; set; }
         public InterestSettings Interest { get; set; }
+        /// <summary>The custom DLC packs of settings.xml (T-014), as served by /dlcpacks.json.</summary>
+        public List<DlcPackInfo> DlcPacks { get; set; } = new List<DlcPackInfo>();
         public bool AnnounceToLAN { get; set; }
         internal AccessControlList ACL { get; set; }
         public bool IsClosing { get; set; }

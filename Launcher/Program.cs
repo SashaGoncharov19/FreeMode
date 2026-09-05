@@ -12,6 +12,8 @@ Commands:
   run       (default) install the mod into the game folder, start GTA V, wait for it to exit, clean up
   deploy    only install the mod files into the game folder (use ""restore"" afterwards)
   restore   undo ""deploy"" (also done automatically at the start of ""run"")
+  prepare <host:port>
+            download the server's custom DLC packs (GET /dlcpacks.json) into <install>/dlcpacks/<name>/ and verify them
   doctor    show what was detected and what is missing
 
 Options:
@@ -60,6 +62,7 @@ Options:
     private static int Run(string[] args)
     {
         var command = "run";
+        string? prepareTarget = null;
         string? gamePath = null, method = null, steamPath = null, protonPath = null, prefixPath = null, installDir = null;
         bool keepAsi = false, noOffline = false, noWait = false, save = false;
 
@@ -69,6 +72,7 @@ Options:
             switch (args[i])
             {
                 case "run": case "deploy": case "restore": case "doctor": command = args[i]; break;
+                case "prepare": command = "prepare"; prepareTarget = Next(); break;
                 case "--game-path": gamePath = Next(); break;
                 case "--method": method = Next(); break;
                 case "--steam": steamPath = Next(); break;
@@ -130,6 +134,18 @@ Options:
             case "restore":
                 Deployment.Restore(LaunchSession.RequireGame(env));
                 return 0;
+
+            case "prepare":
+            {
+                var target = prepareTarget ?? throw new LauncherException("prepare needs <host:port>");
+                var colon = target.LastIndexOf(':');
+                var host = colon > 0 ? target.Substring(0, colon) : target;
+                var port = colon > 0 && int.TryParse(target.Substring(colon + 1), out var p) ? p : 4499;
+                var result = DlcPacks.PrepareAsync(paths, host, port, line => Log.Info(line)).GetAwaiter().GetResult();
+                if (result.Ok) Log.Ok(result.Packs.Count == 0 ? "Nothing to prepare." : $"{result.Downloaded.Count} downloaded, {result.UpToDate.Count} up to date, in {paths.DlcPacksDir}");
+                else Log.Error($"{result.Failed.Count} pack(s) failed: {string.Join("; ", result.Failed.ConvertAll(f => f.Name + " - " + f.Error))}");
+                return result.Ok ? 0 : 1;
+            }
 
             case "deploy":
                 Deployment.Deploy(paths, LaunchSession.RequireGame(env), settings.DisableOtherAsiPlugins, settings.ScOfflineOnly);

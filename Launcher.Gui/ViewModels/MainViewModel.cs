@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.ObjectModel;
 using System.Text;
 using Avalonia.Threading;
@@ -46,18 +47,90 @@ public partial class MainViewModel : ObservableObject
     public bool IsHome => Section == "home";
     public bool IsSettings => Section == "settings";
     public bool IsLogs => Section == "logs";
+    public bool IsPacks => Section == "packs";
 
     partial void OnSectionChanged(string value)
     {
         OnPropertyChanged(nameof(IsHome));
         OnPropertyChanged(nameof(IsSettings));
         OnPropertyChanged(nameof(IsLogs));
+        OnPropertyChanged(nameof(IsPacks));
         if (IsLogs) RefreshLogs();
     }
 
     [RelayCommand] private void ShowHome() => Section = "home";
     [RelayCommand] private void ShowSettings() => Section = "settings";
     [RelayCommand] private void ShowLogs() => Section = "logs";
+    [RelayCommand] private void ShowPacks() => Section = "packs";
+
+    // ---- DLC packs (T-014): a server's list, what we have, download the rest ----
+
+    public sealed record PackRow(string Name, string Size, string State, bool Required);
+
+    [ObservableProperty] private string _packsServer = "127.0.0.1:4499";
+    [ObservableProperty] private string _packsStatus = "Enter a server address and press Fetch.";
+    [ObservableProperty] private bool _packsBusy;
+    public ObservableCollection<PackRow> Packs { get; } = new();
+    private List<DlcPackInfo> _packList = new();
+
+    private static (string Host, int Port) ParseServer(string text)
+    {
+        var target = (text ?? "").Trim();
+        var colon = target.LastIndexOf(':');
+        var host = colon > 0 ? target.Substring(0, colon) : target;
+        var port = colon > 0 && int.TryParse(target.Substring(colon + 1), out var p) ? p : 4499;
+        return (host, port);
+    }
+
+    [RelayCommand]
+    private async Task FetchPacks()
+    {
+        if (PacksBusy) return;
+        var (host, port) = ParseServer(PacksServer);
+        if (string.IsNullOrEmpty(host)) { PacksStatus = "A server address is needed (host:port)."; return; }
+        PacksBusy = true;
+        try
+        {
+            _packList = await DlcPacks.FetchAsync(host, port);
+            RefreshPackRows();
+            PacksStatus = _packList.Count == 0 ? $"{host}:{port} declares no DLC packs." : $"{host}:{port} declares {_packList.Count} pack(s); {_packList.Count(p => DlcPacks.StateOf(Paths, p) == DlcPackState.Ready)} ready.";
+        }
+        catch (Exception ex)
+        {
+            PacksStatus = ex.Message;
+        }
+        finally { PacksBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task DownloadPacks()
+    {
+        if (PacksBusy || _packList.Count == 0) return;
+        var (host, port) = ParseServer(PacksServer);
+        PacksBusy = true;
+        try
+        {
+            var result = await DlcPacks.PrepareAsync(Paths, host, port, line => Log.Info(line));
+            _packList = result.Packs;
+            RefreshPackRows();
+            PacksStatus = result.Ok ? $"{result.Downloaded.Count} downloaded, {result.UpToDate.Count} up to date, in {Paths.DlcPacksDir}" : $"{result.Failed.Count} failed: {string.Join("; ", result.Failed.Select(f => f.Name + " - " + f.Error))}";
+        }
+        catch (Exception ex)
+        {
+            PacksStatus = ex.Message;
+        }
+        finally { PacksBusy = false; }
+    }
+
+    private void RefreshPackRows()
+    {
+        Packs.Clear();
+        foreach (var pack in _packList)
+        {
+            var state = DlcPacks.StateOf(Paths, pack);
+            Packs.Add(new PackRow(pack.name, DlcPacks.FormatSize(pack.size), state == DlcPackState.Ready ? "ready" : state == DlcPackState.Corrupt ? "differs - download again" : "missing", pack.required));
+        }
+    }
 
     // ---- home: status, play ----
 

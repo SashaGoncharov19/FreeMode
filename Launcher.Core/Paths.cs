@@ -20,6 +20,7 @@ public sealed class Paths
     public string ImagesDir => Path.Combine(InstallDir, "images");
     public string LogsDir => Path.Combine(InstallDir, "logs");
     public string SettingsPath => Path.Combine(InstallDir, "settings.xml");
+    public string DlcPacksDir => Path.Combine(InstallDir, "dlcpacks");   // T-014: <name>/dlc.rpf per pack, mounted.json = applied set
 
     /// <summary>Path as the (Wine) game process will see it. Proton maps the Linux root to Z:.</summary>
     public static string ToWindowsPath(string path)
