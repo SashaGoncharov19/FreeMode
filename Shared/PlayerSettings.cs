@@ -42,6 +42,10 @@ namespace GTANetworkShared
         /// <summary>Show the CEF loading screen (ui/loader) from "connect" until the server's resources are downloaded and
         /// the client scripts start (default true; false = only the game's loading prompt, as before).</summary>
         public bool CefLoader { get; set; }
+        /// <summary>The main menu (server list with favourites, recent and LAN, direct connect, settings, quit) as the CEF page ui/menu
+        /// at game start and after a disconnect, instead of the NativeUI menu (default true). The NativeUI menu stays on the pause key
+        /// and takes over when the page does not come up. Off when CEF is disabled.</summary>
+        public bool CefMenu { get; set; }
 
         public int ChatboxXOffset { get; set; }
         public int ChatboxYOffset { get; set; }
@@ -93,6 +97,7 @@ namespace GTANetworkShared
             CefSharedTexture = true;
             CefIdleExitSeconds = 60;
             CefLoader = true;
+            CefMenu = true;
             DebugMode = false;
             GamePath = "";
             LaunchMethod = "steam";

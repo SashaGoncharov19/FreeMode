@@ -844,6 +844,8 @@ namespace GTANetwork
                                 // Start the browser host now, while the connection and the resource download take
                                 // their seconds, so a page a resource opens on join is drawn at once.
                                 CEFManager.InitializeCef();
+                                CefMenu.Suspended = true;
+                                CefMenu.Hide("connecting");
                                 ConnectLoader.Show(_currentServerIp + ":" + _currentServerPort);
                                 StringCache?.Dispose();
 
@@ -933,6 +935,7 @@ namespace GTANetwork
                                 var reason = msg.ReadString();
 
                                 ConnectLoader.Hide("disconnected: " + reason);
+                                CefMenu.Suspended = false;
                                 OnLocalDisconnect();
                                 if (!string.IsNullOrEmpty(reason) && reason != "Quit" && reason != "Switching servers")
                                 {
@@ -985,6 +988,8 @@ namespace GTANetwork
                         var ourItem = new UIMenuItem(itemText) {  Description = itemText, Text = name };
 
                         ourItem.SetRightLabel(gamemode + map + " - " + data.PlayerCount + "/" + data.MaxPlayers);
+                        CefMenu.OnDiscovered(itemText, name, gamemode, string.IsNullOrWhiteSpace(data.Map) ? "" : Regex.Replace(data.Map, @"(~.*?~|~|<|>|'|""|∑|\\|¦)", string.Empty),
+                            data.PlayerCount, data.MaxPlayers, data.PasswordProtected);
 
                         if (PlayerSettings.FavoriteServers.Contains(ourItem.Description)) ourItem.SetRightBadge(UIMenuItem.BadgeStyle.Star);
 

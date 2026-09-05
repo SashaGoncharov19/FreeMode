@@ -125,6 +125,7 @@ local `PedData`/`VehicleData`; a background thread `MainLoop` :15 sends pure syn
 | `GUI/CEFManager.cs` (1277) | Browser host client: `CefController` :63, `CEFManager` :273 (`InitializeCef` :326, `StartHost` :347, `ReadEvents` :410, `Dispatch` :455, `Send` :573, idle exit :617–:648, frame pump :731, `DisposeCef` :765), `BrowserJavascriptCallback` :842, `Browser` :948, `BrowserInput` :1232. |
 | `GUI/CefClient.cs` (348) | `OverlayRenderHandler` (shared-memory frames or shared textures → overlay), `CefFrameStager`. |
 | `GUI/ConnectLoader.cs` | The connect loading screen: a client-owned full-screen browser showing `ui/loader/index.html` (`https://gtan/…`) from `InitiatedConnect` until the resources are downloaded. |
+| `GUI/CefMenu.cs` | The main menu on CEF (`ui/menu/index.html`, `<CefMenu>`): servers (favourites, recent, LAN, master list), direct connect, settings, quit; state pushed as `gtanMenu.update(json)`, page actions as `menu:*` messages run on Main's tick. NativeUI's menu stays on the pause key and is the fallback. |
 | `GUI/DirectXHook/**` | EasyHook + SharpDX D3D11 overlay: `SwapchainHooker.cs`, `Hook/DXHookD3D11.cs` (Present hook, `[PROFILE]`/`[HITCH]`), `Hook/DX11/DXOverlayEngine.cs` (draw, shared-texture copy), `DXImage.cs`, `Hook/Common/*` (elements, `SharedTextureSurface.cs`, `IDynamicSurface.cs`). D3D10 hooks are excluded from the build. |
 | `GUI/Chat.cs`, `ClassicChat.cs`, `Warning.cs`, `Tab*.cs`, `Extern/*` | Chat, warnings, pause-menu tabs, image helpers. |
 | `Misc/GameSettings.cs`, `GameScript.cs`, `WeaponDataProvider.cs`, `ChatData.cs` | GTA V settings patching, SP script disabling, weapon metadata, chat contract. |
@@ -247,6 +248,7 @@ CEF harness (`docs/agents/testing.md`). Dev container: `.devcontainer/`, `docker
   `Ionic.Zip.dll`, `Microsoft.Owin*.dll`, `Nancy*.dll`, `NAudio.WindowsMediaFormat.dll`, `Newtonsoft.Json.dll`, `Owin.dll`,
   `protobuf-net.dll` (NuGet versions are used).
 * `ui/loader/` — the connect loading screen (HTML/CSS/JS), shipped as `<install>/ui`.
+* `ui/menu/` — the main menu page (`index.html`, `menu.js`, `style.css`), same folder.
 * `natives.txt` (root) = `Client/natives.txt` (embedded, 4281 hashes); `Client/soundlist.txt`; `vehicleData.json`
   (read by `Server/Constant/ConstantVehicleData.cs`); `whitelist.txt` (1-byte placeholder); `images/**` (HUD, blips,
   radio art, `cef/cursor.png`).

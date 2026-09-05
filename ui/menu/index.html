@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GTA Network — menu</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="menu" class="menu">
+  <header class="top">
+    <div class="brand">GTA <span>Network</span></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="servers">Servers</button>
+      <button class="tab" data-tab="connect">Direct connect</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+    <div id="version" class="version"></div>
+  </header>
+
+  <section id="tab-servers" class="panel active">
+    <div class="toolbar">
+      <input id="filter" class="input" type="text" placeholder="Filter by name, address or gamemode" autocomplete="off">
+      <label class="check"><input id="only-online" type="checkbox" checked> only servers that answered</label>
+      <button id="refresh" class="btn">Refresh</button>
+    </div>
+    <div class="list-head">
+      <span class="c-name">Server</span><span class="c-mode">Gamemode</span><span class="c-players">Players</span><span class="c-where">Found</span><span class="c-fav"></span>
+    </div>
+    <div id="list" class="list"></div>
+    <div class="details">
+      <div id="selected" class="selected">Select a server, then Connect (or double-click it). Favourites are kept in settings.xml.</div>
+      <div class="actions">
+        <input id="row-password" class="input pw hidden" type="password" placeholder="Server password">
+        <button id="connect-selected" class="btn primary" disabled>Connect</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-connect" class="panel">
+    <form id="direct" class="form">
+      <label>Address <input id="dc-host" class="input" type="text" placeholder="127.0.0.1 or host:port" autocomplete="off"></label>
+      <label>Port <input id="dc-port" class="input" type="text" value="4499" autocomplete="off"></label>
+      <label>Password <input id="dc-password" class="input" type="password" placeholder="(none)"></label>
+      <button class="btn primary" type="submit">Connect</button>
+    </form>
+  </section>
+
+  <section id="tab-settings" class="panel">
+    <form id="settings" class="form two">
+      <fieldset><legend>General</legend>
+        <label>Display name <input name="displayName" class="input" type="text" maxlength="32"></label>
+        <label>Master server URL <input name="masterServerAddress" class="input" type="text" placeholder="empty = none"></label>
+        <label class="check"><input name="showFps" type="checkbox"> Show the FPS counter</label>
+        <label class="check"><input name="disableRockstarEditor" type="checkbox"> Disable the Rockstar Editor</label>
+      </fieldset>
+      <fieldset><legend>Chat</legend>
+        <label class="check"><input name="timestamp" type="checkbox"> Timestamps</label>
+        <label class="check"><input name="militaryTime" type="checkbox"> 24-hour time</label>
+        <label class="check"><input name="scaleChatWithSafezone" type="checkbox"> Scale the chat with the safe zone</label>
+        <label class="check"><input name="useClassicChat" type="checkbox"> Classic chatbox</label>
+        <label>Horizontal offset <input name="chatboxXOffset" class="input num" type="number" step="1"></label>
+        <label>Vertical offset <input name="chatboxYOffset" class="input num" type="number" step="1"></label>
+      </fieldset>
+      <fieldset><legend>Browser (CEF)</legend>
+        <label class="check"><input name="cefLoader" type="checkbox"> Loading screen while connecting</label>
+        <label class="check"><input name="cefMenu" type="checkbox"> This menu instead of the classic one (restart)</label>
+        <label class="check"><input name="cefGpu" type="checkbox"> GPU rendering in the browser (restart)</label>
+      </fieldset>
+      <div class="form-actions"><button class="btn primary" type="submit">Save</button></div>
+    </form>
+  </section>
+
+  <footer class="bottom">
+    <div id="status" class="status"></div>
+    <div class="bottom-actions">
+      <button id="native" class="btn">Classic menu</button>
+      <button id="quit" class="btn danger">Quit</button>
+    </div>
+  </footer>
+</main>
+<script src="menu.js"></script>
+</body>
+</html>

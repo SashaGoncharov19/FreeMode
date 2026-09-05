@@ -49,9 +49,12 @@ rendering can only be verified in game by the owner.
 * **Awaiting the owner in game** (`play.sh --debug`): T-000 (texture ring: typing reacts at once; `[HITCH]` lines vs
   `hitch-monitor.log`; the host stops 60 s after the last browser and returns for the next page) and T-012 (the loader shows
   about a second after "connect" and fades before the `auth` form; `Runtime.log`: `loader: shown …` / `loader: hidden after N ms`).
-* **In PR**: T-008 typed RPC (`task/T-008-rpc`): `API.rpc.call` on the client, `API.registerRpc` / `gtan.rpc.register` on the
-  server, `gtan.rpc.call` in CEF pages, `API.callClient`; the `auth` form and `freeroam` use it; bot round trips in
-  `eng/integration-test.sh` (see `docs/tasks/T-008-…`). Merge when CI is green, then the next platform/UI tasks (below).
+* **Merged 5 Sept**: T-008 typed RPC (#11): `API.rpc.call` on the client, `API.registerRpc` / `gtan.rpc.register` on the server,
+  `gtan.rpc.call` in CEF pages, `API.callClient`; the `auth` form and `freeroam` use it; bot round trips in `eng/integration-test.sh`.
+  The owner's install was synced afterwards (client, browser host, `ui/`, server with `runtime/`, bot); the running local server
+  must be restarted to speak RPC.
+* **In PR**: T-013 the main menu on CEF (`task/T-013-cef-menu`, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent,
+  LAN, master list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Merge when green.
 * The owner's 5 Sept session lagged because the machine swapped (monitor: 90–133 MB/s out, up to 6.5 s of memory stall per
   second, Chromium took 42 s to start); the loader did not show for that reason and the idle timer then stopped the host as
   soon as it came up (fixed in #10). Test on a quiet machine (Firefox and the desktop app closed). **Open decisions**: Q-07
@@ -262,15 +265,17 @@ player-facing release and for changes to the C++/CLI `ScriptHookVDotNet.dll` (Wi
 
 ## What is next
 
-0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): merge T-008 when green → **T-013** CEF main menu / server browser (the
-   owner expects the server list on CEF instead of NativeUI) → **T-005** client TypeScript resources (bundled by the server
-   with Bun) → **T-007** freeroam in TypeScript → **T-009** session encryption → **T-010** launcher GUI → **T-011** master
-   list (needs Q-07). Each on its own `task/T-NNN-*` branch from the integration branch, one PR, `eng/dev-test.sh` green.
+0. **Tasks, in order** (`docs/PLAN.md` §4, D-12): merge T-013 when green → **T-005** client TypeScript resources (bundled by
+   the server with Bun) → **T-007** freeroam in TypeScript → **T-009** session encryption → **T-010** launcher GUI → **T-011**
+   master list (needs Q-07; the CEF menu then gets ping and player counts from it). Each on its own `task/T-NNN-*` branch from the
+   integration branch, one PR, `eng/dev-test.sh` green.
 1. **In-game run by the owner** (quiet machine, `play.sh --debug`): (a) hitches — read `[HITCH]` lines in `Runtime.log`
    against `hitch-monitor.log` and SHVDN's log, as described above; (b) the idle exit — after login the host must stop a
    minute after the last browser closed ("No browser for 60 s" in `CEF.log`, counted from `CEF initialised`) and a later
    page must start it again and show; (c) the connect loader (`loader: shown` / `loader: hidden after N ms` in `Runtime.log`);
-   (d) after T-008 is merged and synced: a wrong password in the `auth` form shows "Wrong name or password." in the form.
+   (d) RPC (merged, synced): a wrong password in the `auth` form shows "Wrong name or password." in the form;
+   (e) after T-013 is merged and synced: the CEF main menu at game start (`menu: shown` / `menu: page ready after N ms` in
+   `Runtime.log`), the local server under LAN, connect from it, the menu back after a disconnect, ★ persisted in `settings.xml`.
    If the GPU path misbehaves, `<CefGpu>false</CefGpu>` is the safe setting. Then cut `v0.2.0-alpha.6` via the `build.yml`
    workflow_dispatch **only when the owner asks**.
 2. **Make the harness a CI gate**: the Windows job can run `CefHarness.exe --host <package>\cef\GTANetwork.CefHost.exe`

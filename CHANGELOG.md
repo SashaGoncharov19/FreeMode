@@ -41,6 +41,12 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   channel `Rpc`. The `auth` login form now calls `auth:login` / `auth:register` over RPC and shows the server's reason on a wrong
   password; `freeroam` answers `freeroam:ping` and `freeroam:secret` (logged-in players only); the bot has `--rpc name json` and
   `--rpc-burst name n`, and the integration tests drive a round trip, a denied call, an unknown name and the rate limit.
+* **The main menu is a CEF page** (`ui/menu`, `<CefMenu>`, default true): at game start and after a disconnect the player sees the
+  servers found — favourites and recent from `settings.xml`, LAN discovery, the master list when one is configured — with gamemode,
+  players and a password mark, a filter, favourites (★), direct connect (host, port, password) and the settings the NativeUI menu had
+  (display name, chat, FPS counter, the CEF switches, the master server URL), and Quit. The browser host starts with the game so the
+  page is up within a second or two; the NativeUI menu stays on the pause key (host tab, debug switches) and takes over when the page
+  does not come up within 30 s. `eng/cef-harness.sh` renders the page (`menu page OK`).
 * **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the

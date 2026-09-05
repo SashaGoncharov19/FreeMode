@@ -177,8 +177,20 @@ loading-prompt texts from `Main.LoadingPromptText` — and hides it (`gtanLoader
 `Browser.PageMessage` instead of a script engine. `<CefLoader>false</CefLoader>` turns it off. The harness checks the
 page with `--ui-root` (default: the repository's `ui/`): browser 3 loads it, receives a state, must paint.
 
+The **main menu** (T-013) uses the same mechanism: `Client/GUI/CefMenu.cs` shows `ui/menu/index.html` full screen when the player
+is not on a server (first ready tick of `Main`, and again after a disconnect), pushes its state with `gtanMenu.update({version,
+status, servers[], settings})` — rows from `PlayerSettings` (favourites, recent), LAN discovery and the master list
+(`Main.RebuildServerBrowser`, the same code the NativeUI browser uses), discovery answers from `ProcessMessages` — and receives the
+page's actions as `resourceCall("menu:connect" | "menu:favorite" | "menu:forget" | "menu:settings" | "menu:refresh" | "menu:native"
+| "menu:quit", …)`. Actions that touch the game run on Main's script thread (`CefMenu.Tick`); `ConnectToServer` is the NativeUI path.
+`CEFManager.ShowCursor` routes the mouse and keys to the page while it is up. The browser host is started with the game when the
+menu is on (`CefMenu.Enabled` implies the `CefPreload` behaviour). The NativeUI menu stays on the pause key (host tab, debug
+switches; `CanLeave` is true so Back returns to the page) and takes over when the page sends no `menu:ready` within 30 s
+(`menu:` lines in `Runtime.log`). `<CefMenu>false</CefMenu>` restores the NativeUI main menu. The harness renders the page as browser 4.
+
 Not done yet: server branding (logo/background) — resource files arrive during the loader phase, so a server-provided
-image needs the master list entry or a URL allowed in local mode; the in-game main menu (T-013) reuses the same mechanism.
+image needs the master list entry or a URL allowed in local mode; a ping column (discovery answers carry no round-trip time;
+the master list of T-011 can supply one); the pause-menu tabs (players, current server, host) are still NativeUI.
 
 ## Input
 
