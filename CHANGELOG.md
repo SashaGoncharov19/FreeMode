@@ -80,6 +80,9 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   browser now receives the mouse and the keyboard (it was missing from the input list), it is created during the game's loading
   so the menu is on screen the moment the game is ready, and it stays alive while the classic menu is on top (a new browser per
   toggle meant a new renderer and a second-long stall); the client logs every hop of an RPC in `Runtime.log` (`rpc: …`).
+  Second run: the page now comes up the moment the client starts, as a loading screen over the game's own loading ("Grand
+  Theft Auto V is loading…"), and becomes the server list when the game is ready; the RPC helper inside the script engine traces
+  its steps too (`rpc: [js …]`).
 * **TypeScript typings of the scripting APIs** (`types/`): `client.d.ts`, `server.d.ts`, `shared.d.ts` are generated from the
   built assemblies by `Tools/GTANetwork.TypeGen` (441 client members, 414 server members, events as `HostEvent<…>` with
   `connect`/`disconnect`), `cef.d.ts` describes the page bridge, `api-catalogue.json` lists every server API member for the

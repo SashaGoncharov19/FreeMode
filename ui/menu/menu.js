@@ -137,6 +137,8 @@
   window.gtanMenu = {
     update: function (s) {
       if (!s) return;
+      // loading: the game itself is still loading; the page is a loading screen until the client says otherwise
+      el("loading").classList.toggle("hidden", !s.loading);
       var settingsChanged = !settingsLoaded || JSON.stringify(s.settings) !== JSON.stringify(state.settings);
       state = s;
       el("version").textContent = s.version ? "GTAN " + s.version : "";
