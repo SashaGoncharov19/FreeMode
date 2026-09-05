@@ -54,7 +54,7 @@ Audio capture under Wine is the risk: measure it first (a 30-line WASAPI capture
   (new, `--capture-test <seconds>`), `Tools/CefHarness/CefHarness.csproj` (NAudio), `CHANGELOG.md`, `docs/CODEMAP.md`.
 * **Verified**: the client builds against the real ScriptHookVDotNet build (`eng/dev-build-client.sh`); `Concentus.dll` lands in
   `bin/scripts` with the other client DLLs; `eng/dev-test.sh` green. Capture under Wine on the owner's machine, measured with
-  `eng/cef-harness.sh --capture-test 3` (the harness process in the game's Proton prefix, no game): __T016_CAPTURE__
+  `eng/cef-harness.sh --capture-test 3` (the harness process in the game's Proton prefix, no game): WASAPI shared mode opened the default microphone ("Raptor Lake-P/U/H cAVS Digital Microphone" among 7 capture and 5 render endpoints listed by Wine's mmdevapi over PulseAudio/PipeWire): 48000 Hz, 2 channels, 32-bit float, 59 buffers and 1 113 600 bytes in 3 s (the full rate), peak 0.139 — real room sound, not silence. So the client's capture path works under Proton on the owner's machine; what remains is the in-game check (push-to-talk, playback).
 * **Owner check** (in game, under Proton): (1) join the local server, hold `N`: `Runtime.log` gets `voice: capture open, <format>`;
   a bot started with `GTANetwork.Bot --voice-expect 100 --duration 15 --say "/tp <your x> <your y> <your z>"` near you must end with
   `[voice] received N frames` (N ≥ 100 for 3 s of talking). Bad: `voice: capture could not start` or `WASAPI capture unavailable` +

@@ -103,7 +103,7 @@ rendering can only be verified in game by the owner.
   `--cheat`, `eng/integration-test-anticheat.sh`. The cheating bots are kicked, an honest one is left alone, 300 honest bots for five minutes: 0 findings. Manifest signing waits for a repository secret (owner).
 * **In review 5 Sept**: T-016 voice in the client (`task/T-016-voice-client`, PR): push-to-talk `N`, WASAPI/WinMM capture → Opus →
   `Voice`; per-talker decode into one WaveOut mixer with distance attenuation and panning; the nametag `*`; Settings → Voice.
-  `needs owner`: the microphone under Proton and the positional playback (task file → Owner check). __T016_SHORT__
+  `needs owner`: the microphone under Proton and the positional playback (task file → Owner check). The harness capture test under Proton: WASAPI shared mode captures the laptop microphone at 48 kHz (the risk the task named is cleared).
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").

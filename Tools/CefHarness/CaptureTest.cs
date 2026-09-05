@@ -18,32 +18,44 @@ namespace GTANetwork.CefHarness
 
         private static void Say(string text)
         {
-            Say(text);
+            // the file first: under Proton's steam.exe wrapper the console handle can be invalid and Console.WriteLine throws
             try { File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + text + Environment.NewLine); } catch { /* ignored */ }
+            try { Console.WriteLine(text); } catch { /* no console */ }
         }
 
         public static int Run(int seconds)
         {
             try { File.Delete(LogPath); } catch { /* ignored */ }
-            Say("capture test: " + seconds + " s");
+            Say("capture test: " + seconds + " s (harness " + typeof(CaptureTest).Assembly.GetName().Version + ")");
+            // NAudio types stay out of this method: loading them is part of what is measured, and a load failure must be logged, not fatal
+            try { ListDevices(); }
+            catch (Exception ex) { Say("  NAudio/device enumeration failed: " + ex.GetType().Name + ": " + ex.Message); }
+            int result;
             try
             {
-                var enumerator = new MMDeviceEnumerator();
-                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
-                    Say("  capture device: " + device.FriendlyName);
-                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
-                    Say("  render device: " + device.FriendlyName);
+                result = RecordWasapi(seconds);
+                if (result != 0) result = RecordWinMm(seconds);
             }
             catch (Exception ex)
             {
-                Say("  device enumeration failed: " + ex.Message);
+                Say("  recording failed before it started: " + ex.GetType().Name + ": " + ex.Message);
+                result = 1;
             }
-
-            var result = Record("WASAPI shared", () => new WasapiCapture { ShareMode = AudioClientShareMode.Shared }, seconds);
-            if (result != 0) result = Record("WinMM", () => new WaveInEvent { WaveFormat = new WaveFormat(48000, 16, 1), BufferMilliseconds = 20 }, seconds);
             Say(result == 0 ? "capture test: OK" : "capture test: FAILED");
             return result;
         }
+
+        private static void ListDevices()
+        {
+            var enumerator = new MMDeviceEnumerator();
+            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+                Say("  capture device: " + device.FriendlyName);
+            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+                Say("  render device: " + device.FriendlyName);
+        }
+
+        private static int RecordWasapi(int seconds) => Record("WASAPI shared", () => new WasapiCapture { ShareMode = AudioClientShareMode.Shared }, seconds);
+        private static int RecordWinMm(int seconds) => Record("WinMM", () => new WaveInEvent { WaveFormat = new WaveFormat(48000, 16, 1), BufferMilliseconds = 20 }, seconds);
 
         /// <summary>Runs the recording on a worker so that a device call that never returns under Wine is reported as a hang, not waited for.</summary>
         private static int Record(string name, Func<IWaveIn> factory, int seconds)

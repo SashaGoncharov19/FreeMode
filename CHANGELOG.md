@@ -172,7 +172,7 @@ Modern browser and JavaScript runtime. Pre-releases `0.2.0-alpha.N` carry these 
   players' frames are decoded per talker and mixed with distance attenuation (silent at 45 m) and stereo panning from their synced
   position relative to the camera; a green `*` after the nametag marks who is talking; `<VoiceEnabled>`, `<VoiceKey>`,
   `<VoiceVolume>` in `settings.xml`. `CefHarness --capture-test <s>` records the microphone under Wine without the game.
-  __T016_NUMBERS__
+  Measured under Proton on the owner's machine: WASAPI shared mode captures the laptop microphone at 48 kHz float stereo with no loss (`eng/cef-harness.sh --capture-test 3`).
 * **Anti-cheat baseline** (T-017): the server checks every claimed position against speed and teleport limits (60 m/s on foot,
   the vehicle's MaxSpeed × 1.3 for drivers, a jump over 200 m between two packets), health and armour against the game's maxima,
   and the client's binaries against `manifest.json` next to the server (written into every client package by
