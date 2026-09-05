@@ -66,6 +66,10 @@ rendering can only be verified in game by the owner.
 * **Merged 5 Sept**: the CEF menu follow-up (#17) after the owner's first run: the menu browser gets input (it was not in
   `CEFManager.Browsers`), stays alive while the classic menu is on top, is prepared during the game's loading; `rpc:` lines in
   `Runtime.log` for every hop of a client RPC — the auth page's RPC reached the host but no answer showed, cause not found yet.
+  Second follow-up (#18): a loading screen from the client's start until the game is ready (the menu page in a loading state),
+  and the RPC helper traces its own steps from JavaScript (`rpc: [js …]`); the owner's second run ended the trace at
+  `rpc: page #1 auth:login -> the server (auth)` — the helper never called the `send` delegate, nothing threw, and the same
+  call shape works in ClearScript outside the game. The next run's `rpc: [js auth] …` lines name the step.
 * **Merged 5 Sept**: T-013 the main menu on CEF (#12, `ui/menu`, `<CefMenu>` default true): servers (favourites, recent, LAN, master
   list), direct connect, settings, quit; NativeUI stays on the pause key and is the fallback. Synced into the owner's install; the
   in-game check is pending (task status "needs owner").
