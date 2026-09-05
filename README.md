@@ -58,6 +58,23 @@ into the JavaScript the game runs (`Server/Managers/TypeScriptBundler.cs`; cache
 needs Bun 1.4.x: `GTAN_BUN=<path>`, a copy in `<server>/runtime/bun/`, or `bun` on `PATH`. `Server/resources/freeroam` (client) and
 `Server/resources/tsdemo` (server) are the shipped examples; `types/README.md` explains the tsconfig files.
 
+## Write a gamemode
+
+```bash
+gtanetwork create mymode            # Tools/GTANetwork.Cli (published with every build): a resource skeleton in ./mymode
+cd mymode && bun install && bun run check
+```
+
+The skeleton is a complete resource in TypeScript: `meta.xml`; `server/index.ts` running in the Bun runtime next to the server
+(`export default function main(gtan)` — `gtan.api` is the whole server API with players and entities as handles, `gtan.on` the
+engine's events, `gtan.commands` the chat commands, `gtan.rpc` request/response calls, `gtan.players` a mirror of the players,
+`gtan.enums` the enum tables with `gtan.parseEnum`); `client/index.ts`, bundled by the server at resource start and run in the
+game as `API`; `ui/` — a CEF page talking to both scripts through `gtan.rpc.call`; `types/` with the typings the checks use,
+copied by the CLI so the folder needs nothing from this repository. Move the folder into `<server>/resources/`, add
+`<resource src="mymode" />` to `settings.xml` and start the server (it needs Bun: `GTAN_BUN`, `runtime/bun/`, or `PATH`); edit
+`server/index.ts` while it runs and the runtime reloads it. `Server/resources/freeroam` is the reference gamemode written this way,
+`eng/integration-test-template.sh` creates a resource with the CLI and drives it with the bot.
+
 ## How it works
 
 ### Client side (what happens when you press "Play")

@@ -1,0 +1,11 @@
+{
+  "name": "__NAME__",
+  "private": true,
+  "description": "A GTA Network resource in TypeScript (created by gtanetwork create).",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9"
+  }
+}

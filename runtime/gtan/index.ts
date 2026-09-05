@@ -6,6 +6,11 @@
 import type { Bridge } from "../bridge";
 import { players, type PlayerState } from "../state";
 import type { ServerApi } from "./api.generated";
+import * as Enums from "./enums.generated";
+import { enumName, parseEnum } from "./enums";
+
+export { parseEnum, enumName };
+export type { EnumTable } from "./enums.generated";
 
 export type EventHandler = (...args: any[]) => unknown | Promise<unknown>;
 export type CommandHandler = (player: number, ...args: string[]) => unknown | Promise<unknown>;
@@ -28,6 +33,8 @@ export class Gtan {
   readonly api: ServerApi;
   readonly players: ReadonlyMap<number, PlayerState> = players;
   readonly commands: { register(name: string, handler: CommandHandler, options?: { aliases?: string[] }): void; unregister(name: string): void };
+  /** The enums the server API uses, as runtime tables: gtan.enums.VehicleHash.Adder, gtan.enums.WeaponHash.CarbineRifle, ... */
+  readonly enums = Enums;
   /** Request/response calls (T-008). Names are global across resources: prefix them with the resource name ("shop:buy"). */
   readonly rpc: {
     /** Answers API.rpc.call(name, args) from client scripts and gtan.rpc.call from their CEF pages. Registering a name again replaces the handler. */
@@ -40,6 +47,8 @@ export class Gtan {
   private commandTable = new Map<string, CommandHandler>();
   private rpcTable = new Map<string, { handler: RpcHandler; options?: RpcOptions }>();
   private needsResult: Map<string, boolean>;
+  private disposed = false;
+  private disposedCallsLogged = 0;
 
   constructor(private bridge: Bridge, readonly resource: string, readonly dir: string, readonly settings: Record<string, string>, catalogue: Catalogue | null) {
     this.needsResult = new Map((catalogue?.functions ?? []).map((f) => [f.name, f.needsResult]));
@@ -47,7 +56,14 @@ export class Gtan {
     this.api = new Proxy({} as ServerApi, {
       get(_t, prop) {
         if (typeof prop !== "string") return undefined;
-        return (...args: unknown[]) => self.bridge.call(self.resource + "/" + prop, args, self.needsResult.get(prop) ?? true);
+        return (...args: unknown[]) => {
+          if (self.disposed) {
+            // the engine unloaded this resource (stop, or a gamemode replaced it) while code was still running: drop the call
+            if (self.disposedCallsLogged++ < 3) self.bridge.log(self.resource, "warn", "api." + prop + " called after the resource was unloaded; ignored");
+            return Promise.resolve(undefined);
+          }
+          return self.bridge.call(self.resource + "/" + prop, args, self.needsResult.get(prop) ?? true);
+        };
       },
     });
     this.commands = {
@@ -78,6 +94,11 @@ export class Gtan {
 
   /** The mirrored state of a player (by handle), or undefined when the engine has not sent it yet. */
   player(handle: number): PlayerState | undefined { return players.get(handle); }
+
+  /** "adder" | "Adder" | "-1216765807" → the enum value, or undefined: `gtan.parseEnum(gtan.enums.VehicleHash, args[0])`. */
+  parseEnum(table: Enums.EnumTable, text: string | number | undefined | null): number | undefined { return parseEnum(table, text); }
+  /** The canonical member name of a value ("Adder"), for messages. */
+  enumName(table: Enums.EnumTable, value: number): string { return enumName(table, value); }
 
   on(event: string, handler: EventHandler) { let set = this.handlers.get(event); if (!set) { set = new Set(); this.handlers.set(event, set); } set.add(handler); }
   off(event: string, handler: EventHandler) { this.handlers.get(event)?.delete(handler); }
@@ -129,6 +150,9 @@ export class Gtan {
     }
   }
 
-  /** Unload: forget handlers, commands and RPC handlers (the module instance is dropped by the loader). */
-  dispose() { this.handlers.clear(); this.commandTable.clear(); this.rpcTable.clear(); }
+  /** True once the engine unloaded this resource; api calls are dropped from then on. */
+  get isDisposed() { return this.disposed; }
+
+  /** Unload: forget handlers, commands and RPC handlers (the module instance is dropped by the loader); later api calls are ignored. */
+  dispose() { this.disposed = true; this.handlers.clear(); this.commandTable.clear(); this.rpcTable.clear(); }
 }

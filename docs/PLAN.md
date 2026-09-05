@@ -98,7 +98,8 @@ every millisecond or at 64 KB. (3) Runtime: `runtime/main.ts` loads every resour
 in one Bun process (trusted code, as C# resources are today), routes events to handlers, watches files for hot reload,
 restarts on crash (the engine keeps players connected; handlers see `onRuntimeRestarted`). (4) Client TS: bundled by the
 engine at resource start with `bun build` and delivered as today's JS (T-005, done 5 Sept 2026: `Server/Managers/TypeScriptBundler.cs`,
-IIFE bundle, hash cache, optional `tsc`). (5) A `gtanetwork create` template and
+IIFE bundle, hash cache, optional `tsc`). (5) `gtanetwork create` and freeroam in TypeScript (T-007, done 5 Sept 2026:
+`Tools/GTANetwork.Cli`, `templates/resource/`, `gtan.enums` + `parseEnum` in the runtime library). (5) A `gtanetwork create` template and
 `freeroam` ported (T-007). **Bun** is pinned in `runtime/.bun-version` (1.4.1 at the time of writing) and shipped with the
 server package for Linux and Windows (Bun is MIT-licensed, ~100 MB). **Numbers the spike had to reach** (T-006): one-way
 `call` ≤ 5 µs amortised, round trip p50 ≤ 60 µs / p99 ≤ 300 µs on the owner's machine, ≥ 200 000 one-way calls/s,

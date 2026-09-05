@@ -1,0 +1,11 @@
+<meta>
+  <!-- type="script" runs next to the gamemode; type="gamemode" would stop the running gamemode (the server keeps one) -->
+  <info name="__NAME__" author="" version="0.1" type="script" description="__NAME__: a GTA Network resource in TypeScript (created by gtanetwork create)." />
+  <!-- server/index.ts runs in the Bun runtime next to the server; client/index.ts is bundled by the server at start and runs in the game -->
+  <script src="server/index.ts" type="server" lang="typescript" />
+  <script src="client/index.ts" type="client" lang="typescript" />
+  <!-- files the clients download: the CEF page the client script opens with /panel -->
+  <file src="ui/index.html" />
+  <file src="ui/style.css" />
+  <file src="ui/app.js" />
+</meta>

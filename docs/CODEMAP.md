@@ -149,7 +149,8 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 | `Launcher/Deployment.cs`, `GamePatcher.cs`, `Steam.cs`, `Vdf.cs`, `Paths.cs`, `GameProcess.cs`, `Log.cs`, `HitchMonitor.cs` | Deploy/restore of mod files, GTA V settings patching, Steam library/Proton/prefix detection, install paths, process lookup by `/proc`, logging, the `--debug` system monitor. |
 | `Tools/GTANetwork.Bot/Program.cs` | Options (`--host`, `--port`, `--name`, `--password`, `--say`, `--expect`, `--duration`, `--no-sync`, `--discover`, `--download-files`, `-i`), one Lidgren connection, the protocol handshake and sync loop, chat assertions. Also compiles `Shv.NET/ref/Core/NativeHashes.g.cs`. |
 | `Map2Resource/` | Map Editor XML → resource. |
-| `runtime/main.ts`, `bridge.ts`, `msgpack.ts`, `state.ts`, `resources.ts`, `gtan/index.ts`, `gtan/api.generated.d.ts` | The Bun runtime: connects to the engine, loads each TypeScript resource's `default function main(gtan)`, dispatches events and commands, mirrors player state, hot-reloads on file changes; `gtan.api` is typed from the generated declarations. Shipped as `runtime/` next to the server. |
+| `Tools/GTANetwork.Cli/Program.cs`, `templates/resource/**` | `gtanetwork create <name>`: copies the template resource (`meta.xml`, `server/index.ts`, `client/index.ts`, `ui/`, `package.json`, `types/gtan.d.ts`) with `__NAME__` replaced and the typings (`types/*.d.ts`, `runtime/gtan/*.generated.*`) into a self-contained folder. Published for Linux and Windows. |
+| `runtime/main.ts`, `bridge.ts`, `msgpack.ts`, `state.ts`, `resources.ts`, `gtan/index.ts`, `gtan/enums.ts`, `gtan/api.generated.d.ts`, `gtan/enums.generated.ts` | The Bun runtime: connects to the engine, loads each TypeScript resource's `default function main(gtan)`, dispatches events and commands, mirrors player state, hot-reloads on file changes; `gtan.api` is typed from the generated declarations. Shipped as `runtime/` next to the server. |
 | `Tools/GTANetwork.BridgeBench/Program.cs`, `runtime/bench/bench.ts`, `eng/bench-bridge.sh` | The engine ⇄ Bun bridge benchmark (T-006 stage 1): frame protocol `u32 length + msgpack [type, id, name, payload]`, one-way/round-trip/state-mirror measurements over a Unix socket and loopback TCP. `runtime/.bun-version` pins Bun. |
 
 ## 8. Network protocol (server ⇄ client)
@@ -218,8 +219,8 @@ game → page `Browser.eval/call` (:1137/:1143). `gtan.rpc.call(name, args)` →
 **meta.xml** (schema `Server/ResourceInfo.cs:688+`): `<info name author version type={script|gamemode|map} …/>`,
 `<script src type={server|client} lang={javascript|typescript|csharp|vbasic|compiled}/>`, `<file src/>`, `<assembly ref/>`,
 `<include resource/>`, `<map src dimension/>`, `<export class function event/>`, `<acl src/>`, `<settings>`, `<config src type/>`.
-Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (C# gamemode + `client/index.ts`; RPC `freeroam:ping`,
-`freeroam:secret`), `auth` (accounts, PBKDF2, CEF login page `ui/index.html` + `ui/app.js` calling `auth:login` / `auth:register`
+Shipped resources: `Server/resources/example` (C# `/hello`), `freeroam` (the reference gamemode, TypeScript on both sides:
+`server/index.ts` on the Bun runtime + `client/index.ts`; RPC `freeroam:ping`, `freeroam:secret`), `auth` (accounts, PBKDF2, CEF login page `ui/index.html` + `ui/app.js` calling `auth:login` / `auth:register`
 over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo`).
 
 ## 10. Master list, voice, anti-cheat, DLC — what exists
