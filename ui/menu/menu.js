@@ -43,7 +43,7 @@
           '<div><div class="name">' + (row.passworded ? '<span class="lock" title="password">&#128274;</span>' : "") + esc(row.name) + '</div><div class="addr">' + esc(row.address) + "</div></div>" +
           '<div class="mode">' + mode + "</div>" +
           '<div class="players">' + players + "</div>" +
-          '<div class="where">' + esc(where(row)) + "</div>" +
+          '<div class="where">' + esc(where(row)) + (row.pinned ? ' <span title="the master list knows this server\'s key: the connection is pinned">&#128274;</span>' : "") + (row.version ? '<div class="addr">' + esc(row.version) + "</div>" : "") + "</div>" +
           '<button class="star' + (row.favorite ? " on" : "") + '" data-fav="' + esc(row.address) + '" title="' + (row.favorite ? "Remove from favourites" : "Add to favourites") + '">&#9733;</button>' +
           "</div>";
       }).join("");

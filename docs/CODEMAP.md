@@ -152,6 +152,7 @@ Design, measurements and the history: `docs/CEF-UPGRADE.md`.
 | `Map2Resource/` | Map Editor XML → resource. |
 | `Tools/GTANetwork.Cli/Program.cs`, `templates/resource/**` | `gtanetwork create <name>`: copies the template resource (`meta.xml`, `server/index.ts`, `client/index.ts`, `ui/`, `package.json`, `types/gtan.d.ts`) with `__NAME__` replaced and the typings (`types/*.d.ts`, `runtime/gtan/*.generated.*`) into a self-contained folder. Published for Linux and Windows. |
 | `runtime/main.ts`, `bridge.ts`, `msgpack.ts`, `state.ts`, `resources.ts`, `gtan/index.ts`, `gtan/enums.ts`, `gtan/api.generated.d.ts`, `gtan/enums.generated.ts` | The Bun runtime: connects to the engine, loads each TypeScript resource's `default function main(gtan)`, dispatches events and commands, mirrors player state, hot-reloads on file changes; `gtan.api` is typed from the generated declarations. Shipped as `runtime/` next to the server. |
+| `Tools/GTANetwork.Master/` (`Program.cs`, `Db.cs`, `Dockerfile`, `README.md`, `tests/announce.sh`) | The master list (T-011): ASP.NET Core minimal API on .NET 10, SQLite (`Microsoft.Data.Sqlite`) in `MASTER_DATA`. `POST /addserver` takes the server's announce (`MasterServerAnnounce` with `Token` and `PublicKey`), pings the announced UDP port with a Lidgren discovery request before listing (skipped with `MASTER_PING=0`), and lets the first token keep its address (403 for another token, 429 for announces closer than 10 s); `GET /servers`, `/verified`, `/stats`, `/welcome.json` keep the 2016 shapes, `GET /servers/full` returns the rich rows, `/health` for monitoring; entries expire after `MASTER_TTL_SECONDS`, `verified.txt` in the data directory marks verified servers. Published for Linux and as a Docker image. |
 | `Tools/GTANetwork.BridgeBench/Program.cs`, `runtime/bench/bench.ts`, `eng/bench-bridge.sh` | The engine ⇄ Bun bridge benchmark (T-006 stage 1): frame protocol `u32 length + msgpack [type, id, name, payload]`, one-way/round-trip/state-mirror measurements over a Unix socket and loopback TCP. `runtime/.bun-version` pins Bun. |
 
 ## 8. Network protocol (server ⇄ client)
@@ -236,10 +237,14 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
 
 ## 10. Master list, voice, anti-cheat, DLC — what exists
 
-* **Master list**: server announce `POST <master>/addserver` (`Server/GameServer.cs:263`, address hardcoded at :115,
-  `announce=false` shipped); client `GET /welcome.json`, `/servers`, `/verified`, `/stats` in `Client/Main/Menu.cs`
-  when `PlayerSettings.MasterServerAddress` is set (empty by default). The classic launcher's updater endpoints
-  (`Subprocess/GTANSubprocess/EntryPoint.cs`, `PlayGTANetworkUpdater/Program.cs`) point at the dead master.
+* **Master list**: `Tools/GTANetwork.Master` (T-011, §7). Server: `AnnounceSelfToMaster` in `Server/GameServer.cs` posts to
+  `<master>/addserver` every 60 s when `settings.xml` has `<announce>true</announce>` and a `<master>` address (the 2016
+  `master.gtanet.work` is gone; empty = no announce), with `PublicKey` (T-009) and the token from `master.token` next to the
+  server (created at the first announce); the master's answer is logged. Client: `RebuildServerBrowser` in `Client/Main/Menu.cs`
+  reads `/welcome.json`, `/servers`, `/verified`, `/stats` and `/servers/full` when `PlayerSettings.MasterServerAddress` is set
+  (empty by default — Q-07, the owner's domain); `CefMenu.OnMasterList` shows the rows and `CefMenu.Connect` pins the listed
+  server's key. The classic launcher's updater endpoints (`Subprocess/GTANSubprocess/EntryPoint.cs`,
+  `PlayGTANetworkUpdater/Program.cs`) still point at the dead master (Q-13).
 * **Voice**: none (only the CEF `getUserMedia` switch, `Shared/CefLaunch.cs` `mediaStream`).
 * **Anti-cheat**: native allow-list (`Client/Util/NativeWhitelist.cs`), download MIME allow-list and sniffing, path
   traversal guards, server ACL/bans/whitelist/minimum version; the client integrity check is compiled out
@@ -251,7 +256,7 @@ over `gtan.rpc.call`), `tsdemo` (TypeScript on the Bun runtime; RPC `tsdemo:echo
 `.github/workflows/build.yml`: jobs `linux` (build, publish, smoke test, bot integration tests, artifacts), `windows`
 (SHVDN C++/CLI, client package with page-aligned `cef\`, NSIS installer), `release` (dispatch with `release_tag` or a
 `v*` tag; notes from `CHANGELOG.md`). `eng/`: `version.sh`, `smoke-test-server.sh`, `integration-test.sh`,
-`integration-test-auth.sh`, `dev-test.sh`, `dev-build-client.sh`, `dev-sync-client.sh`, `package-client.ps1`,
+`integration-test-auth.sh`, `integration-test-template.sh`, `integration-test-master.sh`, `dev-test.sh`, `dev-build-client.sh`, `dev-sync-client.sh`, `package-client.ps1`,
 `pe-realign.py`, `cef-harness.sh`, `setup-linux.sh`. Tests: no unit-test project; the shell-driven tests above and the
 CEF harness (`docs/agents/testing.md`). Dev container: `.devcontainer/`, `docker-compose.yml` (`docs/DEVCONTAINER.md`).
 

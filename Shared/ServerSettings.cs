@@ -24,6 +24,10 @@ namespace GTANetworkShared
 
         [XmlElement("announce")]
         public bool Announce { get; set; }
+
+        /// <summary>The master list to announce to (Tools/GTANetwork.Master), e.g. https://master.example.org; empty = announce nowhere (T-011).</summary>
+        [XmlElement("master")]
+        public string MasterServer { get; set; }
         
         [XmlElement("upnp")]
         public bool UseUPnP { get; set; }
@@ -102,6 +106,7 @@ namespace GTANetworkShared
             Password = "";
             LogToFile = true;
             Announce = true;
+            MasterServer = "";
             UseACL = true;
             AnnounceToLan = true;
             AutoUpdateMinClientVersion = true;
